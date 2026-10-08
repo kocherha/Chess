@@ -1,0 +1,9 @@
+[submodule "third-party/axmol"]
+	path = third-party/axmol
+	url = https://github.com/axmolengine/axmol.git
+[submodule "third-party/Stockfish"]
+	path = third-party/Stockfish
+	url = https://github.com/official-stockfish/Stockfish.git
+[submodule "third-party/googletest"]
+	path = third-party/googletest
+	url = https://github.com/google/googletest.git
