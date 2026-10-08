@@ -19,6 +19,10 @@ cmake_minimum_required(VERSION 3.22...4.1)
 set(APP_NAME Chess)
 project(${APP_NAME})
 
+# What macOS knows the app by. It names the bundle, and the folder under
+# ~/Library/Application Support where the game keeps its settings.
+set(CHESS_BUNDLE_ID "dev.chess.app")
+
 if(XCODE)
   set(CMAKE_XCODE_GENERATE_TOP_LEVEL_PROJECT_ONLY TRUE)
 endif()
@@ -31,6 +35,9 @@ chess_setup_axmol("$ENV{AX_ROOT}")
 set(_is_axmol_embed FALSE)
 set(_AX_USE_PREBUILT FALSE)
 
+# cmake/modules/ is axmol 2.9.1's game template, the part every axmol app
+# carries with it. It still has the template's branches for Android, iOS and
+# Windows; this project has sources for macOS and Linux only.
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules)
 
 # The next three blocks are toolchain workarounds for axmol 2.9.1, each of them
@@ -105,6 +112,7 @@ include(AXGameTargetSetup)
 ax_setup_app_config(${APP_NAME})
 
 target_link_libraries(${APP_NAME} chess_rules chess_uci)
+target_compile_definitions(${APP_NAME} PRIVATE CHESS_BUNDLE_ID="${CHESS_BUNDLE_ID}")
 chess_sanitize(${APP_NAME})
 
 # The template's Info.plist takes the bundle id from an Xcode build setting,
@@ -112,7 +120,7 @@ chess_sanitize(${APP_NAME})
 # Ninja and Makefile builds produce a bundle with a real identifier.
 if(APPLE)
   set_target_properties(${APP_NAME} PROPERTIES
-    MACOSX_BUNDLE_GUI_IDENTIFIER "dev.chess.app"
+    MACOSX_BUNDLE_GUI_IDENTIFIER "${CHESS_BUNDLE_ID}"
     MACOSX_BUNDLE_BUNDLE_NAME    "Chess"
     MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
   )

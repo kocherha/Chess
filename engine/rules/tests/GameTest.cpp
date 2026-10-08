@@ -180,3 +180,97 @@ TEST(Game, SpeaksUci) {
     ASSERT_TRUE(promoted.playUci("e7e8q"));
     EXPECT_EQ(promoted.uciPosition(), "position fen 8/4P1k1/8/8/8/8/8/4K3 w - - 0 1 moves e7e8q");
 }
+
+// --- writing a game down -----------------------------------------------------------
+
+TEST(Game, PgnOfAFinishedGame) {
+    Game game;
+    for (const char* san : {"e4", "e5", "Qh5", "Nc6", "Bc4", "Nf6", "Qxf7#"})
+        ASSERT_TRUE(game.playSan(san)) << san;
+
+    PgnTags tags;
+    tags.event = "Casual game";
+    tags.date  = "2026.10.09";
+    tags.white = "Player";
+    tags.black = "Stockfish";
+
+    EXPECT_EQ(game.result(), "1-0");
+    EXPECT_EQ(game.pgn(tags), "[Event \"Casual game\"]\n"
+                              "[Site \"?\"]\n"
+                              "[Date \"2026.10.09\"]\n"
+                              "[Round \"-\"]\n"
+                              "[White \"Player\"]\n"
+                              "[Black \"Stockfish\"]\n"
+                              "[Result \"1-0\"]\n"
+                              "\n"
+                              "1. e4 e5 2. Qh5 Nc6 3. Bc4 Nf6 4. Qxf7# 1-0\n");
+}
+
+TEST(Game, PgnOfAGameInProgressAndOfADraw) {
+    Game game;
+    ASSERT_TRUE(game.playSan("d4"));
+    EXPECT_EQ(game.result(), "*");
+    // Nothing is known about who is playing: every tag says so.
+    EXPECT_NE(game.pgn().find("[White \"?\"]"), std::string::npos);
+    EXPECT_NE(game.pgn().find("[Date \"????.??.??\"]"), std::string::npos);
+    EXPECT_NE(game.pgn().find("\n1. d4 *\n"), std::string::npos);
+
+    game.resign(Color::White);
+    EXPECT_EQ(game.result(), "0-1");
+
+    Game drawn = from("7k/5Q2/8/8/8/8/8/K7 w - - 0 1");
+    ASSERT_TRUE(drawn.playSan("Qg6"));
+    EXPECT_EQ(drawn.status().outcome, Outcome::Stalemate);
+    EXPECT_EQ(drawn.result(), "1/2-1/2");
+}
+
+TEST(Game, PgnFromASetUpPositionWithBlackToMove) {
+    Game game = from("4k3/8/8/8/8/8/4P3/4K3 b - - 0 12");
+    ASSERT_TRUE(game.playSan("Kd7"));
+    ASSERT_TRUE(game.playSan("e4"));
+    ASSERT_TRUE(game.playSan("Kc6"));
+
+    const std::string pgn = game.pgn();
+    EXPECT_NE(pgn.find("[SetUp \"1\"]\n[FEN \"4k3/8/8/8/8/8/4P3/4K3 b - - 0 12\"]\n"), std::string::npos);
+    // Black's move comes first, so it carries its own number.
+    EXPECT_NE(pgn.find("\n12... Kd7 13. e4 Kc6 *\n"), std::string::npos);
+}
+
+TEST(Game, PgnLinesAreNoLongerThanEighty) {
+    // The Opera game again: long enough to need three lines.
+    Game game;
+    for (const char* san : {"e4",   "e5",   "Nf3",  "d6",   "d4",    "Bg4",  "dxe5", "Bxf3", "Qxf3",
+                            "dxe5", "Bc4",  "Nf6",  "Qb3",  "Qe7",   "Nc3",  "c6",   "Bg5",  "b5",
+                            "Nxb5", "cxb5", "Bxb5+", "Nbd7", "O-O-O", "Rd8",  "Rxd7", "Rxd7", "Rd1",
+                            "Qe6",  "Bxd7+", "Nxd7", "Qb8+", "Nxb8",  "Rd8#"})
+        ASSERT_TRUE(game.playSan(san)) << san;
+
+    const std::string pgn   = game.pgn();
+    const std::string moves = pgn.substr(pgn.find("\n\n") + 2);
+    EXPECT_EQ(moves, "1. e4 e5 2. Nf3 d6 3. d4 Bg4 4. dxe5 Bxf3 5. Qxf3 dxe5 6. Bc4 Nf6 7. Qb3 Qe7\n"
+                     "8. Nc3 c6 9. Bg5 b5 10. Nxb5 cxb5 11. Bxb5+ Nbd7 12. O-O-O Rd8 13. Rxd7 Rxd7\n"
+                     "14. Rd1 Qe6 15. Bxd7+ Nxd7 16. Qb8+ Nxb8 17. Rd8# 1-0\n");
+
+    std::size_t start = 0;
+    while (start < pgn.size()) {
+        const std::size_t end = pgn.find('\n', start);
+        ASSERT_NE(end, std::string::npos);  // the last line ends with one too
+        EXPECT_LE(end - start, 80u);
+        start = end + 1;
+    }
+}
+
+TEST(Game, PgnEscapesQuotesInNames) {
+    PgnTags tags;
+    tags.white = "The \"Duke\"";
+    EXPECT_NE(Game().pgn(tags).find("[White \"The \\\"Duke\\\"\"]"), std::string::npos);
+}
+
+TEST(Game, PgnCarriesMarks) {
+    Game game;
+    for (const char* san : {"f3", "e5", "g4", "Qh4#"})
+        ASSERT_TRUE(game.playSan(san)) << san;
+    // One per move; a list that is too short simply runs out.
+    const std::string pgn = game.pgn({}, {"?!", "", "??"});
+    EXPECT_NE(pgn.find("\n1. f3?! e5 2. g4?? Qh4# 0-1\n"), std::string::npos);
+}

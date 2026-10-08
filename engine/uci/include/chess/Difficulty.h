@@ -54,7 +54,8 @@ std::vector<std::pair<std::string, std::string>> fullStrengthOptions(unsigned ha
 
 // Options for the engine that only watches: full strength, so that what it
 // says about a position is true whatever level is being played, but on a
-// single thread — it runs after every move and must not be what the fan is for.
+// single thread — it runs after every move and must not be what the fan is
+// for. It reports its two best moves, which judging a move needs (Judge.h).
 std::vector<std::pair<std::string, std::string>> analysisOptions();
 
 }  // namespace chess

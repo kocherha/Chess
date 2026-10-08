@@ -33,6 +33,14 @@ struct Status {
     bool drawn() const { return over() && !winner.has_value(); }
 };
 
+// The names a game is written down under. Anything left empty is recorded as
+// unknown ("?"), which is what the format asks for.
+struct PgnTags {
+    std::string event, site;
+    std::string date;  // "2026.10.09"
+    std::string white, black;
+};
+
 class Game {
 public:
     struct Record {
@@ -68,6 +76,16 @@ public:
     // The game as a UCI `position` command, moves and all, so that the engine
     // sees the same history we do and can count repetitions itself.
     std::string uciPosition() const;
+
+    // "1-0", "0-1", "1/2-1/2", or "*" while it is still being played.
+    std::string result() const;
+
+    // The game in PGN, the format every chess program reads: the seven standard
+    // tags, the starting position if it was not the usual one, and the moves in
+    // English notation, in lines of at most eighty characters. `marks`, if
+    // given, are written after the moves they belong to ("Nxe5!!", "Qh5?"): one
+    // for each move, empty where there is nothing to say.
+    std::string pgn(const PgnTags& tags = {}, const std::vector<std::string>& marks = {}) const;
 
     // The pieces of `color` that have been captured so far, most valuable
     // first.

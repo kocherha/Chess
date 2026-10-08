@@ -11,6 +11,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <ctime>
 #include <thread>
 
 using namespace ax;
@@ -60,8 +61,31 @@ constexpr int kAnalysisDepth = 22;
 // than this is shown unless it is all there will ever be.
 constexpr int kAnalysisMinDepth = 6;
 
+// Marking moves. A position the game left before the engine had looked this
+// deep is looked at again later, for at most this long; and no mark is made
+// from anything shallower than kMarkDepth, finished or not.
+constexpr int kReviewDepth = 18;
+constexpr int kReviewMs    = 800;
+constexpr int kMarkDepth   = 14;
+
 // The pause before a reply that needed no thinking.
 constexpr float kReplyPause = 0.45f;
+
+// How long "copied" stays up after something has been put on the clipboard.
+constexpr float kCopiedSeconds = 1.6f;
+
+// How many rows of the move list one unit of scrolling is worth. The unit is
+// whatever the system reports, and the systems do not agree. A wheel on Linux
+// or Windows sends 1 for each notch, and a notch should move a couple of
+// rows. macOS sends a stream of small numbers — from a trackpad, a tenth of
+// each point the fingers travel, and then more as the gesture coasts — so
+// there a unit is ten points of movement, which is two fifths of a row: the
+// list keeps pace with the fingers, as it would in any other window.
+#if (AX_TARGET_PLATFORM == AX_PLATFORM_MAC)
+constexpr float kRowsPerScrollUnit = 0.4f;
+#else
+constexpr float kRowsPerScrollUnit = 2.0f;
+#endif
 
 unsigned hardwareThreads() {
     return std::thread::hardware_concurrency();
@@ -105,7 +129,8 @@ bool GameScene::init() {
     _bottom = PlayerBar::create();
     _panel  = SidePanel::create();
     _dialog = NewGameDialog::create();
-    _looks  = LookDialog::create();
+    _looks   = LookDialog::create();
+    _confirm = ConfirmDialog::create();
     addChild(_board, 1);
     addChild(_evalBar, 1);
     addChild(_top, 1);
@@ -113,15 +138,18 @@ bool GameScene::init() {
     addChild(_panel, 2);
     addChild(_dialog, 10);
     addChild(_looks, 10);
+    addChild(_confirm, 11);  // it can be asked over either of the others
 
     _panel->looks->onClick   = [this] { openLooks(); };
+    _panel->copy->onClick    = [this] { copyGame(); };
+    _panel->onMoveClicked    = [this](int index) { copyMove(index); };
     _panel->newGame->onClick = [this] { openNewGame(); };
     _panel->undo->onClick    = [this] { undo(); };
     _panel->hint->onClick    = [this] { askHint(); };
     _panel->flip->onClick    = [this] { flip(); };
     _panel->resign->onClick  = [this] { resign(); };
-    for (Button* button :
-         {_panel->looks, _panel->newGame, _panel->undo, _panel->hint, _panel->flip, _panel->resign})
+    for (Button* button : {_panel->looks, _panel->copy, _panel->newGame, _panel->undo, _panel->hint,
+                           _panel->flip, _panel->resign})
         _buttons.add(button);
 
     _looks->onChange = [this] { restyle(); };
@@ -137,9 +165,10 @@ bool GameScene::init() {
             _dialog->close();
     };
 
-    // One mouse listener for the whole scene. Who a click belongs to — the
-    // dialog, a button, the promotion column, the board — is decided here, in
-    // that order, instead of by whichever node happened to hear it first.
+    // One mouse listener for the whole scene. Who a click belongs to — an
+    // open dialog, a button, the promotion column, the board — is decided
+    // here, in that order, instead of by whichever node happened to hear it
+    // first.
     auto* mouse        = EventListenerMouse::create();
     mouse->onMouseDown = [this](EventMouse* event) {
         if (event->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
@@ -156,13 +185,13 @@ bool GameScene::init() {
         return true;
     };
     mouse->onMouseScroll = [this](EventMouse* event) {
-        keepAwake();
-        if (modal() != nullptr)
+        // The wheel belongs to the move list, and only while the pointer is
+        // over it. Anywhere else there is nothing to scroll.
+        if (modal() != nullptr || !_panel->overList(event->getLocation()))
             return true;
         // Wheel up is negative here; up means "earlier moves".
-        const float amount = event->getScrollY();
-        if (amount != 0.0f)
-            _panel->scroll(amount < 0.0f ? 2 : -2);
+        if (_panel->scroll(-event->getScrollY() * kRowsPerScrollUnit))
+            keepAwake();
         return true;
     };
     _eventDispatcher->addEventListenerWithSceneGraphPriority(mouse, this);
@@ -185,6 +214,12 @@ bool GameScene::init() {
     whenWindow(RenderViewImpl::EVENT_WINDOW_POSITIONED, [this](EventCustom*) { keepAwake(); });
     whenWindow(RenderViewImpl::EVENT_WINDOW_FOCUSED, [this](EventCustom*) { keepAwake(); });
     whenWindow(RenderViewImpl::EVENT_WINDOW_RESIZED, [this](EventCustom*) { onWindowResized(); });
+    // The close button, Cmd+Q, the window manager: all of them arrive here
+    // carrying a flag that says "yes, close", which a listener may turn off.
+    whenWindow(RenderViewImpl::EVENT_WINDOW_CLOSE, [this](EventCustom* event) {
+        if (auto* closing = static_cast<bool*>(event->getUserData()))
+            askBeforeQuitting(*closing);
+    });
 #endif
 
     startEngine();
@@ -309,6 +344,9 @@ void GameScene::startGame(const GameSetup& setup) {
     _replyPending = false;
     _hintWanted   = false;
     _replies.clear();
+    _findings.clear();
+    _marks.clear();
+    _searchKey.clear();
 
     // The command line may have asked for a particular start. That is honoured
     // once, for the first game; "new game" after it means a new game.
@@ -494,18 +532,78 @@ void GameScene::pollEngine() {
 
 // --- the engine that watches -------------------------------------------------------
 
+// The key of every position the game has been through, in order. The same
+// text the engine is given, so the last one is Game::uciPosition().
+void GameScene::rekey() {
+    _keys.clear();
+    std::string key = "position ";
+    if (_game.startPosition() == Position::initial())
+        key += "startpos";
+    else
+        key += "fen " + _game.startPosition().fen();
+    _keys.push_back(key);
+
+    bool first = true;
+    for (const Game::Record& record : _game.history()) {
+        key += first ? " moves " : " ";
+        key += record.move.uci();
+        first = false;
+        _keys.push_back(key);
+    }
+}
+
+const GameScene::Finding* GameScene::found(const std::string& key) const {
+    const auto it = _findings.find(key);
+    return it == _findings.end() ? nullptr : &it->second;
+}
+
+// Deep enough to judge a move by?
+bool GameScene::usable(const Finding* finding) const {
+    return finding != nullptr && finding->score.known() && finding->depth >= kMarkDepth;
+}
+
+void GameScene::note(const SearchResult& result, bool complete) {
+    if (_searchKey.empty() || (!result.scoreCp && !result.mateIn))
+        return;
+    Finding& finding = _findings[_searchKey];
+    if (!complete && (finding.complete || result.depth < finding.depth))
+        return;  // what is already known is better
+
+    finding.depth    = result.depth;
+    finding.complete = complete;
+    finding.score    = Score{result.scoreCp, result.mateIn};
+    finding.best     = !result.bestMove.empty() ? result.bestMove : result.pvMove;
+    finding.second.reset();
+    if ((result.secondCp || result.secondMate) && result.secondDepth >= result.depth - 1)
+        finding.second = Score{result.secondCp, result.secondMate};
+}
+
+// A search is about to be abandoned: whatever it has found so far is still
+// worth having.
+void GameScene::keepWhatWasFound() {
+    SearchResult result;
+    if (_analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag)
+        note(result, false);
+}
+
 void GameScene::analyse() {
+    keepWhatWasFound();
     _analysis.cancel();
     _analysisTag  = 0;
     _analysisDone = false;
     _analysisBest.clear();
+    _searchKey.clear();
+
+    rekey();
+    judgeMoves();
 
     if (!_started) {
         _evalBar->show({});
         return;
     }
 
-    // A finished game needs no opinion: the result is the evaluation.
+    // A finished game needs no opinion: the result is the evaluation. The
+    // moves that led to it may still be waiting for theirs.
     const Status status = _game.status();
     if (status.over()) {
         EvalBar::Score score;
@@ -513,35 +611,120 @@ void GameScene::analyse() {
                      : *status.winner == Color::White ? EvalBar::Score::Kind::WhiteWon
                                                       : EvalBar::Score::Kind::BlackWon;
         _evalBar->show(score);
+        reviewNext();
         return;
     }
 
     if (!analysisUsable())
         return;
 
+    // Been here before — a move was taken back? Then it is already known.
+    if (const Finding* known = found(_keys.back()); known != nullptr && known->complete) {
+        _analysisDone = true;
+        _analysisBest = known->best;
+        showScore(known->score);
+        if (_hintWanted)
+            showHint();
+        reviewNext();
+        return;
+    }
+
     // The bar keeps showing the previous position's score until this one has
     // something to say. One move rarely changes the picture much, and a bar
     // that jumped back to the middle after every move would be all flicker.
     SearchRequest request;
-    request.position   = _game.uciPosition();
+    request.position   = _keys.back();
     request.moveTimeMs = kAnalysisMs;
     request.depth      = kAnalysisDepth;
     request.options    = analysisOptions();
     request.tag = _analysisTag = _nextTag++;
+    _searchKey = _keys.back();
     _analysis.search(std::move(request));
 }
 
-void GameScene::showScore(const SearchResult& result) {
+// With nothing more urgent to look at, the engine goes back over the game:
+// the most recent position it did not get a proper look at, then the one
+// before. A move is marked as soon as the positions either side of it are in.
+void GameScene::reviewNext() {
+    if (!analysisUsable() || _analysisTag != 0 || !_started)
+        return;
+
+    // The last position of a game that ended on the board is judged without
+    // an engine (see judgeMoves); after a resignation it is a position like
+    // any other.
+    const Status status = _game.status();
+    const bool   settled = status.over() && status.outcome != Outcome::Resignation;
+
+    for (std::size_t i = _keys.size(); i-- > 0;) {
+        if (i + 1 == _keys.size() && settled)
+            continue;
+        const Finding* known = found(_keys[i]);
+        if (known != nullptr && (known->complete || known->depth >= kReviewDepth))
+            continue;
+
+        SearchRequest request;
+        request.position   = _keys[i];
+        request.moveTimeMs = kReviewMs;
+        request.depth      = kReviewDepth;
+        request.options    = analysisOptions();
+        request.tag = _analysisTag = _nextTag++;
+        _searchKey = _keys[i];
+        _analysis.search(std::move(request));
+        return;
+    }
+}
+
+void GameScene::judgeMoves() {
+    const auto& history = _game.history();
+    std::vector<Mark> marks(history.size(), Mark::None);
+
+    // The last position of a game that ended on the board needs no engine: a
+    // side that has been mated has no chances left, and a draw is a draw.
+    std::optional<Score> ending;
+    const Status status = _game.status();
+    if (status.outcome == Outcome::Checkmate)
+        ending = Score{std::nullopt, 0};
+    else if (status.over() && status.outcome != Outcome::Resignation)
+        ending = Score{0, std::nullopt};
+
+    for (std::size_t i = 0; i < history.size() && i + 1 < _keys.size(); ++i) {
+        const Finding* before = found(_keys[i]);
+        if (!usable(before))
+            continue;
+
+        Evidence evidence;
+        evidence.best     = before->score;
+        evidence.bestMove = before->best;
+        evidence.second   = before->second;
+        if (i + 1 == history.size() && ending) {
+            evidence.after = *ending;
+        } else {
+            const Finding* after = found(_keys[i + 1]);
+            if (!usable(after))
+                continue;
+            evidence.after = after->score;
+        }
+        marks[i] = judge(history[i].before, history[i].move, evidence, i > 0 ? &history[i - 1].move : nullptr);
+    }
+
+    if (marks != _marks) {
+        _marks = std::move(marks);
+        showMoves();
+        refreshMarks();
+    }
+}
+
+void GameScene::showScore(const Score& found) {
     // The engine scores for whoever is to move; the bar is always white's view.
     const int sign = _game.position().sideToMove() == Color::White ? 1 : -1;
 
     EvalBar::Score score;
-    if (result.mateIn && *result.mateIn != 0) {
+    if (found.mate && *found.mate != 0) {
         score.kind  = EvalBar::Score::Kind::Mate;
-        score.value = sign * *result.mateIn;
-    } else if (result.scoreCp) {
+        score.value = sign * *found.mate;
+    } else if (found.cp) {
         score.kind  = EvalBar::Score::Kind::Centipawns;
-        score.value = sign * *result.scoreCp;
+        score.value = sign * *found.cp;
     } else {
         return;
     }
@@ -550,23 +733,35 @@ void GameScene::showScore(const SearchResult& result) {
 
 void GameScene::pollAnalysis() {
     SearchResult result;
+    // Is the search in progress about the position on the board, or one of
+    // the earlier ones being gone back over?
+    const auto onBoard = [this] {
+        return !_keys.empty() && _searchKey == _keys.back() && !_game.status().over();
+    };
 
-    // While it is still looking: follow along.
-    if (_analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag &&
+    // While it is still looking at the position on the board: follow along.
+    if (onBoard() && _analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag &&
         result.depth >= kAnalysisMinDepth) {
-        showScore(result);
+        showScore(Score{result.scoreCp, result.mateIn});
     }
 
     while (_analysis.poll(result)) {
         if (_analysisTag == 0 || result.tag != _analysisTag)
             continue;
-        _analysisTag  = 0;
-        _analysisDone = true;
-        _analysisBest = result.bestMove;
-        showScore(result);
-        if (_hintWanted)
-            showHint();
+        _analysisTag = 0;
+        note(result, true);
+
+        if (onBoard()) {
+            _analysisDone = true;
+            _analysisBest = result.bestMove;
+            showScore(Score{result.scoreCp, result.mateIn});
+            if (_hintWanted)
+                showHint();
+        }
+        _searchKey.clear();
+        judgeMoves();
         refresh();
+        reviewNext();
     }
 
     // The bar is only on screen while there is an engine behind it. If that
@@ -599,7 +794,7 @@ void GameScene::update(float delta) {
     }
 
     Launch& options = launch();
-    if (options.autoplayGames > 0 && _started && !_dialog->isOpen()) {
+    if (options.autoplayGames > 0 && _started && modal() == nullptr) {
         if (_game.status().over()) {
             AXLOGI("autoplay: {} after {} plies", text::verdict(_game.status(), std::nullopt).headline,
                    _game.plies());
@@ -614,6 +809,14 @@ void GameScene::update(float delta) {
 
     const bool barMoving = _evalBar->step(delta);
 
+    if (_copiedFor > 0.0f) {
+        _copiedFor -= delta;
+        if (_copiedFor <= 0.0f) {
+            _panel->copy->setText(text::kCopyAll);
+            _panel->markMove(-1);
+        }
+    }
+
     // Is anything going to change without the player touching anything? Each
     // of these is a reason to keep drawing, and the list has to be complete:
     // once the game is asleep only the window can wake it.
@@ -627,6 +830,8 @@ void GameScene::update(float delta) {
         {barMoving, "the evaluation bar is moving"},
         {_board->animating(), "a piece is moving"},
         {_pressed, "the mouse button is down"},
+        {_panel->dragging(), "the move list is being dragged"},
+        {_copiedFor > 0.0f, "the \"copied\" notice is up"},
         {_engine.state() == Engine::State::Starting, "the opponent is starting"},
         {_analysis.state() == Engine::State::Starting, "the analysis engine is starting"},
         {!options.screenshot.empty(), "a screenshot is being taken"},
@@ -664,7 +869,35 @@ void GameScene::keepAwake() {
 
 // --- what the player can do --------------------------------------------------------
 
+bool GameScene::gameAtStake() const {
+    return _started && _game.plies() > 0 && !_game.status().over() && launch().autoplayGames == 0;
+}
+
 void GameScene::openNewGame() {
+    if (!gameAtStake()) {
+        showNewGameDialog();
+        return;
+    }
+    cancelPromotion();
+    _quitAsked = false;
+    _confirm->open(text::kUnfinishedTitle, text::kLoseByNewGame, text::kNewGame, [this] { showNewGameDialog(); });
+    keepAwake();
+}
+
+// The window has been asked to close. With a game in progress the answer is a
+// question; asked a second time while that question is still up, it is yes.
+void GameScene::askBeforeQuitting(bool& closing) {
+    if (!gameAtStake() || (_quitAsked && _confirm->isOpen()))
+        return;
+    closing    = false;
+    _quitAsked = true;
+    _confirm->open(
+        text::kUnfinishedTitle, text::kLoseByQuit, text::kQuit, [] { Director::getInstance()->end(); },
+        [this] { _quitAsked = false; });
+    keepAwake();
+}
+
+void GameScene::showNewGameDialog() {
     cancelPromotion();
     // The dialog is also the place to find out that Stockfish is back.
     if (!engineUsable() || !analysisUsable())
@@ -687,6 +920,75 @@ void GameScene::restyle() {
     _board->restyle();
     _top->restyle();
     _bottom->restyle();
+    keepAwake();
+}
+
+// --- the clipboard -----------------------------------------------------------------
+
+namespace {
+
+// What goes into a PGN is data for other programs, not text for the player,
+// so it is not in Strings.h and not in Ukrainian.
+constexpr const char* kPgnEvent  = "Casual game";
+constexpr const char* kPgnPlayer = "Player";
+
+std::string today() {
+    const std::time_t now = std::time(nullptr);
+    char text[16]         = "";
+    if (const std::tm* local = std::localtime(&now))
+        std::strftime(text, sizeof(text), "%Y.%m.%d", local);
+    return text;
+}
+
+void toClipboard(const std::string& text) {
+#if defined(AX_PLATFORM_PC)
+    glfwSetClipboardString(nullptr, text.c_str());
+#else
+    (void)text;
+#endif
+}
+
+}  // namespace
+
+void GameScene::copyGame() {
+    if (_game.plies() == 0)
+        return;
+
+    PgnTags tags;
+    tags.event = kPgnEvent;
+    tags.date  = today();
+    if (againstComputer()) {
+        const std::string engine = "Stockfish, level " + std::to_string(_setup.level) + " of " +
+                                   std::to_string(levels().size());
+        tags.white = _human == Color::White ? kPgnPlayer : engine;
+        tags.black = _human == Color::Black ? kPgnPlayer : engine;
+    }
+    std::vector<std::string> marks;
+    for (const Mark mark : _marks)
+        marks.emplace_back(suffix(mark));
+    toClipboard(_game.pgn(tags, marks));
+    _panel->markMove(-1);
+    showCopied();
+}
+
+void GameScene::copyMove(int index) {
+    if (index < 0 || index >= static_cast<int>(_game.plies()))
+        return;
+    // As it is written in the list, with its number and its mark: "12. Кf3",
+    // "12... Кf6?!".
+    const Game::Record& record = _game.history()[static_cast<std::size_t>(index)];
+    const std::string number   = std::to_string(record.before.fullmoveNumber()) +
+                                 (record.before.sideToMove() == Color::White ? ". " : "... ");
+    const Mark mark = static_cast<std::size_t>(index) < _marks.size() ? _marks[static_cast<std::size_t>(index)]
+                                                                      : Mark::None;
+    toClipboard(number + text::localSan(record.san) + suffix(mark));
+    _panel->markMove(index);
+    showCopied();
+}
+
+void GameScene::showCopied() {
+    _panel->copy->setText(text::kCopied);
+    _copiedFor = kCopiedSeconds;
     keepAwake();
 }
 
@@ -808,6 +1110,8 @@ void GameScene::cancelPromotion() {
 // --- input -------------------------------------------------------------------------
 
 Dialog* GameScene::modal() const {
+    if (_confirm->isOpen())
+        return _confirm;
     if (_dialog->isOpen())
         return _dialog;
     if (_looks->isOpen())
@@ -833,6 +1137,10 @@ void GameScene::onMouseDown(const Vec2& point) {
     }
 
     if (_buttons.mouseDown(point))
+        return;
+
+    // The scroll bar of the move list, or one of the moves in it.
+    if (_panel->mouseDown(point))
         return;
 
     const Square square = _board->squareAt(point);
@@ -870,6 +1178,9 @@ void GameScene::onMouseMove(const Vec2& point) {
     _buttons.mouseMove(point);
     if (_buttons.hoverChanged() || _pressed)
         keepAwake();
+    // The move list: a move lit up or let go, the thumb dragged along.
+    if (_panel->mouseMove(point))
+        keepAwake();
 
     if (!_pressed)
         return;
@@ -889,6 +1200,7 @@ void GameScene::onMouseUp(const Vec2& point) {
         return;
     }
     _buttons.mouseUp(point);
+    _panel->mouseUp(point);
 
     if (!_pressed)
         return;
@@ -943,6 +1255,9 @@ void GameScene::onKeyPressed(EventKeyboard::KeyCode code) {
         break;
     case Key::KEY_V:
         openLooks();
+        break;
+    case Key::KEY_C:
+        copyGame();
         break;
     default:
         break;
@@ -1007,6 +1322,7 @@ void GameScene::layout() {
     _panel->setFrame(Vec2(areaWidth, 0.0f), Vec2(panelWidth, screen.y));
     _dialog->layout(screen);
     _looks->layout(screen);
+    _confirm->layout(screen);
 }
 
 void GameScene::refresh() {
@@ -1014,11 +1330,7 @@ void GameScene::refresh() {
     refreshBars();
     refreshStatus();
 
-    std::vector<std::string> moves;
-    moves.reserve(_game.plies());
-    for (const Game::Record& record : _game.history())
-        moves.push_back(text::localSan(record.san));
-    _panel->setMoves(moves, _game.startPosition().sideToMove() == Color::White);
+    showMoves();
 
     const Status status = _game.status();
 
@@ -1033,6 +1345,20 @@ void GameScene::refresh() {
     _panel->resign->setEnabled(_started && !status.over());
 }
 
+// The move list: every move as it is written here, and the mark it has earned.
+void GameScene::showMoves() {
+    std::vector<std::string> moves;
+    moves.reserve(_game.plies());
+    for (const Game::Record& record : _game.history())
+        moves.push_back(text::localSan(record.san));
+    _panel->setMoves(moves, _game.startPosition().sideToMove() == Color::White);
+
+    std::vector<Mark> marks = _marks;
+    marks.resize(moves.size(), Mark::None);  // the list may be a move ahead of the marks, or behind
+    _panel->setMarks(marks);
+    _panel->setResult(text::resultSign(_game.status()));
+}
+
 void GameScene::refreshMarks() {
     BoardNode::Marks marks;
 
@@ -1045,6 +1371,34 @@ void GameScene::refreshMarks() {
     if (position.inCheck())
         marks.check = position.kingSquare(position.sideToMove());
 
+    // What the state of the game says about the kings.
+    using Sign = BoardNode::Sign;
+    const auto sign = [&](Color king, Sign what) {
+        marks.kings[king == Color::White ? 0 : 1] = {position.kingSquare(king), what};
+    };
+    const Status status = _game.status();
+    switch (status.outcome) {
+    case Outcome::Ongoing:
+        if (_started && position.inCheck())
+            sign(position.sideToMove(), Sign::Check);
+        break;
+    case Outcome::Checkmate:
+    case Outcome::Resignation:
+        if (status.winner) {
+            sign(*status.winner, Sign::Won);
+            sign(opposite(*status.winner),
+                 status.outcome == Outcome::Checkmate ? Sign::Mate : Sign::Resigned);
+        }
+        break;
+    case Outcome::Stalemate:
+    case Outcome::FiftyMoves:
+    case Outcome::Repetition:
+    case Outcome::InsufficientMaterial:
+        sign(Color::White, Sign::Draw);
+        sign(Color::Black, Sign::Draw);
+        break;
+    }
+
     if (_selected != kNoSquare && humanToMove()) {
         marks.selected = _selected;
         marks.targets  = position.legalMovesFrom(_selected);
@@ -1052,6 +1406,10 @@ void GameScene::refreshMarks() {
 
     marks.hintFrom = _hintFrom;
     marks.hintTo   = _hintTo;
+
+    // What the last move was worth, on the square it went to.
+    if (!_marks.empty() && _marks.size() == _game.plies())
+        marks.verdict = _marks.back();
     _board->setMarks(marks);
 }
 
@@ -1127,10 +1485,22 @@ void GameScene::refreshStatus() {
 }
 
 void GameScene::captureAndQuit() {
-    // Long enough for the engine to have answered and the piece to have
-    // landed, so the picture is of a position and not of a move in flight.
-    scheduleOnce(
-        [](float) {
+    // The picture is taken once the screen has stopped changing: the engine
+    // has answered, the piece has landed, the bar has settled and every move
+    // that is going to get a mark has it. Looked at four times a second, and
+    // taken regardless after two minutes.
+    schedule(
+        [this](float delta) {
+            static float waited = 0.0f, settled = 0.0f;
+            waited += delta;
+            const bool busy = _engine.thinking() || _analysis.thinking() || _replyPending ||
+                              _board->animating() || _engine.state() == Engine::State::Starting ||
+                              _analysis.state() == Engine::State::Starting;
+            settled = busy ? 0.0f : settled + delta;
+            if (waited < 1.5f || (settled < 0.6f && waited < 120.0f))
+                return;
+
+            unschedule("screenshot");
             utils::captureScreen(
                 [](bool ok, std::string_view path) {
                     AXLOGI("screenshot {}: {}", ok ? "written" : "FAILED", path);
@@ -1138,5 +1508,5 @@ void GameScene::captureAndQuit() {
                 },
                 launch().screenshot);
         },
-        1.5f, "screenshot");
+        0.25f, "screenshot");
 }

@@ -1,5 +1,5 @@
 //
-// Prefix header for all source files of the 'Paralaxer' target in the 'Paralaxer' project
+// Prefix header for every source file of the macOS app (from axmol's template).
 //
 
 #ifdef __OBJC__

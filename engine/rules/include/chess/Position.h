@@ -72,6 +72,18 @@ public:
     void apply(const Move& move);
     Position after(const Move& move) const;
 
+    // The same position with the move handed to the other side: what it
+    // could do if this side did nothing. Empty when the side to move is in
+    // check — then it cannot do nothing.
+    std::optional<Position> passed() const;
+
+    // What the side to move comes out ahead by, in pawns, if it makes this
+    // capture and the two sides then go on taking on that square for as long
+    // as it pays each of them to — every time with the least valuable piece
+    // that can legally do it. Bishop takes defended pawn is -2; rook takes
+    // undefended knight is 3. Zero for a move that is not a capture.
+    int exchange(const Move& capture) const;
+
     // Neither side could mate even with the other's help: bare kings, a lone
     // minor piece, or only bishops that all stand on one colour.
     bool insufficientMaterial() const;

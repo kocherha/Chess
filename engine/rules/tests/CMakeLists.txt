@@ -2,6 +2,7 @@ add_executable(chess_rules_tests
     PerftTest.cpp
     PositionTest.cpp
     GameTest.cpp
+    JudgeTest.cpp
 )
 target_link_libraries(chess_rules_tests PRIVATE chess_rules GTest::gtest_main)
 

@@ -1,3 +1,7 @@
+# From axmol's game template. The engine root comes from the AX_ROOT
+# environment variable, which here is never the user's own: chess_locate_axmol()
+# in cmake/Chess.cmake sets it, for this configure only, to third-party/axmol
+# (or to -DAX_ROOT=...).
 if(IS_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/axmol")
   set(_AX_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/axmol")
   set(_is_axmol_embed TRUE)
@@ -7,9 +11,9 @@ else()
 
   if(NOT(_AX_ROOT STREQUAL ""))
     file(TO_CMAKE_PATH ${_AX_ROOT} _AX_ROOT)
-    message(STATUS "Using system env var _AX_ROOT=${_AX_ROOT}")
+    message(STATUS "axmol root: ${_AX_ROOT}")
   else()
-    message(FATAL_ERROR "Please run setup.ps1 add system env var 'AX_ROOT' to specific the engine root")
+    message(FATAL_ERROR "The axmol root is not known: chess_locate_axmol() (cmake/Chess.cmake) has to run first.")
   endif()
 endif()
 

@@ -111,6 +111,14 @@ Verdict verdict(const chess::Status& status, std::optional<Color> human) {
     return result;
 }
 
+std::string resultSign(const chess::Status& status) {
+    if (!status.over())
+        return {};
+    if (!status.winner)
+        return "½–½";
+    return *status.winner == Color::White ? "1–0" : "0–1";
+}
+
 std::string lead(int pawns) {
     return pawns > 0 ? "+" + std::to_string(pawns) : std::string();
 }

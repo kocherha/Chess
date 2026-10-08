@@ -93,4 +93,5 @@ TEST(Difficulty, TheAnalystIsStrongAndQuiet) {
     EXPECT_EQ(options.at("UCI_LimitStrength"), "false");
     EXPECT_EQ(options.at("Skill Level"), "20");
     EXPECT_EQ(options.at("Threads"), "1");
+    EXPECT_EQ(options.at("MultiPV"), "2");  // the runner-up too: marks need it
 }

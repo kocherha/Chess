@@ -646,6 +646,48 @@ Position Position::after(const Move& move) const {
     return next;
 }
 
+std::optional<Position> Position::passed() const {
+    if (inCheck())
+        return std::nullopt;
+    Position other   = *this;
+    other._turn      = opposite(_turn);
+    other._enPassant = kNoSquare;  // that chance was this side's, and it is not taking it
+    return other;
+}
+
+int Position::exchange(const Move& capture) const {
+    const auto move = findMove(capture.from, capture.to, capture.promotion);
+    if (!move || !move->isCapture())
+        return 0;
+
+    // What comes off the board now; a pawn that promotes while taking is
+    // worth what it becomes from here on.
+    int gain = pieceValue(move->captured);
+    if (move->promotion != PieceType::None)
+        gain += pieceValue(move->promotion) - pieceValue(PieceType::Pawn);
+
+    // The other side takes back with its cheapest piece — if that is worth
+    // doing. Legal moves only, so a pinned defender does not count and a king
+    // does not take a protected piece.
+    const Position next = after(*move);
+    const Move* cheapest = nullptr;
+    std::vector<Move> replies = next.legalMoves();
+    for (const Move& reply : replies) {
+        if (reply.to != move->to || !reply.isCapture())
+            continue;
+        if (reply.promotion != PieceType::None && reply.promotion != PieceType::Queen)
+            continue;  // one promotion is enough to consider
+        // A king is the last piece to take with: it is worth nothing here
+        // only because it cannot be lost.
+        const auto cost = [](const Move& m) { return m.piece == PieceType::King ? 100 : pieceValue(m.piece); };
+        if (cheapest == nullptr || cost(reply) < cost(*cheapest))
+            cheapest = &reply;
+    }
+    if (cheapest == nullptr)
+        return gain;
+    return gain - std::max(0, next.exchange(*cheapest));
+}
+
 // --- notation ------------------------------------------------------------------
 
 std::string Position::san(const Move& move) const {

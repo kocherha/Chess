@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <sstream>
 #include <string_view>
 #include <thread>
@@ -17,6 +18,38 @@ namespace {
 // itself out again against whatever it gets.
 constexpr Size kWindow(1180, 780);
 constexpr int  kMinWidth = 820, kMinHeight = 560;
+}  // namespace
+
+namespace {
+
+// Where the game keeps what it remembers between runs — the last game's
+// settings and the chosen look.
+//
+// axmol's default for that on a Mac is the user's Documents folder, which is
+// the user's and not a program's to leave files in. The place macOS means for
+// this is ~/Library/Application Support/<bundle id>/. On Linux axmol already
+// does the right thing (~/.config/<name>/, or $XDG_CONFIG_HOME).
+//
+// Nothing is brought over from the old place, on purpose: that would mean
+// reaching into Documents again, which is exactly what is being stopped, and
+// what is lost is five choices the next game asks for anyway.
+void useProperSettingsFolder() {
+#if (AX_TARGET_PLATFORM == AX_PLATFORM_MAC) && defined(CHESS_BUNDLE_ID)
+    const char* home = std::getenv("HOME");
+    if (home == nullptr || *home == '\0')
+        return;
+
+    std::error_code failed;
+    const std::filesystem::path folder =
+        std::filesystem::path(home) / "Library" / "Application Support" / CHESS_BUNDLE_ID;
+    std::filesystem::create_directories(folder, failed);
+    if (failed)
+        return;  // stay with the default rather than have nowhere to write
+
+    FileUtils::getInstance()->setWritablePath(folder.string() + "/");
+#endif
+}
+
 }  // namespace
 
 AppDelegate::AppDelegate() = default;
@@ -64,6 +97,9 @@ void AppDelegate::initGfxContextAttrs() {
 }
 
 bool AppDelegate::applicationDidFinishLaunching() {
+    // Before anything reads a setting.
+    useProperSettingsFolder();
+
     auto* director   = Director::getInstance();
     auto* renderView = director->getRenderView();
     if (renderView == nullptr) {
@@ -98,7 +134,9 @@ bool AppDelegate::applicationDidFinishLaunching() {
     // not in the scene.
     director->setContentScaleFactor(Device::getPixelRatio());
 
-    // The piece set is copied (or linked) next to the executable by CMake.
+    // Where the piece sets are. On a Mac they are in the bundle's Resources,
+    // which is already searched; elsewhere CMake links the folder next to the
+    // executable as Content/.
     FileUtils::getInstance()->addSearchPath("Content");
 
     director->runWithScene(utils::createInstance<GameScene>());

@@ -5,6 +5,7 @@
 // scene's business.
 #pragma once
 
+#include "chess/Judge.h"
 #include "chess/Position.h"
 
 #include "axmol.h"
@@ -37,11 +38,27 @@ public:
     // a piece the player has just carried there by hand.
     void show(const chess::Position& position, const chess::Move* played = nullptr, bool slide = true);
 
+    // How the game stands for one of the kings, as a badge on his square:
+    // "+" in check, "#" mated, a crown for the winner, a white flag for the
+    // one who resigned, "½" for a draw of any kind.
+    enum class Sign { None, Check, Mate, Won, Resigned, Draw };
+    struct KingSign {
+        chess::Square square = chess::kNoSquare;
+        Sign          sign   = Sign::None;
+    };
+
     struct Marks {
         chess::Square lastFrom = chess::kNoSquare, lastTo = chess::kNoSquare;
         chess::Square selected = chess::kNoSquare;
         chess::Square check    = chess::kNoSquare;  // the king that is in check
         chess::Square hintFrom = chess::kNoSquare, hintTo = chess::kNoSquare;
+        // What the last move was worth ("!!", "?", ...): a badge on the corner
+        // of the square it went to. None for no badge.
+        chess::Mark verdict = chess::Mark::None;
+        // The same kind of badge on the kings, for the state of the game. If
+        // the last move ended on a king's square too, its own badge moves to
+        // the other corner.
+        std::array<KingSign, 2> kings{};
         std::vector<chess::Move> targets;           // where the selected piece may go
     };
     void setMarks(const Marks& marks);
@@ -89,6 +106,8 @@ private:
     ax::DrawNode* _under    = nullptr;  // marks beneath the pieces
     ax::Node*     _pieces   = nullptr;
     ax::DrawNode* _over     = nullptr;  // marks above them
+    // What is written on the badges: the last move's and one for each king.
+    std::array<ax::Label*, 3> _signs{};
     ax::Node*     _promotion = nullptr;
 
     std::array<ax::Sprite*, 64> _sprites{};

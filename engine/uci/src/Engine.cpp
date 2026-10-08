@@ -353,19 +353,26 @@ void Engine::handleLine(const std::string& line) {
             }
         }
 
-        // Only a line that says something definite about the best move counts.
-        // Lines without a score are progress chatter. A score marked as a
-        // bound is not a score yet — the search failed high or low and is about
-        // to try again. And with several lines requested (which a strength
-        // limit does behind the scenes), lines two and up describe the moves
-        // the engine thinks are worse.
-        if (multipv != 1 || bound || (!cp && !mate))
+        // Only a line that says something definite counts. Lines without a
+        // score are progress chatter. A score marked as a bound is not a score
+        // yet — the search failed high or low and is about to try again.
+        if (bound || (!cp && !mate))
             return;
 
-        _current.depth   = depth;
-        _current.scoreCp = cp;
-        _current.mateIn  = mate;
-        _current.pvMove  = firstMove;
+        // With several lines requested — by us, or by a strength limit behind
+        // the scenes — line one is the best move and line two the next best.
+        // The rest describe moves nobody asks about.
+        if (multipv == 1) {
+            _current.depth   = depth;
+            _current.scoreCp = cp;
+            _current.mateIn  = mate;
+            _current.pvMove  = firstMove;
+        } else if (multipv == 2) {
+            _current.secondDepth = depth;
+            _current.secondCp    = cp;
+            _current.secondMate  = mate;
+            _current.secondMove  = firstMove;
+        }
         return;
     }
 

@@ -171,6 +171,44 @@ void roundedRect(DrawNode* node, const Vec2& origin, const Vec2& size, float rad
                 colour);
 }
 
+void convex(DrawNode* node, const std::vector<Vec2>& corners, const Color4F& colour) {
+    const std::size_t count = corners.size();
+    if (count < 3)
+        return;
+    const float half = pixel() * 0.5f;
+
+    Vec2 centre;
+    float turn = 0.0f;  // twice the area, signed: positive when counter-clockwise
+    for (std::size_t i = 0; i < count; ++i) {
+        const Vec2& next = corners[(i + 1) % count];
+        centre += corners[i];
+        turn += corners[i].x * next.y - next.x * corners[i].y;
+    }
+    centre = centre / static_cast<float>(count);
+    const float outward = turn >= 0.0f ? 1.0f : -1.0f;
+
+    // Each corner moves along the line that bisects it, far enough that both
+    // of its edges move by half a pixel. A sharp corner would have to go a
+    // long way for that, and is held to three times the distance instead.
+    std::vector<Vec2> inner, outer;
+    inner.reserve(count);
+    outer.reserve(count);
+    for (std::size_t i = 0; i < count; ++i) {
+        const Vec2& at  = corners[i];
+        const Vec2 in   = (at - corners[(i + count - 1) % count]).getNormalized();
+        const Vec2 out  = (corners[(i + 1) % count] - at).getNormalized();
+        const Vec2 first  = Vec2(in.y, -in.x) * outward;
+        const Vec2 second = Vec2(out.y, -out.x) * outward;
+        Vec2 bisector     = first + second;
+        const float length = bisector.length();
+        bisector = length > 1e-4f ? bisector / length : first;
+        const float reach = half / std::max(bisector.dot(first), 1.0f / 3.0f);
+        inner.push_back(at - bisector * reach);
+        outer.push_back(at + bisector * reach);
+    }
+    fillWithRim(node, centre, inner, outer, colour);
+}
+
 void arrow(DrawNode* node, const Vec2& from, const Vec2& to, float width, const Color4F& colour) {
     const Vec2 delta   = to - from;
     const float length = delta.length();

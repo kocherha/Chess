@@ -14,6 +14,10 @@ Label* label(const std::string& text, float points, const Color3B& colour) {
     return made;
 }
 
+void embolden(Label* label) {
+    label->enableShadow(Color4B::WHITE, Vec2(kBoldShift, 0.0f), 0);
+}
+
 std::string wrap(const std::string& text, float points, float maxWidth) {
     if (maxWidth <= 0.0f)
         return text;

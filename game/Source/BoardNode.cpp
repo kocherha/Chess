@@ -2,6 +2,7 @@
 
 #include "Look.h"
 #include "Shapes.h"
+#include "Text.h"
 #include "Theme.h"
 
 #include <algorithm>
@@ -22,6 +23,26 @@ constexpr PieceType kPromotionOrder[4] = {PieceType::Queen, PieceType::Knight, P
 
 bool lightSquare(Square square) {
     return (fileOf(square) + rankOf(square)) % 2 != 0;
+}
+
+// The two badges that are pictures rather than characters. Both are drawn in
+// white inside a disc of `radius` around `at`.
+void drawCrown(DrawNode* node, const Vec2& at, float radius) {
+    const Color4F white = Color4F::WHITE;
+    const auto p = [&](float x, float y) { return at + Vec2(x, y) * radius; };
+    // A band along the bottom and three points standing on it, the outer two
+    // leaning out.
+    shapes::convex(node, {p(-0.50f, -0.46f), p(0.50f, -0.46f), p(0.50f, -0.16f), p(-0.50f, -0.16f)}, white);
+    shapes::convex(node, {p(-0.50f, -0.30f), p(-0.04f, -0.30f), p(-0.64f, 0.38f)}, white);
+    shapes::convex(node, {p(-0.34f, -0.30f), p(0.34f, -0.30f), p(0.0f, 0.54f)}, white);
+    shapes::convex(node, {p(0.04f, -0.30f), p(0.50f, -0.30f), p(0.64f, 0.38f)}, white);
+}
+
+void drawFlag(DrawNode* node, const Vec2& at, float radius) {
+    const Color4F white = Color4F::WHITE;
+    const auto p = [&](float x, float y) { return at + Vec2(x, y) * radius; };
+    shapes::convex(node, {p(-0.40f, -0.56f), p(-0.24f, -0.56f), p(-0.24f, 0.56f), p(-0.40f, 0.56f)}, white);
+    shapes::convex(node, {p(-0.30f, 0.56f), p(-0.30f, -0.06f), p(0.52f, 0.25f)}, white);
 }
 
 }  // namespace
@@ -50,6 +71,13 @@ bool BoardNode::init() {
     addChild(_under, 2);
     addChild(_pieces, 3);
     addChild(_over, 4);
+
+    for (Label*& sign : _signs) {
+        sign = Label::createWithSystemFont("", theme::kFont, 12.0f);
+        typeset::embolden(sign);
+        sign->setVisible(false);
+        addChild(sign, 5);
+    }
 
     redrawSquares();
     return true;
@@ -261,6 +289,65 @@ void BoardNode::redrawMarks() {
             shapes::ring(_under, centre(move.to), s * 0.39f, s * 0.47f, style.target);
         else
             shapes::circle(_under, centre(move.to), s * 0.15f, style.target);
+    }
+
+    // Badges: a small disc in the top right corner of a square, over the
+    // piece, with a sign on it. One for what the last move was worth, and one
+    // for each king the state of the game says something about.
+    const float radius = std::max(5.0f, s * 0.125f);
+    const float inset  = radius + std::max(1.0f, s * 0.03f);
+    const auto corner = [&](Square square, bool left) {
+        return origin(square) + Vec2(left ? inset : s - inset, s - inset);
+    };
+
+    std::size_t written = 0;
+    for (Label* sign : _signs)
+        sign->setVisible(false);
+    const auto write = [&](const Vec2& at, const char* sign) {
+        Label* label = _signs[written++];
+        label->setString(sign);
+        label->setSystemFontSize(radius * 1.3f);
+        // Back by half of what the bold drawing adds on the right.
+        label->setPosition(at - Vec2(typeset::kBoldShift * 0.5f, 0.0f));
+        label->setVisible(true);
+    };
+
+    bool onLastMove = false;
+    for (const KingSign& king : _marks.kings) {
+        if (king.sign == Sign::None || king.square == kNoSquare)
+            continue;
+        onLastMove    = onLastMove || king.square == _marks.lastTo;
+        const Vec2 at = corner(king.square, false);
+        switch (king.sign) {
+        case Sign::Check:
+            shapes::circle(_over, at, radius, theme::kSignDanger);
+            write(at, "+");
+            break;
+        case Sign::Mate:
+            shapes::circle(_over, at, radius, theme::kSignDanger);
+            write(at, "#");
+            break;
+        case Sign::Won:
+            shapes::circle(_over, at, radius, theme::kSignWon);
+            drawCrown(_over, at, radius);
+            break;
+        case Sign::Resigned:
+            shapes::circle(_over, at, radius, theme::kSignQuiet);
+            drawFlag(_over, at, radius);
+            break;
+        case Sign::Draw:
+            shapes::circle(_over, at, radius, theme::kSignQuiet);
+            write(at, "½");
+            break;
+        case Sign::None:
+            break;
+        }
+    }
+
+    if (_marks.verdict != Mark::None && _marks.lastTo != kNoSquare) {
+        const Vec2 at = corner(_marks.lastTo, onLastMove);
+        shapes::circle(_over, at, radius, theme::markColour(_marks.verdict));
+        write(at, suffix(_marks.verdict));
     }
 
     if (_marks.hintFrom != kNoSquare && _marks.hintTo != kNoSquare) {

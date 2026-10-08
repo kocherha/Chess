@@ -44,7 +44,7 @@ bool NewGameDialog::init() {
     addChild(_back);
 
     _title = makeLabel(text::kNewGame, 26.0f, theme::kInk);
-    _title->enableBold();
+    typeset::embolden(_title);
     _opponentTitle    = makeLabel(text::kOpponent, 13.0f, theme::kFaint);
     _sideTitle        = makeLabel(text::kYourColour, 13.0f, theme::kFaint);
     _levelTitle       = makeLabel(text::kDifficulty, 13.0f, theme::kFaint);

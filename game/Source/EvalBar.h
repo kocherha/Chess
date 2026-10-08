@@ -46,7 +46,8 @@ public:
     // How much of the bar is white for a given score, 0..1. An evaluation is
     // not linear in what it means: the step from level to a pawn up matters
     // far more than the step from eight pawns up to nine. This is the usual
-    // logistic "winning chances" curve.
+    // logistic "winning chances" curve — chess::winChance, the same one a
+    // move is marked by.
     static float whiteShare(const Score& score);
     // "0.3", "12", "#4", "1–0": the size of the advantage, without a sign —
     // which end of the bar it is written at says whose it is.

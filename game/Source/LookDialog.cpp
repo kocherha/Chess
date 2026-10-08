@@ -55,7 +55,7 @@ bool LookDialog::init() {
     addChild(_pieces);
 
     _title = makeLabel(text::kLooks, 26.0f, theme::kInk);
-    _title->enableBold();
+    typeset::embolden(_title);
     _piecesTitle = makeLabel(text::kLookPieces, 13.0f, theme::kFaint);
     _boardTitle  = makeLabel(text::kLookBoard, 13.0f, theme::kFaint);
     for (Label* label : {_title, _piecesTitle, _boardTitle})

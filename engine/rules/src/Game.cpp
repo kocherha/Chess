@@ -103,6 +103,81 @@ std::string Game::uciPosition() const {
     return command;
 }
 
+std::string Game::result() const {
+    const Status now = status();
+    if (!now.over())
+        return "*";
+    if (!now.winner)
+        return "1/2-1/2";
+    return *now.winner == Color::White ? "1-0" : "0-1";
+}
+
+std::string Game::pgn(const PgnTags& tags, const std::vector<std::string>& marks) const {
+    const auto tag = [](const char* name, const std::string& value) {
+        std::string line = "[";
+        line += name;
+        line += " \"";
+        // A quote or a backslash inside a value is written with a backslash
+        // before it; an empty value is the format's "unknown".
+        for (char c : value.empty() ? std::string("?") : value) {
+            if (c == '"' || c == '\\')
+                line += '\\';
+            line += c;
+        }
+        line += "\"]\n";
+        return line;
+    };
+
+    const std::string outcome = result();
+
+    std::string out;
+    out += tag("Event", tags.event);
+    out += tag("Site", tags.site);
+    out += tag("Date", tags.date.empty() ? "????.??.??" : tags.date);
+    out += tag("Round", "-");
+    out += tag("White", tags.white);
+    out += tag("Black", tags.black);
+    out += tag("Result", outcome);
+    if (!(_start == Position::initial())) {
+        out += tag("SetUp", "1");
+        out += tag("FEN", _start.fen());
+    }
+    out += '\n';
+
+    // The moves, as words: a number before each of white's, and before
+    // black's too when it is the first thing written ("12... Nf6"). A number
+    // stays on the same line as the move it counts.
+    std::vector<std::string> words;
+    for (std::size_t i = 0; i < _history.size(); ++i) {
+        const Position& before = _history[i].before;
+        const std::string number = std::to_string(before.fullmoveNumber());
+        const std::string move   = _history[i].san + (i < marks.size() ? marks[i] : std::string());
+        if (before.sideToMove() == Color::White)
+            words.push_back(number + ". " + move);
+        else if (i == 0)
+            words.push_back(number + "... " + move);
+        else
+            words.push_back(move);
+    }
+    words.push_back(outcome);
+
+    std::size_t column = 0;
+    for (const std::string& word : words) {
+        if (column > 0 && column + 1 + word.size() > 80) {
+            out += '\n';
+            column = 0;
+        }
+        if (column > 0) {
+            out += ' ';
+            ++column;
+        }
+        out += word;
+        column += word.size();
+    }
+    out += '\n';
+    return out;
+}
+
 std::vector<PieceType> Game::capturedPieces(Color color) const {
     std::vector<PieceType> pieces;
     for (const Record& record : _history) {

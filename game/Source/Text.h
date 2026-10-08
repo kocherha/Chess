@@ -10,6 +10,19 @@ namespace typeset {
 // A system-font label in the interface's typeface.
 ax::Label* label(const std::string& text, float points, const ax::Color3B& colour);
 
+// Makes a label's strokes heavier, for a title or a sign that has to carry at
+// a small size. The label is drawn a second time a fraction of a point to the
+// right of itself, which is all a bold system font amounts to at these sizes.
+//
+// axmol's own Label::enableBold() does exactly this and then also asks for
+// wider letter spacing — which a system-font label cannot do, and says so in
+// the log every time it is asked.
+void embolden(ax::Label* label);
+
+// How far that second drawing is from the first. A label that has to sit
+// dead centre on something small is moved back by half of it.
+inline constexpr float kBoldShift = 0.9f;
+
 // Breaks `text` into lines no wider than `maxWidth` when set in `points`, and
 // returns it with the line breaks in place.
 //

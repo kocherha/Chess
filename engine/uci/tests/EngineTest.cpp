@@ -196,6 +196,13 @@ TEST(FakeEngine, ProgressIsTheBestLineAndNothingElse) {
     EXPECT_EQ(*seen.scoreCp, 55);        // not 140 (a bound), not -300 (the second line)
     EXPECT_FALSE(seen.mateIn.has_value());  // not the "mate 1" in the free text
 
+    // The second line is kept too, as what it is.
+    EXPECT_EQ(seen.secondMove, "a2a3");
+    EXPECT_EQ(seen.secondDepth, 9);
+    ASSERT_TRUE(seen.secondCp.has_value());
+    EXPECT_EQ(*seen.secondCp, -300);
+    EXPECT_FALSE(seen.secondMate.has_value());
+
     // An abandoned search has nothing to report to anyone.
     engine.cancel();
     EXPECT_FALSE(engine.progress(seen));

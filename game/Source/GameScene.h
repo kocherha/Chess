@@ -4,19 +4,21 @@
 // Three things meet here and nowhere else. The rules (chess::Game) say what is
 // legal and when it is over. Stockfish (chess::Engine) is asked for a move
 // when it is the computer's turn and answers in its own time. And the nodes —
-// the board, the bars, the panel, the dialog — show whatever they are told.
+// the board, the bars, the panel, the dialogs — show whatever they are told.
 // The scene is the only part that knows about all three.
 //
 // Stockfish runs twice. One copy is the opponent, held back to the level the
 // player chose. The other only watches: it looks at every position at full
 // strength and says who is better, which is what the bar beside the board
-// shows and where a hint comes from. Keeping them apart means the opponent's
-// handicap never leaks into the evaluation, and asking for a hint never
-// changes how the opponent plays.
+// shows, where a hint comes from, and what the marks on the moves ("!", "??")
+// are worked out from. Keeping them apart means the opponent's handicap never
+// leaks into the evaluation, and asking for a hint never changes how the
+// opponent plays.
 #pragma once
 
 #include "BoardNode.h"
 #include "Button.h"
+#include "ConfirmDialog.h"
 #include "EvalBar.h"
 #include "LookDialog.h"
 #include "NewGameDialog.h"
@@ -24,6 +26,7 @@
 
 #include "chess/Engine.h"
 #include "chess/Game.h"
+#include "chess/Judge.h"
 
 #include "axmol.h"
 
@@ -40,7 +43,7 @@ public:
     // What the command line asked for. Mostly for looking at the game without
     // a person at the mouse: a build machine, a bug report, a screenshot.
     struct Launch {
-        std::string screenshot;          // --shot <file>: draw, save a PNG, quit
+        std::string screenshot;          // --shot <file>: let the screen settle, save a PNG, quit
         std::string fen;                 // --fen "<fen>": start from this position
         std::vector<std::string> moves;  // --moves "e2e4 e7e5 ...": then play these
         // --level N, --side white|black|random, --two-players. Each is empty
@@ -78,9 +81,29 @@ private:
     // collect what it has to say.
     void analyse();
     void pollAnalysis();
-    void showScore(const chess::SearchResult& result);
+    void showScore(const chess::Score& score);
     void showHint();
     bool analysisUsable() const;
+
+    // What it has said about each position of the game, and the marks that
+    // follow from it (see chess/Judge.h). A mark needs two positions looked
+    // at — before the move and after — and a position the game moved on from
+    // too quickly gets its turn once the engine has nothing more urgent.
+    struct Finding {
+        int  depth    = 0;
+        bool complete = false;  // the search ran its course instead of being cut short
+        chess::Score score;     // for the side to move there
+        std::string  best;      // its first choice, UCI
+        std::optional<chess::Score> second;  // what its second choice was worth
+    };
+    void rekey();
+    void keepWhatWasFound();
+    void note(const chess::SearchResult& result, bool complete);
+    const Finding* found(const std::string& key) const;
+    bool usable(const Finding* finding) const;
+    void judgeMoves();
+    void reviewNext();
+    void showMoves();
 
     bool againstComputer() const { return _setup.opponent == GameSetup::Opponent::Computer; }
     bool humanToMove() const;
@@ -92,9 +115,17 @@ private:
     static void remember(const GameSetup& setup);
 
     // --- what the player can do ---
-    void openNewGame();
+    // A game with moves on the board and no result yet: something to lose.
+    bool gameAtStake() const;
+    void openNewGame();      // asks first if there is
+    void showNewGameDialog();
+    void askBeforeQuitting(bool& closing);
     void openLooks();
     void restyle();
+    // To the clipboard: the whole game as PGN, or one move as it is shown.
+    void copyGame();
+    void copyMove(int index);
+    void showCopied();
     void undo();
     void flip();
     void askHint();
@@ -145,6 +176,12 @@ private:
     int            _analysisTag  = 0;
     bool           _analysisDone = false;
     std::string    _analysisBest;        // UCI; set when the analysis has finished
+    // One key per position of the game as it stands, the starting one first:
+    // the `position` command that leads there. The last is the board now.
+    std::vector<std::string>       _keys;
+    std::map<std::string, Finding> _findings;   // by key; kept when a move is taken back
+    std::string                    _searchKey;  // which position the search in progress is of
+    std::vector<chess::Mark>       _marks;      // one per move played
     bool           _hintWanted   = false;  // show that move as soon as it is known
     bool           _barShown     = false;  // is there a bar in the layout right now?
     chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as last seen by update()
@@ -180,6 +217,9 @@ private:
     chess::Square _promoteFrom = chess::kNoSquare, _promoteTo = chess::kNoSquare;
     bool          _promoteCarried = false;
 
+    // "Copied" stays on the button for this long after something was.
+    float _copiedFor = 0.0f;
+
     float       _quiet        = 0.0f;     // seconds since anything last happened
     const char* _awakeBecause = nullptr;  // what update() last found to wait for, if anything
 
@@ -190,7 +230,9 @@ private:
     PlayerBar*     _top    = nullptr;
     PlayerBar*     _bottom = nullptr;
     SidePanel*     _panel  = nullptr;
-    NewGameDialog* _dialog = nullptr;
-    LookDialog*    _looks  = nullptr;
+    NewGameDialog* _dialog  = nullptr;
+    LookDialog*    _looks   = nullptr;
+    ConfirmDialog* _confirm = nullptr;
+    bool           _quitAsked = false;  // the question on screen is "really close?"
     ButtonSet      _buttons;
 };

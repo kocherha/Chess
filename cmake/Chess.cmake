@@ -9,7 +9,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-option(CHESS_BOOTSTRAP "Fetch submodules and run axmol's setup when they are missing" ON)
+# Off for an environment prepared in advance (CI, no network): nothing is
+# downloaded, and whatever is missing is an error that says what to fetch.
+option(CHESS_BOOTSTRAP "Fetch what is missing from third-party/: dependencies and axmol's shader compiler" ON)
 
 # AddressSanitizer and UBSan for our own code — the rules, the engine client,
 # their tests and the game's sources — without rebuilding axmol under them.

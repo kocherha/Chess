@@ -73,6 +73,9 @@ std::vector<std::pair<std::string, std::string>> analysisOptions() {
         {"Threads", "1"},
         {"Skill Level", "20"},
         {"UCI_LimitStrength", "false"},
+        // The best move and the runner-up: how far apart they are is what
+        // tells an only move from one of several good ones.
+        {"MultiPV", "2"},
     };
 }
 

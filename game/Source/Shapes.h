@@ -14,6 +14,8 @@
 
 #include "axmol.h"
 
+#include <vector>
+
 namespace shapes {
 
 // One physical pixel, in design units. The rim is this wide.
@@ -35,6 +37,9 @@ void roundedRect(ax::DrawNode* node, const ax::Vec2& origin, const ax::Vec2& siz
 // A rounded rectangle with a border: `border` wide, in `borderColour`.
 void roundedRect(ax::DrawNode* node, const ax::Vec2& origin, const ax::Vec2& size, float radius,
                  const ax::Color4F& colour, float border, const ax::Color4F& borderColour);
+
+// A convex polygon, given by its corners in order round the outline.
+void convex(ax::DrawNode* node, const std::vector<ax::Vec2>& corners, const ax::Color4F& colour);
 
 // A straight arrow from one point to another, `width` thick in the shaft.
 void arrow(ax::DrawNode* node, const ax::Vec2& from, const ax::Vec2& to, float width,

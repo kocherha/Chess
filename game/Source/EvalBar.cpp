@@ -4,6 +4,8 @@
 #include "Text.h"
 #include "Theme.h"
 
+#include "chess/Judge.h"
+
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -60,7 +62,7 @@ float EvalBar::whiteShare(const Score& score) {
         // A pawn up is about 59%, three pawns 75%, five 86%. However large the
         // number, a sliver of the other colour stays until it is actually mate:
         // being a queen up is not the same as having won.
-        const float share = 1.0f / (1.0f + std::exp(-0.00368208f * static_cast<float>(score.value)));
+        const float share = static_cast<float>(chess::winChance(score.value));
         return std::clamp(share, 0.04f, 0.96f);
     }
     }
