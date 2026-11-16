@@ -53,6 +53,99 @@ TEST(Difficulty, LookupClamps) {
     EXPECT_EQ(levelByNumber(defaultLevelNumber()).number, defaultLevelNumber());
 }
 
+TEST(Difficulty, TheLevelsAreStopsOnTheScale) {
+    // Each level is somewhere on the scale, in order, and what the scale says
+    // about that place is the level itself — rating, time, random moves, all.
+    ASSERT_GT(strengthCount(), static_cast<int>(levels().size()));
+    EXPECT_EQ(strengthOfLevel(levels().front().number), 0);
+    EXPECT_EQ(strengthOfLevel(levels().back().number), strengthCount() - 1);
+    EXPECT_EQ(defaultStrength(), strengthOfLevel(defaultLevelNumber()));
+
+    int before = -1;
+    for (const Level& level : levels()) {
+        const int strength = strengthOfLevel(level.number);
+        EXPECT_GT(strength, before) << "level " << level.number;
+        before = strength;
+
+        const Level there = levelAtStrength(strength);
+        EXPECT_TRUE(there.exact) << "level " << level.number;
+        EXPECT_EQ(there.number, level.number);
+        EXPECT_EQ(there.elo, level.elo);
+        EXPECT_EQ(there.moveTimeMs, level.moveTimeMs);
+        EXPECT_DOUBLE_EQ(there.randomMoveShare, level.randomMoveShare);
+    }
+}
+
+TEST(Difficulty, TheScaleGetsHarderOneSmallStepAtATime) {
+    for (int strength = 1; strength < strengthCount(); ++strength) {
+        const Level easier = levelAtStrength(strength - 1);
+        const Level harder = levelAtStrength(strength);
+
+        // Never easier in any way...
+        EXPECT_GE(harder.number, easier.number) << strength;
+        EXPECT_GE(harder.moveTimeMs, easier.moveTimeMs) << strength;
+        EXPECT_LE(harder.randomMoveShare, easier.randomMoveShare) << strength;
+        ASSERT_FALSE(easier.fullStrength()) << strength;  // only the very last is
+
+        // ...and harder in exactly one: a random move in a hundred fewer, ten
+        // points of rating more, or the limit taken off.
+        if (harder.fullStrength()) {
+            EXPECT_EQ(strength, strengthCount() - 1);
+        } else if (easier.randomMoveShare > 0.0) {
+            EXPECT_EQ(harder.elo, easier.elo) << strength;
+            EXPECT_NEAR(easier.randomMoveShare - harder.randomMoveShare, 0.01, 1e-9) << strength;
+        } else {
+            EXPECT_EQ(harder.elo, easier.elo + 10) << strength;
+        }
+    }
+
+    // Random moves are a handicap for the engine at its floor, nowhere else.
+    for (int strength = 0; strength < strengthCount(); ++strength) {
+        const Level level = levelAtStrength(strength);
+        if (level.randomMoveShare > 0.0) {
+            EXPECT_EQ(level.elo, levels().front().elo) << strength;
+        }
+    }
+}
+
+TEST(Difficulty, BetweenTwoLevels) {
+    // Halfway from level 4 (1600, 0.4 s) to level 5 (1900, 0.5 s).
+    const Level level = levelAtStrength(strengthForElo(1750));
+    EXPECT_EQ(level.elo, 1750);
+    EXPECT_EQ(level.number, 4);  // the one it has reached
+    EXPECT_FALSE(level.exact);
+    EXPECT_EQ(level.moveTimeMs, 450);
+    EXPECT_DOUBLE_EQ(level.randomMoveShare, 0.0);
+    EXPECT_EQ(asMap(engineOptions(level, 1320, 3190, 8)).at("UCI_Elo"), "1750");
+
+    // And one step short of level 2: it still counts as level 1.
+    const Level beginner = levelAtStrength(strengthOfLevel(2) - 1);
+    EXPECT_EQ(beginner.number, 1);
+    EXPECT_FALSE(beginner.exact);
+    EXPECT_NEAR(beginner.randomMoveShare, 0.16, 1e-9);
+}
+
+TEST(Difficulty, TheScaleClamps) {
+    EXPECT_EQ(levelAtStrength(-7).number, 1);
+    EXPECT_TRUE(levelAtStrength(-7).exact);
+    EXPECT_TRUE(levelAtStrength(strengthCount() + 100).fullStrength());
+
+    // A rating the engine does not go down to is its floor, played straight.
+    const Level floor = levelAtStrength(strengthForElo(100));
+    EXPECT_EQ(floor.elo, 1320);
+    EXPECT_DOUBLE_EQ(floor.randomMoveShare, 0.0);
+
+    // One it does not go up to is its ceiling, which is still a rating.
+    const Level ceiling = levelAtStrength(strengthForElo(9000));
+    EXPECT_EQ(ceiling.elo, 3190);
+    EXPECT_FALSE(ceiling.fullStrength());
+    EXPECT_EQ(strengthForElo(9000), strengthCount() - 2);
+
+    // In between, the nearest step.
+    EXPECT_EQ(levelAtStrength(strengthForElo(1754)).elo, 1750);
+    EXPECT_EQ(levelAtStrength(strengthForElo(1755)).elo, 1760);
+}
+
 TEST(Difficulty, LimitedLevelsAskForARating) {
     const auto options = asMap(engineOptions(levelByNumber(5), 1320, 3190, 8));
     EXPECT_EQ(options.at("UCI_LimitStrength"), "true");

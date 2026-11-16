@@ -15,6 +15,11 @@ namespace theme {
 // interface is written in.
 inline constexpr const char* kFont = "Arial";
 
+// The typeface of the signs on the board — "!", "#", "½" — which are set the
+// way a chess book sets them. Times New Roman is on every Mac; elsewhere the
+// name resolves to the system's own Times (Liberation Serif, Nimbus Roman).
+inline constexpr const char* kSerif = "Times New Roman";
+
 inline ax::Color4F rgb(int r, int g, int b, float a = 1.0f) {
     return ax::Color4F(static_cast<float>(r) / 255.0f, static_cast<float>(g) / 255.0f,
                        static_cast<float>(b) / 255.0f, a);
@@ -47,12 +52,10 @@ inline const ax::Color3B kOnAccent(255, 255, 255);
 inline const ax::Color3B kGood(150, 200, 100);
 inline const ax::Color3B kWarn(232, 178, 92);
 
-// The colour a move's mark is written in. The same five everywhere a mark
-// appears, and the ones other chess programs have taught people to expect:
-// green-blue for the finds, yellow through red for what went wrong. Each is
-// deep enough for a white sign to read on it, and for the disc to stand out
-// on a board without an outline — the yellow one against the yellow of the
-// last move's squares in particular.
+// The colour a move's mark is written in in the list of moves: the five other
+// chess programs have taught people to expect, green-blue for the finds,
+// yellow through red for what went wrong. On the board the same marks are
+// printed in ink like every other badge; see kBadgePaper below.
 inline ax::Color4F markColour(chess::Mark mark) {
     switch (mark) {
     case chess::Mark::Brilliant:  return rgb(38, 194, 163);
@@ -65,14 +68,20 @@ inline ax::Color4F markColour(chess::Mark mark) {
     return rgb(150, 155, 168);
 }
 
-// What a badge on a king is painted in: the king is attacked or mated, the
-// king has won, and everything that is neither — a draw, a resignation.
-inline const ax::Color4F kSignDanger = rgb(226, 72, 62);
-inline const ax::Color4F kSignWon    = rgb(104, 160, 62);
-inline const ax::Color4F kSignQuiet  = rgb(112, 118, 134);
+// A badge on the board — what a move was worth, how the game stands for a
+// king — is printed rather than painted: a disc of book paper, ruled round in
+// ink, with the sign in ink on it. One pair of colours for all of them; which
+// sign it is says the rest, as it does on a printed page.
+inline const ax::Color4F kBadgePaper = rgb(246, 238, 219);
+inline const ax::Color4F kBadgeInk   = rgb(38, 28, 20);
 
 // The board's own colours, and the marks that depend on them, are a choice the
 // player makes: see Look.h. The hint arrow is the same on every board.
 inline const ax::Color4F kHint = rgb(66, 140, 224, 0.82f);
+
+// The position editor's red: a square that makes the position impossible.
+inline const ax::Color4F kProblem = rgb(214, 48, 40, 0.58f);
+// And on the panel, the line that says what is wrong.
+inline const ax::Color3B kBad(236, 112, 100);
 
 }  // namespace theme

@@ -40,6 +40,7 @@ private:
 
     ax::DrawNode* _back    = nullptr;
     ax::DrawNode* _preview = nullptr;
+    ax::Node*     _tiles   = nullptr;  // the preview's squares, on a board laid from pictures
     ax::Node*     _pieces  = nullptr;
     ax::Label *_title = nullptr, *_piecesTitle = nullptr, *_boardTitle = nullptr;
 

@@ -18,6 +18,11 @@ constexpr float kPadding = 30.0f;
 constexpr float kRow     = 42.0f;
 constexpr float kGap     = 10.0f;
 
+// The strip the difficulty slider answers to the pointer in, and how far
+// under the row of level buttons it starts.
+constexpr float kSlider    = 24.0f;
+constexpr float kSliderGap = 3.0f;
+
 Label* makeLabel(const std::string& text, float points, const Color3B& colour) {
     Label* label = typeset::label(text, points, colour);
     label->setAnchorPoint(Vec2(0.0f, 0.5f));
@@ -49,11 +54,15 @@ bool NewGameDialog::init() {
     _sideTitle        = makeLabel(text::kYourColour, 13.0f, theme::kFaint);
     _levelTitle       = makeLabel(text::kDifficulty, 13.0f, theme::kFaint);
     _levelName        = makeLabel("", 17.0f, theme::kInk);
+    // The same line, at its far end: the number that goes with the name.
+    _levelMeasure     = makeLabel("", 14.0f, theme::kDim);
+    _levelMeasure->setAnchorPoint(Vec2(1.0f, 0.5f));
     _levelDescription = makeLabel("", 14.0f, theme::kDim);
     _levelDescription->setAnchorPoint(Vec2(0.0f, 1.0f));
     _notice = makeLabel(text::kNoEngine, 14.0f, theme::kWarn);
     _notice->setAnchorPoint(Vec2(0.0f, 1.0f));
-    for (Label* label : {_title, _opponentTitle, _sideTitle, _levelTitle, _levelName, _levelDescription, _notice})
+    for (Label* label : {_title, _opponentTitle, _sideTitle, _levelTitle, _levelName, _levelMeasure,
+                         _levelDescription, _notice})
         addChild(label);
 
     const auto choice = [this](const char* label) {
@@ -83,6 +92,17 @@ bool NewGameDialog::init() {
         _buttons.add(_levels[i]);
     }
 
+    // The scale the levels stand on, with a stop under each of their buttons.
+    _strength = Slider::create();
+    {
+        std::vector<int> stops;
+        for (const chess::Level& level : chess::levels())
+            stops.push_back(chess::strengthOfLevel(level.number));
+        _strength->setScale(chess::strengthCount(), std::move(stops));
+    }
+    _strength->onChange = [this](int strength) { chooseStrength(strength); };
+    addChild(_strength);
+
     _cancel = Button::create(text::kCancel);
     _play   = Button::create(text::kPlay, Button::Style::Primary, 17.0f);
     _cancel->onClick = [this] {
@@ -93,10 +113,17 @@ bool NewGameDialog::init() {
         if (onPlay)
             onPlay(_setup);
     };
+    _puzzles          = Button::create(text::kModePuzzles);
+    _puzzles->onClick = [this] {
+        if (onPuzzles)
+            onPuzzles();
+    };
     addChild(_cancel);
     addChild(_play);
+    addChild(_puzzles);
     _buttons.add(_cancel);
     _buttons.add(_play);
+    _buttons.add(_puzzles);
 
     setVisible(false);
     return true;
@@ -104,7 +131,7 @@ bool NewGameDialog::init() {
 
 void NewGameDialog::open(const GameSetup& setup, bool canCancel, bool engineAvailable, int eloMin, int eloMax) {
     _setup           = setup;
-    _setup.level     = chess::levelByNumber(setup.level).number;
+    _setup.strength  = std::clamp(setup.strength, 0, chess::strengthCount() - 1);
     _canCancel       = canCancel;
     _engineAvailable = engineAvailable;
     _eloMin          = eloMin;
@@ -127,9 +154,32 @@ void NewGameDialog::choose(GameSetup::Side side) {
 }
 
 void NewGameDialog::chooseLevel(int number) {
-    _setup.level = chess::levelByNumber(number).number;
+    chooseStrength(chess::strengthOfLevel(number));
+}
+
+void NewGameDialog::chooseStrength(int strength) {
+    _setup.strength = std::clamp(strength, 0, chess::strengthCount() - 1);
     // The description can be one line or two, and the card is sized to it.
     layout(_screen);
+}
+
+// While the slider is held it has the pointer to itself: dragging the thumb
+// across a button should not light the button up.
+bool NewGameDialog::mouseMove(const Vec2& point) {
+    if (_strength->held())
+        return _strength->mouseMove(point);
+    const bool buttons = Dialog::mouseMove(point);
+    return _strength->mouseMove(point) || buttons;
+}
+
+void NewGameDialog::mouseDown(const Vec2& point) {
+    if (!_strength->mouseDown(point))
+        Dialog::mouseDown(point);
+}
+
+void NewGameDialog::mouseUp(const Vec2& point) {
+    if (!_strength->mouseUp(point))
+        Dialog::mouseUp(point);
 }
 
 void NewGameDialog::keyPressed(EventKeyboard::KeyCode code) {
@@ -147,15 +197,26 @@ void NewGameDialog::keyPressed(EventKeyboard::KeyCode code) {
         if (_canCancel && onCancel)
             onCancel();
         break;
+    // Left and right: one step along the scale, the smallest there is.
     case Key::KEY_LEFT_ARROW:
-    case Key::KEY_DOWN_ARROW:
         if (computer)
-            chooseLevel(_setup.level - 1);
+            chooseStrength(_setup.strength - 1);
         break;
     case Key::KEY_RIGHT_ARROW:
+        if (computer)
+            chooseStrength(_setup.strength + 1);
+        break;
+    // Down and up: to the nearest level in that direction. From between two
+    // levels "down" is the one already reached, not the one below it.
+    case Key::KEY_DOWN_ARROW:
+        if (computer) {
+            const chess::Level level = chess::levelAtStrength(_setup.strength);
+            chooseLevel(level.exact ? level.number - 1 : level.number);
+        }
+        break;
     case Key::KEY_UP_ARROW:
         if (computer)
-            chooseLevel(_setup.level + 1);
+            chooseLevel(chess::levelAtStrength(_setup.strength).number + 1);
         break;
     default:
         // The digits pick a level directly.
@@ -176,14 +237,18 @@ void NewGameDialog::refresh() {
     _random->setChosen(_setup.side == GameSetup::Side::Random);
     _black->setChosen(_setup.side == GameSetup::Side::Black);
 
+    // A button is lit when the opponent is exactly that level. Between two
+    // of them none is: the thumb of the slider says where.
+    const chess::Level level = chess::levelAtStrength(_setup.strength);
     for (std::size_t i = 0; i < _levels.size(); ++i)
-        _levels[i]->setChosen(static_cast<int>(i) + 1 == _setup.level);
+        _levels[i]->setChosen(level.exact && static_cast<int>(i) + 1 == level.number);
+    _strength->setValue(_setup.strength);
 
-    const chess::Level& level = chess::levelByNumber(_setup.level);
-    int elo                   = level.elo;
+    int elo = level.elo;
     if (_eloMin > 0 && _eloMax >= _eloMin)
         elo = std::clamp(elo, _eloMin, _eloMax);
     _levelName->setString(text::levelName(level.number));
+    _levelMeasure->setString(text::strengthMeasure(level, elo));
     _levelDescription->setString(typeset::wrap(text::levelDescription(level, elo), 14.0f, _textWidth));
     _notice->setString(typeset::wrap(text::kNoEngine, 14.0f, _textWidth));
 }
@@ -204,7 +269,7 @@ void NewGameDialog::layout(const Vec2& screen) {
     // Only what applies is shown. Two people at one board have no "your
     // colour" and no difficulty.
     for (Node* node : std::initializer_list<Node*>{_sideTitle, _white, _random, _black, _levelTitle, _levelName,
-                                                   _levelDescription})
+                                                   _levelMeasure, _levelDescription, _strength})
         node->setVisible(computer);
     for (Button* button : _levels)
         button->setVisible(computer);
@@ -220,7 +285,7 @@ void NewGameDialog::layout(const Vec2& screen) {
     height += 22.0f + kRow + 22.0f;                 // opponent
     if (computer) {
         height += 22.0f + kRow + 22.0f;             // colour
-        height += 22.0f + kRow + 14.0f + 24.0f + descriptionHeight + 18.0f;  // level
+        height += 22.0f + kRow + kSliderGap + kSlider + 8.0f + 24.0f + descriptionHeight + 14.0f;  // level
     }
     if (!_engineAvailable)
         height += noticeHeight + 20.0f;
@@ -267,12 +332,18 @@ void NewGameDialog::layout(const Vec2& screen) {
         const float cell = (inner - 7.0f * kGap) / 8.0f;
         for (std::size_t i = 0; i < _levels.size(); ++i)
             _levels[i]->setFrame(Vec2(left + static_cast<float>(i) * (cell + kGap), y - kRow), Vec2(cell, kRow));
-        y -= kRow + 14.0f;
+        y -= kRow + kSliderGap;
+
+        // The slider runs from under the middle of the first button to under
+        // the middle of the last, so each of its stops is under its button.
+        _strength->setFrame(Vec2(left + cell * 0.5f, y - kSlider), Vec2(inner - cell, kSlider));
+        y -= kSlider + 8.0f;
 
         _levelName->setPosition(Vec2(left, y - 12.0f));
+        _levelMeasure->setPosition(Vec2(left + inner, y - 12.0f));
         y -= 24.0f;
         _levelDescription->setPosition(Vec2(left, y - 2.0f));
-        y -= descriptionHeight + 18.0f;
+        y -= descriptionHeight + 14.0f;
     }
 
     const float bottom = corner.y + kPadding;
@@ -280,4 +351,6 @@ void NewGameDialog::layout(const Vec2& screen) {
     _play->setFrame(Vec2(corner.x + width - kPadding - playWidth, bottom), Vec2(playWidth, kRow + 4.0f));
     _cancel->setFrame(Vec2(corner.x + width - kPadding - playWidth - kGap - cancelWidth, bottom),
                       Vec2(cancelWidth, kRow + 4.0f));
+    // At the far left, apart from the two that are about this game.
+    _puzzles->setFrame(Vec2(corner.x + kPadding, bottom), Vec2(110.0f, kRow + 4.0f));
 }

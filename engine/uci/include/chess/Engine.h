@@ -33,6 +33,13 @@ struct SearchRequest {
     // first ends the search. With neither, the engine gets one second.
     int moveTimeMs = 0;
     int depth      = 0;
+    // Look for a mate in at most this many moves and stop as soon as one is
+    // found ("go mate N"). Combined with the two above, whichever comes first.
+    int mate = 0;
+
+    // Consider only these moves, UCI ("searchmoves"): the way to ask what one
+    // particular move is worth rather than which move is best.
+    std::vector<std::string> searchMoves;
 
     // Engine options to apply first, as (name, value). Only those that differ
     // from what the engine was last told are actually sent.
@@ -57,6 +64,8 @@ struct SearchResult {
     // principal variation. While a search is running this is how to see where
     // it is heading; bestMove is only set once it has finished.
     std::string pvMove;
+    // The whole of that line, the first move included.
+    std::vector<std::string> pv;
 
     // The second-best move and what it is worth, when the engine was asked for
     // two lines (its MultiPV option) and there is a second legal move. Its

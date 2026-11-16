@@ -281,6 +281,30 @@ TEST(FakeEngine, DepthAndTimeLimits) {
     EXPECT_EQ(wire.count("go"), 0);
 }
 
+TEST(FakeEngine, MateSearchAndChosenMoves) {
+    Wire wire;
+    Engine engine;
+    wire.attach(engine);
+    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
+
+    SearchResult result;
+    SearchRequest request = quick();
+    request.moveTimeMs    = 0;
+    request.mate          = 3;
+    engine.search(request);
+    ASSERT_TRUE(waitForResult(engine, result));
+    // The whole line comes back, not just its first move.
+    EXPECT_EQ(result.pv, (std::vector<std::string>{"e2e4", "e7e5"}));
+
+    request.moveTimeMs  = 500;
+    request.searchMoves = {"g1f3", "d2d4"};
+    engine.search(request);
+    ASSERT_TRUE(waitForResult(engine, result));
+
+    EXPECT_EQ(wire.count("go mate 3"), 1);
+    EXPECT_EQ(wire.count("go movetime 500 mate 3 searchmoves g1f3 d2d4"), 1);
+}
+
 TEST(FakeEngine, AnEngineThatDiesIsReportedNotWaitedFor) {
     Engine engine;
     ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
@@ -385,6 +409,33 @@ TEST_F(Stockfish, FindsMateInOne) {
 
     ASSERT_TRUE(game.playUci(result.bestMove));
     EXPECT_EQ(game.status().outcome, Outcome::Checkmate);
+}
+
+// What the problem mode asks: is there a mate in so many moves, and does this
+// particular move keep it?
+TEST_F(Stockfish, MateSearchWithChosenMoves) {
+    // Mate in two: 1. Kb6 Kb8 2. Rh8#.
+    const std::string position = "position fen k7/8/8/1K6/8/8/8/7R w - - 0 1";
+    SearchRequest request;
+    request.position   = position;
+    request.mate       = 2;
+    request.moveTimeMs = 5000;
+    request.tag        = 7;
+    engine.search(request);
+    SearchResult result;
+    ASSERT_TRUE(waitForResult(engine, result, 10000ms));
+    ASSERT_TRUE(result.mateIn.has_value());
+    EXPECT_EQ(*result.mateIn, 2);
+    EXPECT_EQ(result.bestMove, "b5b6");
+    EXPECT_GE(result.pv.size(), 3u);
+
+    // Only Rh2: no mate in two after that.
+    request.searchMoves = {"h1h2"};
+    request.moveTimeMs  = 1500;
+    engine.search(request);
+    ASSERT_TRUE(waitForResult(engine, result, 10000ms));
+    EXPECT_EQ(result.bestMove, "h1h2");
+    EXPECT_FALSE(result.mateIn.has_value() && *result.mateIn > 0 && *result.mateIn <= 2);
 }
 
 TEST_F(Stockfish, HasNoMoveWhenTheGameIsOver) {

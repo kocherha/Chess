@@ -7,7 +7,8 @@ with [Stockfish](https://stockfishchess.org/) as the opponent.
 
 ![A game against Stockfish](docs/screenshot.png)
 
-- play against the computer at eight difficulty levels, or two people at one board;
+- play against the computer at eight difficulty levels — or anywhere between
+  them, with a slider — or two people at one board;
 - move by clicking or dragging; legal moves, the last move and check are highlighted;
 - all the rules: castling, en passant, promotion with a choice of piece,
   checkmate, stalemate, and draws by threefold repetition, the fifty-move rule
@@ -20,8 +21,12 @@ with [Stockfish](https://stockfishchess.org/) as the opponent.
 - badges on the kings for check, checkmate, stalemate, a draw and a resignation;
 - take a move back, ask for a hint from the engine at full strength, flip the
   board, resign;
-- a choice of looks: two sets of pieces (classic and Gothic) and four boards, in
-  any combination;
+- a separate “Задачі” (Problems) mode: a position editor that says at once
+  whether the position could occur in a game at all, and problem solving — 23
+  mate problems come with the game, and you can add your own; Stockfish checks
+  every move;
+- a choice of looks: six sets of pieces (classic, diagram, Gothic, anime, bone
+  and ancient) and seven boards, in any combination;
 - the window resizes freely; while nothing is happening the game draws nothing
   and uses no CPU at all.
 
@@ -138,13 +143,15 @@ it a second time without answering and it closes.
 | Hint | button | `H` |
 | Flip the board | button | `F` |
 | Looks of the pieces and the board | the “Вигляд” button | `V` |
+| Problems and the position editor | the “Партія / Задачі” switch under the title | `P` |
 | Deselect, cancel a promotion | click off the board | `Esc` |
 | Scroll the move list | wheel over the list, or drag the scroll bar | |
 | Copy the whole game | the “Копіювати все” (Copy all) button | `C` |
 | Copy one move | click the move in the list | |
 
-In the new-game dialog the digits `1`–`8` and the arrows pick the level, and
-`Enter` starts.
+In the new-game dialog the digits `1`–`8` pick a level, `↑` and `↓` go to the
+neighbouring level, `←` and `→` move the difficulty slider one step, and `Enter`
+starts.
 
 Against the computer, “take back” returns to your own previous turn — it takes
 back your move and the reply to it. After a resignation the same button undoes
@@ -157,6 +164,74 @@ The game is copied as PGN — the tags and the moves in English notation (`Nf3`,
 pasted into the analysis board on lichess, for instance. A single move is
 copied the way it is written in the list, with its number: `12. Кf3`,
 `12... Кf6`.
+
+### Problems and the position editor
+
+Under the title of the game there is a switch, “Партія / Задачі” (Game /
+Problems). Problems are a mode of their own: the game in progress waits where it
+was left meanwhile, and the “Партія” switch brings it back. Before the first
+game, the “Задачі” button in the new-game dialog leads there.
+
+**The position editor.** Above and below the board are rows of pieces, black
+and white, with an eraser at the end. Drag a piece from a row onto a square, or
+click it in the row and then put it down with clicks (a click on the same piece
+removes it). Pieces on the board can be dragged to another square, or off the
+board to remove them; a right click removes too. There is one king of each
+colour: putting down a second one moves him. The panel has the side to move,
+the castling rights (available only while the king and that rook are on their
+squares), en passant (the squares where it really is possible), FEN — copy, or
+paste from the clipboard — and the starting position, clear, flip.
+
+![The editor: an impossible position, and why](docs/editor.png)
+
+After every change the game says whether the position could have arisen in a
+game, and the squares that make it impossible turn red:
+
+- no king (the position is not finished yet), more than one king;
+- a pawn on the first or the last rank;
+- the kings side by side; the side that has just moved is in check;
+- a check no single move could have given: from three pieces, from two
+  “direct” ones (a pawn's or a knight's check cannot be uncovered), from a pawn
+  still on its starting square;
+- more than eight pawns; more pieces than promotions allow (every piece beyond
+  the starting set is a pawn that is no longer there); bishops are counted by
+  the colour of their squares, and a bishop shut in by its own unmoved pawns
+  (c1 behind b2 and d2) can be nowhere but at home;
+- pawns standing where they could only be after more captures than the other
+  side has pieces missing (a pawn changes file only by capturing; the fewest
+  captures are worked out as an assignment problem);
+- an en passant square that does not fit the check on the board.
+
+These are the checks problem composers and arbiters use, short of a full
+retrograde analysis: a position that passes them may still be unreachable in
+some subtle way; one that fails any of them certainly is. Once the position is
+possible, Stockfish studies it and says what it found: “Білі ставлять мат у 3
+ходи” (white mates in 3 — the shortest mate, up to eight moves), or an
+evaluation.
+
+From there: “Розв'язувати” (solve), “Грати з позиції” (play from the position:
+the new-game dialog, and the game against the computer or for two starts from
+it) and “Зберегти в мої” (save to my problems).
+
+**Solving.** A problem is a position and a goal: mate in so many moves, or, if
+there is no forced mate, the best move. It carries no solution: Stockfish checks
+each of your moves (is there still a mate in the moves that are left?), answers
+a right one with the stoutest defence, and marks a wrong one `?` and takes it
+back. So any move that really mates in time is accepted — including one the
+composer did not foresee. There is a hint (an arrow on the key move), the
+solution (the engine plays it out), take back, start again, and “Змінити
+позицію” (edit the position) to go to the editor.
+
+![A problem solved: Morphy, the Opera Game](docs/puzzle.png)
+
+The collection (“Збірка задач”) has 23 problems: mates in one on the known
+patterns (smothered, Arabian, Anastasia's, Boden's, epaulette, scholar's,
+fool's…), in two (Morphy's problem, the Opera Game, Légal's mate…), in three to
+five (the Immortal Game, Philidor's legacy…), and “Мої задачі”, your own. Each
+was checked with Stockfish: a mate in exactly that many moves and, all but “Дві
+тури” (two rooks), with a single first move. Problems solved unaided (no hint,
+no solution) get a tick; “Наступна задача” (next problem) goes to the first one
+not yet solved.
 
 ### Looks
 
@@ -171,31 +246,117 @@ closes it.
 
 | Pieces | |
 |---|---|
-| Класичні (Classic) | the “cburnett” set, familiar from Wikipedia and lichess |
-| Ґотичні (Gothic) | drawn for this game: spires, lancet arches, swallow-tail battlements |
+| Класичні (Classic) | Staunton pieces off a lathe: boxwood and ebony, with light and shade |
+| Діаграмні (Diagram) | the pieces of a chess book: flat, black and white, nothing but an outline and a few lines inside it |
+| Ґотичні (Gothic) | bone and ink: spires, lancet arches, stained glass, swallow-tail battlements |
+| Аніме (Anime) | the same six classic silhouettes drawn as a cartoon would draw them: flat colour, a white edge, and a face of its own on every piece |
+| Кістяні (Bone) | turned bone, as sets were before Staunton: one side pale, the other stained red; yellowed and cracked |
+| Старовинні (Ancient) | chaturanga, an ancient Indian army: a king under a parasol, a counsellor, a chariot, an elephant, a horseman, a foot soldier; ivory against blackened wood |
 
 | Board | |
 |---|---|
-| Дерево (Wood) | the brown pair of a club board |
-| Ґотика (Gothic) | stone and oxblood, laid as tiles with a brass stud where four meet |
+| Дерево (Wood) | maple and walnut: every square its own piece of veneer, a dark frame with one pale thread |
+| Ґотика (Gothic) | a church floor: limestone and oxblood, worn flags, a quatrefoil round a brass stud where four meet |
 | Мармур (Marble) | cool grey |
 | Смарагд (Emerald) | the green baize of a tournament hall |
+| Сакура (Sakura) | cream and pink, flat as a frame of a cartoon, with fallen petals |
+| Шкіра (Leather) | an old tooled board: vellum and dark calf, every square ruled round with a line, foxed and cracked |
+| Камінь (Stone) | slabs of buff and red sandstone, chipped and pitted by time |
 
-![The Gothic set on all four boards](docs/gothic-pieces.png)
+![The classic and the Gothic looks](docs/looks.png)
+
+![The anime set on the Sakura board](docs/anime.png)
+
+The anime set is chess pieces first: a pawn's ball, a rook's battlements, a
+knight's head, a bishop's cut mitre, a queen's pointed coronet, a king's crown
+and cross. What is anime about it is the manner: flat colour with one hard
+shadow, a white edge like a sticker's, and a face — a different one on every
+piece. The pawn is wide-eyed, the knight pleased with itself, the bishop
+smiling with its eyes shut, the rook stern, the queen all eyelashes, the king
+calm behind a small moustache. The light side is cream with blue eyes, the dark
+side violet with red ones; the crowns are gold on both.
+
+![The ancient set on the Stone board](docs/ancient.png)
+
+The ancient set is chess before it was chess: chaturanga, the game of the four
+arms of an ancient Indian army and the king they fight for. The pieces are
+that army:
+
+| Piece | In chaturanga | As drawn |
+|---|---|---|
+| king | the raja | cross-legged on his throne under the royal parasol |
+| queen | the mantri, a counsellor | a tall man in a long robe and a turban, with a staff |
+| rook | the ratha, a chariot | a war chariot: a great wheel, a car, a tiered canopy flying a pennant |
+| bishop | the gaja, an elephant | an elephant with its driver on its neck |
+| knight | the ashva, cavalry | a horse and its rider |
+| pawn | the padati, infantry | a soldier with shield and spear |
+
+They move as ordinary chess pieces do — only the look is changed. One side is
+ivory, the other blackened wood; both keep what is left of their paint — red
+ochre on cloths and shields, a little gold on crowns. The dark pieces are worn
+pale along their edges, so they do not sink even into a dark square. Size here
+is rank, as in old carving, where whoever matters more is larger, and it runs
+in the same order as worth: foot soldier, horseman and elephant, chariot,
+counsellor, king.
+
+The Stone board is red, so its marks are other colours: the last move is
+greenish, the selected square yellow, check a hot orange.
+
+![The bone set on the Leather board](docs/bone.png)
+
+The bone set is the kind that stood on tables before Staunton's: turned
+bone, one side left its own colour and the other stained red (red plays Black
+here). A piece is a string of beads — a domed foot, a ring, a reel, a barrel, a
+collar — with what it is on top. The king has a pierced gallery and a cross,
+the queen a coronet of balls, the rook is a brick tower flying a pennant, the
+bishop's mitre is split into two horns, the knight is a small carved head on a
+pedestal, the pawn a ball on a baluster. The bone has yellowed and cracked
+along its grain, and dirt has settled where one bead meets the next.
+
+![The diagram set on the Marble board](docs/diagram.png)
+
+The diagram set is the pieces a book prints a position with: flat, with no
+volume and no shadow, White as paper inside an ink outline, Black as solid ink
+with the same lines left white. The manner itself is as old as chess books and
+belongs to nobody; the outlines were drawn for this game from nothing, and no
+existing set or font was traced. The black pieces have a hairline of light
+round them, so they do not sink even into a dark square.
+
+In all six sets a piece's size goes by what it is worth: the pawn is the
+smallest, the knight and the bishop are alike, the rook stands above them, then
+the queen and the king. (Which is why the rook here is taller than the bishop,
+though in a real Staunton set it is shorter.)
+
+Any set stands on any board:
+
+![The classic set on every board](docs/classic-pieces.png)
+![The diagram set on every board](docs/diagram-pieces.png)
+![The Gothic set on every board](docs/gothic-pieces.png)
+![The anime set on every board](docs/anime-pieces.png)
+![The bone set on every board](docs/bone-pieces.png)
+![The ancient set on every board](docs/ancient-pieces.png)
 
 The marks on the board — last move, selected square, where a piece can go,
 check — are each board's own: a green selection would be lost on the oxblood,
 and a red check on it would be no warning at all.
 
-The Gothic set is one file, `art/gothic.py`: twelve pieces described as
-outlines on a 100 × 100 square, from which it writes the SVGs (`art/gothic/`)
-and the PNGs the game loads. To change something, change a number and run
-`python3 art/gothic.py --sheet` (it needs `rsvg-convert` and Pillow).
+All six sets and the five pictured boards were drawn for this game, and all
+of it is code in `art/`. A set is one file (`art/classic.py`, `art/diagram.py`,
+`art/gothic.py`, `art/anime.py`, `art/bone.py`, `art/ancient.py`): twelve pieces described as outlines on a
+100 × 100 square, from which it writes the SVGs (`art/<set>/`) and the PNGs the
+game loads. To change something, change a number and run
+`python3 art/gothic.py --sheet` (it needs `rsvg-convert` and Pillow). The
+squares of the Wood, Gothic, Sakura, Leather and Stone boards come from
+`art/boards.py` (which also needs numpy): two pictures a board, four different
+squares in each, and the game lays them so that neighbours do not repeat. What
+they share is `art/kit.py`; the thinking it was all drawn from is
+`art/DESIGN.md` (in Ukrainian); the plate above is drawn by `art/plate.py`.
 
 Adding your own: a set of pieces is a folder of twelve PNGs (`wK.png` …
 `bP.png`) in `game/Content/pieces/` and a line in the table in
-`game/Source/Look.cpp`; a board is just a line in the table next to it. The
-buttons in the dialog appear by themselves.
+`game/Source/Look.cpp`; a board is a line in the table next to it and, if it
+is more than two flat colours, a folder with `light.png` and `dark.png` in
+`game/Content/boards/`. The buttons in the dialog appear by themselves.
 
 ### The evaluation bar
 
@@ -216,7 +377,10 @@ five 86%.
 ![Marks in the move list and on the board](docs/marks.png)
 
 After a move a sign may appear next to it in the list, and on the board a small
-disc with the same sign on the square the piece went to:
+disc with the same sign on the square the piece went to. Every badge on the
+board is made the way a book would print it: a disc the colour of paper, ruled
+round in ink, with the sign in a serif face — no pictures and no colours, only
+chess notation. (In the move list the signs keep their colours.)
 
 | Sign | Meaning | When it is given |
 |---|---|---|
@@ -259,10 +423,12 @@ the corner of a square, but on a king:
 |---|---|---|
 | `+` | the king in check | check |
 | `#` | the king that has been mated | checkmate |
-| a crown | the winner's king | a win — by checkmate or because the opponent resigned |
-| a white flag | the king of the side that resigned | resignation |
+| `1` | the winner's king | a win — by checkmate or because the opponent resigned |
+| `0` | the king of the side that resigned | resignation |
 | `½` | both kings | a draw: stalemate, threefold repetition, fifty moves, insufficient material |
 
+These are the signs a game is written down with on a score sheet: the `1` and
+the `0` on the kings add up to the score `1–0` or `0–1`, two `½` to `½–½`.
 Which kind of draw it is, the panel on the right says. Once the game is over
 its score appears in the list under the last move: `1–0`, `0–1` or `½–½`. If
 the last move was made by a king and has a mark of its own, the mark goes to
@@ -290,6 +456,35 @@ some of the moves are made not by the engine but by chance.
 The ratings are what Stockfish is asked for, not a strength measured against
 people. The table lives in one place, `engine/uci/src/Difficulty.cpp`.
 
+#### Between the levels
+
+![The new-game dialog: the slider between levels four and five](docs/newgame.png)
+
+Eight steps are few: one level turns out too easy and the next already too
+hard. So the levels are only stops on a longer scale, and under the level
+buttons in the new-game dialog there is a slider that covers all of it, 224
+positions:
+
+- from level 1 to level 3, fewer and fewer random moves: from 35% down to
+  none, one in a hundred fewer per step;
+- from level 3 to 3190 Elo, the ceiling of Stockfish's `UCI_Elo`, the rating,
+  10 Elo per step;
+- the last step is no limit at all.
+
+Time per move grows evenly from one level to the next: at 1750 Elo, halfway
+between the fourth and the fifth, it is 0.45 s.
+
+The slider can be dragged, clicked anywhere along it, or moved one step at a
+time with `←` and `→`. Its marks stand under the buttons of their levels, so
+the distance between neighbouring marks is the same while the number of steps
+is not: where there are more of them, each is finer under the pointer. A level
+button is lit only when exactly that level is chosen; above the description
+are the name of the level already reached and what exactly is chosen — the
+share of random moves, the rating, or “повна сила” (full strength). During a
+game the panel says the same: “Рівень 4 · Досвідчений” for a level,
+“Досвідчений · ≈ 1750 Elo” for a strength between two. In the PGN an opponent
+between levels is written as `Stockfish, 1750 Elo`.
+
 It is worth knowing *how* Stockfish plays weaker, because it shows at the
 board. It does not “think worse”: at a shallow depth (the lower the rating the
 shallower — at 1320 it is a single half-move) it takes the four moves it likes
@@ -312,11 +507,12 @@ engine/rules/                 the rules of chess; nothing but the standard libra
   include/chess/Position.h    a position: FEN, legal moves, check, notation
   include/chess/Game.h        a game: history, taking back, how it ended, PGN
   include/chess/Judge.h       marking a move (!!, !, ?!, ?, ??) from two evaluations
-  tests/                      perft, FEN, notation, draws, known games
+  include/chess/Setup.h       a position from the editor: any at all, and why it is (not) possible
+  tests/                      perft, FEN, notation, draws, known games, possible positions
 engine/uci/                   talking to the engine; knows nothing of the rules
   include/chess/Process.h     a child process with two pipes
   include/chess/Engine.h      UCI: ask for a move, cancel, get the answer later
-  include/chess/Difficulty.h  the difficulty levels
+  include/chess/Difficulty.h  the difficulty levels and the scale between them
   tests/                      a fake engine (sh) and the real Stockfish
 game/                         the axmol application
   Source/AppDelegate.*        the window, the command line, the main loop
@@ -329,17 +525,41 @@ game/                         the axmol application
   Source/NewGameDialog.*      the new-game dialog
   Source/LookDialog.*         the appearance dialog
   Source/ConfirmDialog.*      “the game is not finished”: asked before it is lost
+  Source/PuzzleScene.*        the problems mode: the position editor and solving
+  Source/PuzzlePanel.*        its panel on the right: two pages
+  Source/PieceTray.*          the rows of pieces above and below the board
+  Source/PuzzleDialog.*       the “Збірка задач” (collection) window
+  Source/Puzzles.*            the collection and the player's own problems
   Source/Button.*             a button and a set of buttons
+  Source/Slider.*             a slider with marks on it (the difficulty)
   Source/Shapes.*             antialiased shapes on top of DrawNode
   Source/Text.*               labels and line wrapping
   Source/Strings.*            every word the game says
   Source/Theme.h              the colours of the interface around the board
   Content/pieces/classic/     the classic pieces (PNG)
+  Content/pieces/diagram/     the diagram pieces (PNG)
   Content/pieces/gothic/      the Gothic pieces (PNG)
+  Content/pieces/anime/       the anime pieces (PNG)
+  Content/pieces/bone/        the bone pieces (PNG)
+  Content/pieces/ancient/     the ancient pieces, chaturanga (PNG)
+  Content/boards/wood/        the squares of the Wood board (PNG)
+  Content/boards/gothic/      the squares of the Gothic board (PNG)
+  Content/boards/sakura/      the squares of the Sakura board (PNG)
+  Content/boards/leather/     the squares of the Leather board (PNG)
+  Content/boards/stone/       the squares of the Stone board (PNG)
   cmake/modules/              the game template from axmol 2.9.1
   proj.ios_mac/, proj.linux/  the entry points for macOS and Linux
-art/gothic.py                 the Gothic set: where its SVGs and PNGs come from
-art/gothic/                   its SVGs
+art/classic.py                the classic set: where its SVGs and PNGs come from
+art/diagram.py                the diagram set: likewise
+art/gothic.py                 the Gothic set: likewise
+art/anime.py                  the anime set: likewise
+art/bone.py                   the bone set: likewise
+art/ancient.py                the ancient set (chaturanga): likewise
+art/classic/, art/diagram/, art/gothic/, art/anime/, art/bone/, art/ancient/   their SVGs
+art/boards.py                 the squares of the Wood, Gothic, Sakura, Leather and Stone boards
+art/kit.py                    what they share: outlines, rendering, the contact sheet
+art/plate.py                  the plate docs/looks.png
+art/DESIGN.md                 six looks, six schools: what it was all drawn from
 cmake/Chess.cmake             the dependencies, preparing axmol, building Stockfish
 docs/                         screenshots and the source of the icon
 third-party/axmol/            axmol v2.9.1 (MIT)
@@ -375,6 +595,15 @@ With no engine the game works in two-player mode; if the engine dies in the
 middle of a game, the game says so and starts it again with the next new game.
 `CHESS_UCI_LOG=1` prints both conversations to stderr: lines marked `uci` are
 the opponent, `eval` the one that watches.
+
+**The problems mode is a scene of its own, pushed over the game**
+(`pushScene`/`popScene`): the game, with both its engines, waits under it
+unchanged. The problems have a Stockfish of their own, a third one. It runs on
+one thread: with several, Stockfish sometimes ends a search restricted to one
+move (`go mate N searchmoves …`) after a few plies and without the mate it would
+have found — and that is exactly the search a player's move is judged by. If
+no mate is found from the attacking side, before saying “no” the engine is also
+asked from the defending side: is it mated within the moves that are left?
 
 **The rules are an 8×8 array, not bitboards.** This library answers a person at
 a board a few dozen times a second at most; the thinking is Stockfish's job.
@@ -418,7 +647,7 @@ cmake -S . -B build -DCHESS_BUILD_APP=OFF && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-87 tests. Those that play against the real Stockfish skip themselves if the
+114 tests. Those that play against the real Stockfish skip themselves if the
 binary is not there; among them are games at every level in which each move the
 engine makes has to be legal by this project's own rules.
 
@@ -427,11 +656,15 @@ mouse:
 
 ```bash
 Chess --play --level 5 --side black     # straight to the board
+Chess --play --elo 1750                 # a strength between the levels: the nearest to this rating
 Chess --fen "8/4P1k1/8/8/8/8/8/7K w - - 0 1" --two-players
 Chess --moves "e2e4 e7e5 g1f3"          # play these moves and carry on
 Chess --shot board.png                  # wait for the screen to settle, save it as a PNG and quit
 Chess --pieces gothic --board marble    # a look for this run, leaving the saved one alone
 Chess --autoplay 5 --level 3            # five games of random moves against the engine
+Chess --puzzles                         # straight to the problems mode, in the editor
+Chess --edit "4k3/8/8/8/8/8/8/4K2R w K -"   # the editor with this position
+Chess --puzzle m2-morphy                # a problem from the collection (the ids are in Puzzles.cpp)
 ```
 
 `--moves` takes both UCI (`e2e4`) and ordinary notation (`Nf3`, `O-O`).
@@ -440,13 +673,15 @@ Chess --autoplay 5 --level 3            # five games of random moves against the
 
 - **Stockfish** — GPLv3. The game does not link it; it runs it as a separate
   program.
-- **The classic pieces** — Colin M.L. Burnett's “cburnett” set, GPLv2+, the one
-  used by Wikipedia and lichess; the PNGs in `game/Content/pieces/classic/`
-  were rendered from the SVGs in the lichess repository.
 - **axmol** — MIT.
 
-The Gothic set and all four boards contain nobody else's work: they were drawn
-for this project.
+All six piece sets and all seven boards contain nobody else's work: they were
+drawn for this project (the anime set is a style, not anybody's characters). (The classic set used to be Colin M.L. Burnett's “cburnett”,
+GPLv2+; it has been replaced and survives only in the git history.)
 
-If you ever distribute a built application, the terms of the GPL apply both to
-the Stockfish binary in the bundle and to the classic piece set.
+The problems in the collection are well-known mating patterns and positions
+from nineteenth-century games (Morphy, Anderssen, Légal, Philidor); the
+set-ups were written down and checked for this game.
+
+If you ever distribute a built application, the terms of the GPL apply to the
+Stockfish binary in the bundle.

@@ -235,8 +235,15 @@ void Engine::pump() {
         go += " movetime " + std::to_string(request.moveTimeMs);
     if (request.depth > 0)
         go += " depth " + std::to_string(request.depth);
-    if (request.moveTimeMs <= 0 && request.depth <= 0)
+    if (request.mate > 0)
+        go += " mate " + std::to_string(request.mate);
+    if (request.moveTimeMs <= 0 && request.depth <= 0 && request.mate <= 0)
         go += " movetime 1000";
+    if (!request.searchMoves.empty()) {
+        go += " searchmoves";
+        for (const std::string& move : request.searchMoves)
+            go += ' ' + move;
+    }
     send(go);
 
     _busy        = true;
@@ -332,6 +339,7 @@ void Engine::handleLine(const std::string& line) {
         bool bound = false;
         std::optional<int> cp, mate;
         std::string firstMove;
+        std::vector<std::string> line;
 
         for (std::size_t i = 1; i < token.size(); ++i) {
             int value = 0;
@@ -349,6 +357,7 @@ void Engine::handleLine(const std::string& line) {
             } else if (token[i] == "pv") {
                 if (i + 1 < token.size())
                     firstMove = token[i + 1];
+                line.assign(token.begin() + static_cast<std::ptrdiff_t>(i) + 1, token.end());
                 break;  // everything after it is the line itself
             }
         }
@@ -367,6 +376,7 @@ void Engine::handleLine(const std::string& line) {
             _current.scoreCp = cp;
             _current.mateIn  = mate;
             _current.pvMove  = firstMove;
+            _current.pv      = std::move(line);
         } else if (multipv == 2) {
             _current.secondDepth = depth;
             _current.secondCp    = cp;

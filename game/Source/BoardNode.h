@@ -37,10 +37,15 @@ public:
     // and whatever was captured fades out. `slide` false skips the slide, for
     // a piece the player has just carried there by hand.
     void show(const chess::Position& position, const chess::Move* played = nullptr, bool slide = true);
+    // Any arrangement at all, possible or not: the board of the position
+    // editor, half way through being set up.
+    using Placement = std::array<chess::Piece, 64>;
+    void show(const Placement& placement);
+    const Placement& shown() const { return _shown; }
 
-    // How the game stands for one of the kings, as a badge on his square:
-    // "+" in check, "#" mated, a crown for the winner, a white flag for the
-    // one who resigned, "½" for a draw of any kind.
+    // How the game stands for one of the kings, as a badge on his square, in
+    // the signs a score sheet uses: "+" in check, "#" mated, "1" for the
+    // winner, "0" for the one who resigned, "½" for a draw of any kind.
     enum class Sign { None, Check, Mate, Won, Resigned, Draw };
     struct KingSign {
         chess::Square square = chess::kNoSquare;
@@ -60,6 +65,9 @@ public:
         // the other corner.
         std::array<KingSign, 2> kings{};
         std::vector<chess::Move> targets;           // where the selected piece may go
+        // Squares the position editor points at: what makes the position
+        // impossible. Tinted red under the pieces.
+        std::vector<chess::Square> problems;
     };
     void setMarks(const Marks& marks);
 
@@ -91,6 +99,7 @@ private:
     ax::Vec2 centre(chess::Square square) const;
     ax::Sprite* makePiece(chess::Piece piece) const;
 
+    void show(const Placement& placement, const chess::Move* played, bool slide);
     void redrawSquares();
     void redrawMarks();
     void slide(ax::Node* piece, const ax::Vec2& from, const ax::Vec2& to);
@@ -98,10 +107,11 @@ private:
     float _side    = 480.0f;
     bool  _flipped = false;
 
-    chess::Position _shown;
+    Placement       _shown{};
     Marks           _marks;
 
     ax::DrawNode* _squares  = nullptr;
+    ax::Node*     _tiles    = nullptr;  // the squares themselves, on a board laid from pictures
     ax::Node*     _labels   = nullptr;
     ax::DrawNode* _under    = nullptr;  // marks beneath the pieces
     ax::Node*     _pieces   = nullptr;

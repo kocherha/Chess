@@ -1,6 +1,7 @@
 #include "GameScene.h"
 
 #include "Look.h"
+#include "PuzzleScene.h"
 #include "Shapes.h"
 #include "Strings.h"
 #include "Theme.h"
@@ -148,8 +149,9 @@ bool GameScene::init() {
     _panel->hint->onClick    = [this] { askHint(); };
     _panel->flip->onClick    = [this] { flip(); };
     _panel->resign->onClick  = [this] { resign(); };
-    for (Button* button : {_panel->looks, _panel->copy, _panel->newGame, _panel->undo, _panel->hint,
-                           _panel->flip, _panel->resign})
+    _panel->modePuzzles->onClick = [this] { openPuzzles(); };
+    for (Button* button : {_panel->modeGame, _panel->modePuzzles, _panel->looks, _panel->copy, _panel->newGame,
+                           _panel->undo, _panel->hint, _panel->flip, _panel->resign})
         _buttons.add(button);
 
     _looks->onChange = [this] { restyle(); };
@@ -160,9 +162,16 @@ bool GameScene::init() {
         remember(setup);
         startGame(setup);
     };
+    _dialog->onPuzzles = [this] {
+        // The dialog stays as it is underneath: back from the problems, the
+        // choice of a game is still to be made.
+        openPuzzles();
+    };
     _dialog->onCancel = [this] {
-        if (_started)
+        if (_started) {
             _dialog->close();
+            _startFrom.reset();  // that position was only for the game not begun
+        }
     };
 
     // One mouse listener for the whole scene. Who a click belongs to — an
@@ -232,12 +241,15 @@ bool GameScene::init() {
     const Launch& options = launch();
     _setup                = rememberedSetup();
     if (options.level)
-        _setup.level = levelByNumber(*options.level).number;
+        _setup.strength = strengthOfLevel(*options.level);
+    if (options.elo)
+        _setup.strength = strengthForElo(*options.elo);
     if (options.side)
         _setup.side = *options.side;
     if (options.opponent)
         _setup.opponent = *options.opponent;
 
+    const bool puzzlesFirst = options.puzzles || !options.editFen.empty() || !options.puzzle.empty();
     if (options.skipDialog || !options.fen.empty() || !options.moves.empty() || options.autoplayGames > 0)
         startGame(_setup);
     else
@@ -246,9 +258,63 @@ bool GameScene::init() {
     scheduleUpdate();
     keepAwake();
 
-    if (!options.screenshot.empty())
+    if (puzzlesFirst) {
+        // Once this scene is running: a scene can only be pushed over one.
+        scheduleOnce([this](float) { openPuzzles(); }, 0.0f, "puzzles");
+    } else if (!options.screenshot.empty()) {
         captureAndQuit();
+    }
     return true;
+}
+
+void GameScene::onEnter() {
+    Scene::onEnter();
+    if (_board == nullptr)
+        return;
+    layout();
+    restyle();
+    refresh();
+    keepAwake();
+}
+
+void GameScene::openPuzzles() {
+    cancelPromotion();
+    _selected = kNoSquare;
+
+    PuzzleScene::Hooks hooks;
+    hooks.backToGame  = [] { Director::getInstance()->popScene(); };
+    hooks.playFrom    = [this](const Position& position) {
+        Director::getInstance()->popScene();
+        offerGameFrom(position);
+    };
+    hooks.gameAtStake = [this] { return gameAtStake(); };
+
+    // What the command line asked for is for the first visit only.
+    Launch& options = launch();
+    PuzzleScene::Opening opening;
+    opening.fen    = options.editFen;
+    opening.puzzle = options.puzzle;
+    if (options.puzzles || !options.editFen.empty() || !options.puzzle.empty())
+        opening.screenshot = options.screenshot;
+    options.puzzles = false;
+    options.editFen.clear();
+    options.puzzle.clear();
+
+    if (auto* scene = PuzzleScene::create(std::move(hooks), std::move(opening)))
+        Director::getInstance()->pushScene(scene);
+    keepAwake();
+}
+
+void GameScene::offerGameFrom(const Position& position) {
+    _startFrom = position;
+    if (!gameAtStake()) {
+        showNewGameDialog();
+        return;
+    }
+    _quitAsked = false;
+    _confirm->open(text::kUnfinishedTitle, text::kLoseByNewGame, text::kNewGame, [this] { showNewGameDialog(); },
+                   [this] { _startFrom.reset(); });
+    keepAwake();
 }
 
 void GameScene::startEngine() {
@@ -280,10 +346,22 @@ void GameScene::startEngine() {
         AXLOGW("analysis engine did not start: {}", _analysis.error());
 }
 
+// The rating the opponent is really asked for at this strength: the one on
+// the scale, brought inside the range this engine says it has.
+int GameScene::opponentElo(const Level& level) const {
+    const auto range = _engine.spin("UCI_Elo");
+    if (!range || range->min <= 0 || range->max < range->min)
+        return level.elo;
+    return std::clamp(level.elo, range->min, range->max);
+}
+
 GameSetup GameScene::rememberedSetup() {
     auto* store = UserDefault::getInstance();
     GameSetup setup;
-    setup.level    = levelByNumber(store->getIntegerForKey("level", setup.level)).number;
+    // The place on the scale, or — from a version that knew only the eight
+    // levels — the level, which is a place on the scale too.
+    const int level = store->getIntegerForKey("level", defaultLevelNumber());
+    setup.strength  = std::clamp(store->getIntegerForKey("strength", strengthOfLevel(level)), 0, strengthCount() - 1);
     setup.opponent = store->getIntegerForKey("opponent", 0) == 1 ? GameSetup::Opponent::Human
                                                                  : GameSetup::Opponent::Computer;
     switch (store->getIntegerForKey("side", 0)) {
@@ -296,7 +374,9 @@ GameSetup GameScene::rememberedSetup() {
 
 void GameScene::remember(const GameSetup& setup) {
     auto* store = UserDefault::getInstance();
-    store->setIntegerForKey("level", setup.level);
+    store->setIntegerForKey("strength", setup.strength);
+    // The level it has reached, for a version that knows only levels.
+    store->setIntegerForKey("level", levelAtStrength(setup.strength).number);
     store->setIntegerForKey("opponent", setup.opponent == GameSetup::Opponent::Human ? 1 : 0);
     store->setIntegerForKey("side", setup.side == GameSetup::Side::Black    ? 1
                                     : setup.side == GameSetup::Side::Random ? 2
@@ -352,6 +432,10 @@ void GameScene::startGame(const GameSetup& setup) {
     // once, for the first game; "new game" after it means a new game.
     Launch& options = launch();
     _game           = Game();
+    if (_startFrom) {
+        _game = Game(*_startFrom);
+        _startFrom.reset();
+    }
     if (!options.fen.empty()) {
         std::string error;
         if (const auto position = Position::fromFen(options.fen, &error))
@@ -431,7 +515,7 @@ void GameScene::askEngineIfItsTurn() {
         return;
     }
 
-    const Level& level = levelByNumber(_setup.level);
+    const Level level = levelAtStrength(_setup.strength);
 
     // The handicap of the lowest levels: this move is not the engine's.
     std::uniform_real_distribution<double> chance(0.0, 1.0);
@@ -903,7 +987,12 @@ void GameScene::showNewGameDialog() {
     if (!engineUsable() || !analysisUsable())
         startEngine();
     const auto elo = _engine.spin("UCI_Elo");
-    _dialog->open(_setup, _started, engineUsable(), elo ? elo->min : 0, elo ? elo->max : 0);
+    // A game from a position set up in the editor: the side to move there is
+    // the one offered to the player.
+    GameSetup offered = _setup;
+    if (_startFrom)
+        offered.side = _startFrom->sideToMove() == Color::White ? GameSetup::Side::White : GameSetup::Side::Black;
+    _dialog->open(offered, _started, engineUsable(), elo ? elo->min : 0, elo ? elo->max : 0);
     keepAwake();
 }
 
@@ -958,8 +1047,17 @@ void GameScene::copyGame() {
     tags.event = kPgnEvent;
     tags.date  = today();
     if (againstComputer()) {
-        const std::string engine = "Stockfish, level " + std::to_string(_setup.level) + " of " +
-                                   std::to_string(levels().size());
+        // A level by its number; a strength between two by what was asked
+        // of the engine there.
+        const Level level  = levelAtStrength(_setup.strength);
+        std::string engine = "Stockfish, ";
+        if (level.exact) {
+            engine += "level " + std::to_string(level.number) + " of " + std::to_string(levels().size());
+        } else {
+            engine += std::to_string(opponentElo(level)) + " Elo";
+            if (level.randomMoveShare > 0.0)
+                engine += ", " + std::to_string(std::lround(level.randomMoveShare * 100.0)) + "% random moves";
+        }
         tags.white = _human == Color::White ? kPgnPlayer : engine;
         tags.black = _human == Color::Black ? kPgnPlayer : engine;
     }
@@ -1256,6 +1354,9 @@ void GameScene::onKeyPressed(EventKeyboard::KeyCode code) {
     case Key::KEY_V:
         openLooks();
         break;
+    case Key::KEY_P:
+        openPuzzles();
+        break;
     case Key::KEY_C:
         copyGame();
         break;
@@ -1428,7 +1529,7 @@ void GameScene::refreshBars() {
         else if (colour == _human)
             name = text::kYou;
         else
-            name = std::string(text::kComputer) + " · " + text::levelName(_setup.level);
+            name = std::string(text::kComputer) + " · " + text::levelName(levelAtStrength(_setup.strength).number);
 
         const int ahead = colour == Color::White ? balance : -balance;
         bar->set(name, colour, _game.capturedPieces(opposite(colour)), text::lead(ahead),
@@ -1447,7 +1548,12 @@ void GameScene::refreshStatus() {
         return;
     }
 
-    _panel->setSubtitle(againstComputer() ? text::levelLabel(_setup.level) : std::string(text::kTwoPlayers));
+    if (againstComputer()) {
+        const Level level = levelAtStrength(_setup.strength);
+        _panel->setSubtitle(text::strengthLabel(level, opponentElo(level)));
+    } else {
+        _panel->setSubtitle(text::kTwoPlayers);
+    }
 
     const Status status = _game.status();
     if (status.over()) {

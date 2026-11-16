@@ -17,7 +17,9 @@
 namespace chess {
 
 struct Level {
-    int number = 0;  // 1-based, as shown to the player
+    // 1-based, as shown to the player. For a strength between two levels (see
+    // the scale below) this is the level it has reached: the one below it.
+    int number = 0;
 
     // The rating the engine is asked to play at; 0 means no limit at all.
     int elo = 0;
@@ -28,6 +30,9 @@ struct Level {
     // The share of moves (0..1) that are picked at random instead of asked of
     // the engine. Non-zero only below the engine's own floor.
     double randomMoveShare = 0.0;
+
+    // Is this one of the levels themselves, rather than somewhere between two?
+    bool exact = true;
 
     bool fullStrength() const { return elo == 0; }
 };
@@ -41,6 +46,40 @@ int defaultLevelNumber();
 
 // Clamps to an existing level.
 const Level& levelByNumber(int number);
+
+// --- the scale between the levels ---------------------------------------------
+//
+// Eight steps are few: the one that is too easy and the one that is too hard
+// are often neighbours. So the levels are stops on a longer scale, and the
+// opponent can be put anywhere on it. From the weak end it runs through
+//
+//   - the engine at its floor with some of its moves replaced by random ones:
+//     as many as the first level has, then one in a hundred fewer at a time,
+//     down to none;
+//   - the engine's own ratings, from its floor to its ceiling, ten points at
+//     a time;
+//   - no limit at all.
+//
+// A place on the scale is a "strength": a whole number from 0, the first
+// level, to strengthCount() - 1, the last. Thinking time follows along,
+// growing evenly from each level to the next.
+
+// How many strengths there are.
+int strengthCount();
+
+// Where a level stands on the scale. Clamps to an existing level.
+int strengthOfLevel(int number);
+
+// The strength to start with: that of the default level.
+int defaultStrength();
+
+// What the opponent is at this strength. Clamps to the scale.
+Level levelAtStrength(int strength);
+
+// The strength at which the engine is asked for this rating, or the nearest
+// there is: below its floor that is the floor itself, with no random moves,
+// and above its ceiling the ceiling — not "no limit", which is not a rating.
+int strengthForElo(int elo);
 
 // The engine options that make it play at `level`, given the Elo range it
 // declared (pass 0, 0 if it declared none) and how many hardware threads the

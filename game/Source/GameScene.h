@@ -46,10 +46,11 @@ public:
         std::string screenshot;          // --shot <file>: let the screen settle, save a PNG, quit
         std::string fen;                 // --fen "<fen>": start from this position
         std::vector<std::string> moves;  // --moves "e2e4 e7e5 ...": then play these
-        // --level N, --side white|black|random, --two-players. Each is empty
-        // unless given, in which case it overrides what was remembered from
-        // the last game.
-        std::optional<int>                 level;
+        // --level N, --elo R, --side white|black|random, --two-players. Each
+        // is empty unless given, in which case it overrides what was
+        // remembered from the last game. --elo is a strength between the
+        // levels: the nearest the scale has to that rating.
+        std::optional<int>                 level, elo;
         std::optional<GameSetup::Side>     side;
         std::optional<GameSetup::Opponent> opponent;
         // --pieces <id>, --board <id>: how they look, for this run only. The
@@ -60,6 +61,12 @@ public:
         // then the program exits. A soak test — every kind of move, capture,
         // promotion and ending goes through the same code a click does.
         int         autoplayGames = 0;
+        // The problems mode, straight away: --puzzles (the editor), --edit
+        // "<fen>" (the editor with this position), --puzzle <id> (one from
+        // the collection, to solve).
+        bool        puzzles = false;
+        std::string editFen;
+        std::string puzzle;
     };
     static Launch& launch();
 
@@ -67,6 +74,9 @@ public:
 
     bool init() override;
     void update(float delta) override;
+    // Back from the problems mode: the window may have changed size and the
+    // pieces their look while this scene was not on screen.
+    void onEnter() override;
 
 private:
     // --- the flow of a game ---
@@ -113,6 +123,8 @@ private:
     // The choices in the new-game dialog are remembered between runs.
     static GameSetup rememberedSetup();
     static void remember(const GameSetup& setup);
+    // The rating the opponent is really asked for at this strength.
+    int opponentElo(const chess::Level& level) const;
 
     // --- what the player can do ---
     // A game with moves on the board and no result yet: something to lose.
@@ -121,6 +133,12 @@ private:
     void showNewGameDialog();
     void askBeforeQuitting(bool& closing);
     void openLooks();
+    // The other mode: setting up positions and solving problems. The game
+    // waits underneath it as it was.
+    void openPuzzles();
+    // A position from the editor to play a game from: the new-game dialog,
+    // after asking if a game would be lost.
+    void offerGameFrom(const chess::Position& position);
     void restyle();
     // To the clipboard: the whole game as PGN, or one move as it is shown.
     void copyGame();
@@ -161,6 +179,7 @@ private:
     GameSetup     _setup;
     chess::Color  _human = chess::Color::White;  // the person's side against the computer
     bool          _started = false;              // has the first game been set up?
+    std::optional<chess::Position> _startFrom;   // the next new game begins here, not at the start
 
     // Requests to an engine carry a tag; an answer whose tag is no longer the
     // one we are waiting for is an answer to a question nobody is asking any

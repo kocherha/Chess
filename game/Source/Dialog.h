@@ -19,13 +19,13 @@ public:
     virtual void layout(const ax::Vec2& screen) = 0;
 
     // True if the pointer moved onto or off a button, i.e. there is something
-    // to redraw.
-    bool mouseMove(const ax::Vec2& point) {
+    // to redraw. Virtual for a dialog with more on it than buttons.
+    virtual bool mouseMove(const ax::Vec2& point) {
         _buttons.mouseMove(point);
         return _buttons.hoverChanged();
     }
-    void mouseDown(const ax::Vec2& point) { _buttons.mouseDown(point); }
-    void mouseUp(const ax::Vec2& point) { _buttons.mouseUp(point); }
+    virtual void mouseDown(const ax::Vec2& point) { _buttons.mouseDown(point); }
+    virtual void mouseUp(const ax::Vec2& point) { _buttons.mouseUp(point); }
     virtual void keyPressed(ax::EventKeyboard::KeyCode code) = 0;
 
 protected:

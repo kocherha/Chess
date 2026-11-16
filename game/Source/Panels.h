@@ -98,6 +98,9 @@ public:
     // "which one did I just copy?". -1 for none.
     void markMove(int index);
 
+    // The switch between the two modes: a game, and the problems.
+    Button* modeGame    = nullptr;
+    Button* modePuzzles = nullptr;
     Button* looks   = nullptr;  // pieces and board: what they look like
     Button* copy    = nullptr;  // the whole game to the clipboard
     Button* newGame = nullptr;

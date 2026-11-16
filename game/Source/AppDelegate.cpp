@@ -76,6 +76,8 @@ void AppDelegate::parseArguments(int argc, char** argv) {
             launch.board = argv[++i];
         } else if (flag == "--level" && hasValue) {
             launch.level = std::atoi(argv[++i]);
+        } else if (flag == "--elo" && hasValue) {
+            launch.elo = std::atoi(argv[++i]);
         } else if (flag == "--side" && hasValue) {
             const std::string_view side = argv[++i];
             launch.side = side == "black"    ? GameSetup::Side::Black
@@ -85,6 +87,12 @@ void AppDelegate::parseArguments(int argc, char** argv) {
             launch.opponent = GameSetup::Opponent::Human;
         } else if (flag == "--autoplay" && hasValue) {
             launch.autoplayGames = std::atoi(argv[++i]);
+        } else if (flag == "--puzzles") {
+            launch.puzzles = true;
+        } else if (flag == "--edit" && hasValue) {
+            launch.editFen = argv[++i];
+        } else if (flag == "--puzzle" && hasValue) {
+            launch.puzzle = argv[++i];
         } else if (flag == "--play") {
             launch.skipDialog = true;
         }

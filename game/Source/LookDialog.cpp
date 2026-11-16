@@ -18,6 +18,8 @@ constexpr float kWidth   = 540.0f;
 constexpr float kPadding = 30.0f;
 constexpr float kRow     = 42.0f;
 constexpr float kGap     = 10.0f;
+// How many choices stand side by side before they go onto a second line.
+constexpr std::size_t kAcross = 4;
 
 // The preview: one of each piece, white along the bottom as on a board.
 constexpr int       kColumns = 6, kRows = 2;
@@ -49,9 +51,11 @@ bool LookDialog::init() {
 
     _back    = DrawNode::create();
     _preview = DrawNode::create();
+    _tiles   = Node::create();
     _pieces  = Node::create();
     addChild(_back);
     addChild(_preview);
+    addChild(_tiles);
     addChild(_pieces);
 
     _title = makeLabel(text::kLooks, 26.0f, theme::kInk);
@@ -154,12 +158,13 @@ void LookDialog::refresh() {
         _boardButtons[i]->setChosen(static_cast<int>(i) == look::boardIndex());
 
     _preview->clear();
+    _tiles->removeAllChildren();
     _pieces->removeAllChildren();
     if (_previewSquare <= 0.0f)
         return;
 
     const float s = _previewSquare;
-    look::drawBoard(_preview, look::board(), _previewOrigin, s, kColumns, kRows, look::frameWidth(s));
+    look::drawBoard(_preview, _tiles, look::board(), _previewOrigin, s, kColumns, kRows, look::frameWidth(s));
 
     for (int row = 0; row < kRows; ++row) {
         const Color colour = row == 0 ? Color::White : Color::Black;
@@ -183,8 +188,16 @@ void LookDialog::layout(const Vec2& screen) {
 
     // Everything but the preview has a fixed height; the preview takes what
     // the window can spare, so the dialog still fits in the smallest one.
+    // The choices of each kind are laid in lines of at most kAcross, as evenly
+    // as their number allows: five as three and two, seven as four and three.
+    const auto lines = [](std::size_t count) { return std::max<std::size_t>(1, (count + kAcross - 1) / kAcross); };
+    const auto tall  = [&](std::size_t count) {
+        const float n = static_cast<float>(lines(count));
+        return n * kRow + (n - 1.0f) * kGap;
+    };
     const float above = kPadding + 34.0f + 24.0f;                             // title
-    const float below = 26.0f + (22.0f + kRow + 22.0f) + (22.0f + kRow + 26.0f)  // the two rows of choices
+    const float below = 26.0f + (22.0f + tall(_pieceButtons.size()) + 22.0f)  // the pieces to choose from
+                        + (22.0f + tall(_boardButtons.size()) + 26.0f)        // the boards
                         + kRow + 4.0f + kPadding;                             // "done"
     const float spare = screen.y - 40.0f - above - below;
     float square      = std::min({kLargestSquare, std::floor(inner / (kColumns + 0.4f)),
@@ -213,11 +226,16 @@ void LookDialog::layout(const Vec2& screen) {
     const auto row = [&](Label* title, const std::vector<Button*>& buttons) {
         title->setPosition(Vec2(left, y - 8.0f));
         y -= 22.0f;
-        const float count = static_cast<float>(buttons.size());
-        const float cell  = (inner - (count - 1.0f) * kGap) / count;
-        for (std::size_t i = 0; i < buttons.size(); ++i)
-            buttons[i]->setFrame(Vec2(left + static_cast<float>(i) * (cell + kGap), y - kRow), Vec2(cell, kRow));
-        y -= kRow;
+        const std::size_t count  = buttons.size();
+        const std::size_t down   = lines(count);
+        const std::size_t across = std::max<std::size_t>(1, (count + down - 1) / down);
+        const float cell         = (inner - static_cast<float>(across - 1) * kGap) / static_cast<float>(across);
+        for (std::size_t i = 0; i < count; ++i) {
+            const float column = static_cast<float>(i % across), line = static_cast<float>(i / across);
+            buttons[i]->setFrame(Vec2(left + column * (cell + kGap), y - kRow - line * (kRow + kGap)),
+                                 Vec2(cell, kRow));
+        }
+        y -= tall(count);
     };
     row(_piecesTitle, _pieceButtons);
     y -= 22.0f;

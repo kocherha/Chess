@@ -7,6 +7,7 @@
 #include "Theme.h"
 
 #include <algorithm>
+#include <cmath>
 
 using namespace ax;
 using namespace chess;
@@ -185,6 +186,11 @@ bool SidePanel::init() {
     _moveRows = Node::create();
     addChild(_moveRows);
 
+    modeGame    = Button::create(text::kModeGame, Button::Style::Choice, 14.0f);
+    modePuzzles = Button::create(text::kModePuzzles, Button::Style::Choice, 14.0f);
+    modeGame->setChosen(true);
+    addChild(modeGame);
+    addChild(modePuzzles);
     looks   = Button::create(text::kLooks, Button::Style::Plain, 14.0f);
     copy    = Button::create(text::kCopyAll, Button::Style::Plain, 12.5f);
     newGame = Button::create(text::kNewGame, Button::Style::Primary, 16.0f);
@@ -241,7 +247,12 @@ void SidePanel::layout() {
     // side: the one button that is about the room rather than the game.
     _title->setPosition(Vec2(kPadding, y - 15.0f));
     looks->setFrame(Vec2(kPadding + width - 92.0f, y - 30.0f), Vec2(92.0f, 30.0f));
-    y -= 38.0f;
+    y -= 42.0f;
+    // Which of the two modes this is; the other is a click away.
+    const float halfMode = std::floor((width - 8.0f) * 0.5f);
+    modeGame->setFrame(Vec2(kPadding, y - 30.0f), Vec2(halfMode, 30.0f));
+    modePuzzles->setFrame(Vec2(kPadding + width - halfMode, y - 30.0f), Vec2(halfMode, 30.0f));
+    y -= 30.0f + 14.0f;
     _subtitle->setPosition(Vec2(kPadding, y - 8.0f));
     y -= 30.0f;
 

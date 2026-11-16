@@ -33,4 +33,8 @@ inline constexpr float kBoldShift = 0.9f;
 // same lines everywhere.
 std::string wrap(const std::string& text, float points, float maxWidth);
 
+// The same for text in paragraphs: each line of `text` is wrapped on its own,
+// and the breaks between them are kept.
+std::string wrapParagraphs(const std::string& text, float points, float maxWidth);
+
 }  // namespace typeset

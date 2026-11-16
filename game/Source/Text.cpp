@@ -2,6 +2,7 @@
 
 #include "Theme.h"
 
+#include <algorithm>
 #include <sstream>
 
 using namespace ax;
@@ -38,6 +39,19 @@ std::string wrap(const std::string& text, float points, float maxWidth) {
         }
     }
     return out + line;
+}
+
+std::string wrapParagraphs(const std::string& text, float points, float maxWidth) {
+    std::string out;
+    std::size_t start = 0;
+    while (start <= text.size()) {
+        const std::size_t end = std::min(text.find('\n', start), text.size());
+        if (!out.empty() || start > 0)
+            out += '\n';
+        out += wrap(text.substr(start, end - start), points, maxWidth);
+        start = end + 1;
+    }
+    return out;
 }
 
 }  // namespace typeset

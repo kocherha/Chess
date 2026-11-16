@@ -1,7 +1,8 @@
 // What the pieces and the board look like, as a choice.
 //
 // The two are chosen separately: a set of pieces is twelve pictures in a
-// folder, a board is a handful of colours and a way of laying its squares.
+// folder, a board is a handful of colours and, if it is laid from real
+// material, two pictures of that material.
 // Any set stands on any board. Adding one of either kind is a new entry in the
 // table in Look.cpp (and, for pieces, a folder of PNGs) — nothing else in the
 // game knows how many there are or what they are called.
@@ -33,7 +34,15 @@ struct BoardStyle {
     ax::Color4F frame;        // the border around them
     ax::Color4F trim;         // a thin line between the two; alpha 0 for none
     float       corner;       // roundness of the frame: 1 is a full curve, 0 a square corner
-    bool        tiles;        // squares laid like tiles: a raised edge each, a stud where four meet
+
+    // Squares cut from pictures rather than painted flat: a folder under
+    // Content/ with light.png and dark.png, or null. Each picture holds four
+    // squares, two by two — four cuts of the same wood or stone — and every
+    // square of the board is one of them, some turned over, so that no two
+    // neighbours are the same piece. `light` and `dark` above are then what
+    // the pictures come to on average: the coordinates are written in them,
+    // and they are what shows if a picture is missing. See art/boards.py.
+    const char* tiles;
 
     // Marks on the board. Translucent, so the square still reads through, and
     // chosen per board because they have to show against both of its colours.
@@ -72,8 +81,13 @@ ax::Sprite* sprite(const PieceSet& set, chess::Piece piece, float square);
 // bottom-left square's corner at `origin` and a frame `frame` wide around it.
 // The bottom-left square is always a dark one: that is true of a chessboard
 // from either side.
-void drawBoard(ax::DrawNode* node, const BoardStyle& style, const ax::Vec2& origin, float square, int columns,
-               int rows, float frame);
+//
+// The frame and the flat colours go into `node`. A board laid from pictures
+// also puts one sprite per square into `tiles`, which has to lie directly
+// above `node` and share its coordinates; whatever was in `tiles` before is
+// removed, whichever kind of board this is.
+void drawBoard(ax::DrawNode* node, ax::Node* tiles, const BoardStyle& style, const ax::Vec2& origin,
+               float square, int columns, int rows, float frame);
 
 // How wide the frame of a board with squares of this size is. The same for
 // every style, so that changing the board does not move anything around it.
