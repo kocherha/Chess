@@ -59,8 +59,10 @@ public:
     void setStatus(const std::string& headline, const std::string& detail, Tone tone = Tone::Neutral);
 
     // The moves so far, already in the notation to show. `whiteFirst` is false
-    // when the game began with black to move (a position set up from a FEN).
-    void setMoves(const std::vector<std::string>& moves, bool whiteFirst = true);
+    // when the game began with black to move, and `firstNumber` is the number
+    // of its first move — not 1 for a position set up from a FEN — so that the
+    // list counts as the game record (PGN, a copied move) does.
+    void setMoves(const std::vector<std::string>& moves, bool whiteFirst = true, int firstNumber = 1);
 
     // What each of those moves was worth: "!!", "?" and the rest, written
     // after the move in its own colour. One per move; they arrive later than
@@ -136,6 +138,7 @@ private:
     std::vector<chess::Mark> _marks;
     std::string _result;
     bool _whiteFirst = true;
+    int  _firstNumber = 1;    // the number of the first row
     int  _firstRow   = 0;     // first row on screen
     bool _following  = true;  // stay at the end as moves arrive
     float _scrollCarry = 0.0f;  // the part of a row scroll() has not used yet

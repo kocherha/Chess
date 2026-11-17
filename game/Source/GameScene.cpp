@@ -1452,7 +1452,8 @@ void GameScene::showMoves() {
     moves.reserve(_game.plies());
     for (const Game::Record& record : _game.history())
         moves.push_back(text::localSan(record.san));
-    _panel->setMoves(moves, _game.startPosition().sideToMove() == Color::White);
+    _panel->setMoves(moves, _game.startPosition().sideToMove() == Color::White,
+                     _game.startPosition().fullmoveNumber());
 
     std::vector<Mark> marks = _marks;
     marks.resize(moves.size(), Mark::None);  // the list may be a move ahead of the marks, or behind

@@ -314,13 +314,15 @@ int SidePanel::visibleRows() const {
     return std::max(1, static_cast<int>((_listTop - _listBottom) / kRowHeight));
 }
 
-void SidePanel::setMoves(const std::vector<std::string>& moves, bool whiteFirst) {
-    if (moves == _moves && whiteFirst == _whiteFirst)
+void SidePanel::setMoves(const std::vector<std::string>& moves, bool whiteFirst, int firstNumber) {
+    firstNumber = std::max(1, firstNumber);
+    if (moves == _moves && whiteFirst == _whiteFirst && firstNumber == _firstNumber)
         return;
     // A new move, or a move taken back, means the player is looking at the
     // present: go back to following the end of the list.
     _moves       = moves;
     _whiteFirst  = whiteFirst;
+    _firstNumber = firstNumber;
     _following   = true;
     _scrollCarry = 0.0f;
     // What the pointer was over, or had hold of, is not there any more.
@@ -536,7 +538,7 @@ void SidePanel::rebuildMoves() {
             continue;
         }
 
-        auto* number = typeset::label(std::to_string(row + 1) + ".", 14.0f, theme::kFaint);
+        auto* number = typeset::label(std::to_string(_firstNumber + row) + ".", 14.0f, theme::kFaint);
         number->setAnchorPoint(Vec2(1.0f, 0.5f));
         number->setPosition(Vec2(kPadding + numberWidth - 10.0f, y));
         _moveRows->addChild(number);
