@@ -454,7 +454,7 @@ void GameScene::startGame(const GameSetup& setup) {
 
     _selected = _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
-    _pressed = _dragging = false;
+    cancelPress();
     _promoteFrom = _promoteTo = kNoSquare;
     _board->closePromotion();
 
@@ -1094,6 +1094,7 @@ void GameScene::undo() {
     if (!_started)
         return;
     cancelPromotion();
+    cancelPress();
 
     _engine.cancel();
     _moveTag      = 0;
@@ -1123,6 +1124,7 @@ void GameScene::undo() {
 
 void GameScene::flip() {
     cancelPromotion();
+    cancelPress();
     _board->setFlipped(!_board->flipped());
     _evalBar->setFlipped(_board->flipped());
     refresh();
@@ -1147,6 +1149,7 @@ void GameScene::resign() {
     if (!_started || _game.status().over())
         return;
     cancelPromotion();
+    cancelPress();
     _engine.cancel();
     _moveTag      = 0;
     _replyPending = false;
@@ -1203,6 +1206,12 @@ void GameScene::cancelPromotion() {
     _promoteFrom = _promoteTo = kNoSquare;
     _board->closePromotion();
     select(kNoSquare);
+}
+
+void GameScene::cancelPress() {
+    _pressed = _dragging = false;
+    _pressSquare = kNoSquare;
+    _board->endDrag();
 }
 
 // --- input -------------------------------------------------------------------------
@@ -1295,6 +1304,11 @@ void GameScene::onMouseUp(const Vec2& point) {
 
     if (Dialog* dialog = modal()) {
         dialog->mouseUp(point);
+        // A dialog that opened while the button was down (a key) took the
+        // release: whatever was held under it is let go of, not acted on.
+        cancelPress();
+        if (_panel->dragging())
+            _panel->mouseUp(point);
         return;
     }
     _buttons.mouseUp(point);
@@ -1306,6 +1320,10 @@ void GameScene::onMouseUp(const Vec2& point) {
 
     if (_dragging) {
         _dragging = false;
+        // The board was shown afresh under the hand (the window was resized,
+        // say): the piece was put back, and there is nothing to drop.
+        if (!_board->dragging())
+            return;
         const Square target = _board->squareAt(point);
         _board->endDrag();
         // Dropped on a square it can go to: the move is made, and the piece is

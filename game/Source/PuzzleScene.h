@@ -122,6 +122,9 @@ private:
     void select(chess::Square square);
     bool tryMove(chess::Square from, chess::Square to, bool carried);
     void dropFromTray(const ax::Vec2& point);
+    // Forgets a press, and puts down whatever was being carried: the board
+    // it belonged to has been shown afresh, or a dialog has taken the mouse.
+    void cancelPress();
 
     // --- the screen ---
     void layout();

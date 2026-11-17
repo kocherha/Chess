@@ -152,6 +152,10 @@ private:
     bool tryMove(chess::Square from, chess::Square to, bool carried);
     void finishPromotion(chess::PieceType piece);
     void cancelPromotion();
+    // Forgets a press on the board, and puts down a piece being carried: the
+    // position it belonged to is no longer the one on the board, or a dialog
+    // has taken the mouse.
+    void cancelPress();
 
     // --- input ---
     // The dialog that is open, if one is. While it is, it gets everything.

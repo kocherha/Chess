@@ -430,6 +430,7 @@ void PuzzleScene::openEditor(const Setup& setup) {
     _setup    = setup;
     _brush    = {};
     _selected = _hintFrom = _hintTo = kNoSquare;
+    cancelPress();
     _board->closePromotion();
     _top->setChosen({});
     _bottom->setChosen({});
@@ -630,6 +631,7 @@ void PuzzleScene::openPuzzle(const Puzzle& puzzle) {
     _replyDelay = 0.0f;
     _selected = _hintFrom = _hintTo = kNoSquare;
     _promoteFrom = _promoteTo = kNoSquare;
+    cancelPress();
     _board->closePromotion();
     _brush = {};
 
@@ -800,6 +802,7 @@ void PuzzleScene::takeBack() {
     _autoSolve = false;
     _replyMove.clear();
     _wrongFor = 0.0f;
+    cancelPress();
 
     do {
         _game.undo();
@@ -1092,6 +1095,9 @@ void PuzzleScene::onMouseUp(const Vec2& point) {
     keepAwake();
     if (Dialog* dialog = modal()) {
         dialog->mouseUp(point);
+        // A dialog that opened while the button was down (a key) took the
+        // release: whatever was held under it is let go of, not acted on.
+        cancelPress();
         return;
     }
     _panel->buttons().mouseUp(point);
@@ -1119,6 +1125,10 @@ void PuzzleScene::onMouseUp(const Vec2& point) {
         const Square from = _pressSquare;
         _pressSquare      = kNoSquare;
         if (dragged) {
+            // The board was shown afresh under the hand (a right click took a
+            // piece off, say): the piece was put back, there is nothing to drop.
+            if (!_board->dragging())
+                return;
             const Square target = _board->squareAt(point);
             _board->endDrag();
             const Piece piece = _setup.at(from);
@@ -1143,6 +1153,8 @@ void PuzzleScene::onMouseUp(const Vec2& point) {
     }
 
     if (dragged) {
+        if (!_board->dragging())
+            return;  // shown afresh under the hand: nothing to drop
         const Square target = _board->squareAt(point);
         _board->endDrag();
         if (target != kNoSquare && target != _pressSquare && playerToMove())
@@ -1150,6 +1162,17 @@ void PuzzleScene::onMouseUp(const Vec2& point) {
     } else if (_wasSelected) {
         select(kNoSquare);
     }
+}
+
+void PuzzleScene::cancelPress() {
+    if (_carried != nullptr) {
+        _carried->removeFromParent();
+        _carried = nullptr;
+    }
+    _board->endDrag();
+    _pressed = _dragging = false;
+    _pressItem   = {};
+    _pressSquare = kNoSquare;
 }
 
 void PuzzleScene::dropFromTray(const Vec2& point) {
@@ -1227,6 +1250,7 @@ void PuzzleScene::openCollection() {
 }
 
 void PuzzleScene::flip() {
+    cancelPress();
     _board->setFlipped(!_board->flipped());
     layout();
     refreshMarks();
@@ -1373,6 +1397,7 @@ void PuzzleScene::update(float delta) {
         _wrongFor -= delta;
         if (_wrongFor <= 0.0f) {
             _wrongFor = 0.0f;
+            cancelPress();
             _game.undo();
             _marks.resize(_game.plies());
             _board->show(_game.position());
