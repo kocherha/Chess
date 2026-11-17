@@ -114,7 +114,13 @@ public:
 private:
     bool init() override;
     void layout();
+    // The move list: its labels, and then what is drawn under them.
     void rebuildMoves();
+    // Only what is drawn under the labels — the cells lit up for the newest
+    // move, the one under the pointer and the one just copied, and the scroll
+    // bar. The pointer moving over the list changes nothing else, and a label
+    // is a texture to make.
+    void redrawHighlights();
     int  rowCount() const;
     int  visibleRows() const;
 
@@ -159,6 +165,7 @@ private:
     ax::Label*    _headline = nullptr;
     ax::Label*    _detail   = nullptr;
     ax::Label*    _movesTitle = nullptr;
+    ax::DrawNode* _highlights = nullptr;  // under _moveRows
     ax::Node*     _moveRows = nullptr;
     Tone          _tone = Tone::Neutral;
     std::string   _headlineText, _detailText;

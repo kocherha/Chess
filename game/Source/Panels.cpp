@@ -183,6 +183,8 @@ bool SidePanel::init() {
     }
     _detail->setAnchorPoint(Vec2(0.0f, 1.0f));  // it may wrap, so it hangs from its top
 
+    _highlights = DrawNode::create();
+    addChild(_highlights);
     _moveRows = Node::create();
     addChild(_moveRows);
 
@@ -446,7 +448,7 @@ bool SidePanel::mouseDown(const Vec2& worldPoint) {
             _thumbGrab = t.length * 0.5f;  // a press on the track: the thumb comes to the pointer
             dragThumbTo(local.y);
         }
-        rebuildMoves();
+        redrawHighlights();  // the thumb is held
         return true;
     }
 
@@ -469,7 +471,7 @@ bool SidePanel::mouseMove(const Vec2& worldPoint) {
         return false;
     _barHot    = hot;
     _hoverMove = hover;
-    rebuildMoves();
+    redrawHighlights();
     return true;
 }
 
@@ -479,7 +481,7 @@ void SidePanel::mouseUp(const Vec2& worldPoint) {
     if (_draggingThumb) {
         _draggingThumb = false;
         _barHot        = overBar(local);
-        rebuildMoves();
+        redrawHighlights();
         return;
     }
 
@@ -493,11 +495,12 @@ void SidePanel::markMove(int index) {
     if (index == _markedMove)
         return;
     _markedMove = index;
-    rebuildMoves();
+    redrawHighlights();
 }
 
 void SidePanel::rebuildMoves() {
     _moveRows->removeAllChildren();
+    _highlights->clear();
     if (_size.x <= 0.0f)
         return;
 
@@ -523,9 +526,6 @@ void SidePanel::rebuildMoves() {
     const int offset        = _whiteFirst ? 0 : 1;
     const int newest        = static_cast<int>(_moves.size()) - 1;
 
-    auto* marks = DrawNode::create();
-    _moveRows->addChild(marks);
-
     for (int row = _firstRow; row < std::min(rows, _firstRow + visible); ++row) {
         const float y = _listTop - 4.0f - (static_cast<float>(row - _firstRow) + 0.5f) * kRowHeight;
 
@@ -548,19 +548,6 @@ void SidePanel::rebuildMoves() {
             if (index < 0 || index > newest)
                 continue;
             const float x = kPadding + numberWidth + static_cast<float>(side) * column;
-
-            const Vec2 cellOrigin(x - 8.0f, y - kRowHeight * 0.5f + 2.0f);
-            const Vec2 cellSize(column - 6.0f, kRowHeight - 4.0f);
-
-            // The move just played is the one the eye is looking for; the one
-            // under the pointer says it can be clicked; the one just copied
-            // wears a ring until the notice goes away.
-            if (index == _markedMove)
-                shapes::roundedRect(marks, cellOrigin, cellSize, 6.0f, theme::kCardHover, 1.5f, theme::kAccent);
-            else if (index == newest)
-                shapes::roundedRect(marks, cellOrigin, cellSize, 6.0f, theme::kCardHover);
-            else if (index == _hoverMove)
-                shapes::roundedRect(marks, cellOrigin, cellSize, 6.0f, theme::kCard);
 
             auto* move = typeset::label(_moves[static_cast<std::size_t>(index)], 15.0f,
                                    index == newest ? theme::kInk : theme::kDim);
@@ -586,13 +573,54 @@ void SidePanel::rebuildMoves() {
         }
     }
 
+    redrawHighlights();
+}
+
+void SidePanel::redrawHighlights() {
+    _highlights->clear();
+    if (_size.x <= 0.0f || (_moves.empty() && _result.empty()))
+        return;
+
+    // The same rows and cells rebuildMoves() put the labels in; _firstRow is
+    // as it left it.
+    const float width  = _size.x - 2.0f * kPadding;
+    const float column = (width - kNumberWidth) * 0.5f;
+    const int rows     = rowCount();
+    const int visible  = visibleRows();
+    const int offset   = _whiteFirst ? 0 : 1;
+    const int newest   = static_cast<int>(_moves.size()) - 1;
+
+    for (int row = _firstRow; row < std::min(rows, _firstRow + visible); ++row) {
+        if (!_result.empty() && row == rows - 1)
+            continue;
+        const float y = _listTop - 4.0f - (static_cast<float>(row - _firstRow) + 0.5f) * kRowHeight;
+        for (int side = 0; side < 2; ++side) {
+            const int index = row * 2 + side - offset;
+            if (index < 0 || index > newest)
+                continue;
+            const float x = kPadding + kNumberWidth + static_cast<float>(side) * column;
+            const Vec2 cellOrigin(x - 8.0f, y - kRowHeight * 0.5f + 2.0f);
+            const Vec2 cellSize(column - 6.0f, kRowHeight - 4.0f);
+
+            // The move just played is the one the eye is looking for; the one
+            // under the pointer says it can be clicked; the one just copied
+            // wears a ring until the notice goes away.
+            if (index == _markedMove)
+                shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCardHover, 1.5f, theme::kAccent);
+            else if (index == newest)
+                shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCardHover);
+            else if (index == _hoverMove)
+                shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCard);
+        }
+    }
+
     // The scroll bar, when there is more than fits: a faint track and a thumb
     // that lights up under the pointer and while it is held.
     if (const Thumb t = thumb(); t.shown) {
         const float x = kPadding + width - kBarWidth;
-        shapes::roundedRect(marks, Vec2(x, t.top - t.travel - t.length), Vec2(kBarWidth, t.travel + t.length),
+        shapes::roundedRect(_highlights, Vec2(x, t.top - t.travel - t.length), Vec2(kBarWidth, t.travel + t.length),
                             kBarWidth * 0.5f, theme::kCard);
-        shapes::roundedRect(marks, Vec2(x, t.at - t.length), Vec2(kBarWidth, t.length), kBarWidth * 0.5f,
+        shapes::roundedRect(_highlights, Vec2(x, t.at - t.length), Vec2(kBarWidth, t.length), kBarWidth * 0.5f,
                             _draggingThumb ? theme::kThumbHeld : _barHot ? theme::kThumbHot : theme::kLine);
     }
 }
