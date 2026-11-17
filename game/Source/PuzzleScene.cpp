@@ -316,6 +316,15 @@ void PuzzleScene::pollEngine() {
             _bestMove  = result.bestMove;
             _bestScore = Score{result.scoreCp, result.mateIn};
             _phase     = Phase::Ready;
+            // "Show the solution" was asked for while the engine was still
+            // looking: now it has the move, play it.
+            if (_autoSolve) {
+                if (const auto move = _game.position().parseUci(_bestMove)) {
+                    played(*move, true);
+                    break;
+                }
+                _autoSolve = false;  // nothing to show: the player's move again
+            }
             refreshSolving();
             break;
 
@@ -833,16 +842,28 @@ void PuzzleScene::showSolution() {
         // From the start, so the whole solution is seen.
         const Puzzle puzzle = _puzzle;
         openPuzzle(puzzle);
-        if (_phase == Phase::Preparing)
-            return;  // a best-move problem: once the engine has its move, it is shown
+        if (_page != Page::Solving)
+            return;  // it could not be set up again and went to the editor
     }
+    // After openPuzzle(), which clears both.
     _autoSolve = true;
     _helped    = true;
     _hintFrom = _hintTo = kNoSquare;
+    if (_phase == Phase::Preparing) {
+        // A best-move problem started again: the engine is looking for the
+        // best move, and plays it as soon as it has it (Question::Prepare).
+        refreshSolving();
+        return;
+    }
     if (_phase == Phase::Ready && _game.position().sideToMove() == _attacker) {
         if (_puzzle.mateIn <= 0) {
-            if (const auto move = _game.position().parseUci(_bestMove))
+            if (const auto move = _game.position().parseUci(_bestMove)) {
                 played(*move, true);
+                return;
+            }
+            // The engine never named a best move here: nothing to show.
+            _autoSolve = false;
+            refreshSolving();
             return;
         }
         SearchRequest request;
