@@ -25,8 +25,8 @@ with [Stockfish](https://stockfishchess.org/) as the opponent.
   whether the position could occur in a game at all, and problem solving — 23
   mate problems come with the game, and you can add your own; Stockfish checks
   every move;
-- a choice of looks: six sets of pieces (classic, diagram, Gothic, anime, bone
-  and ancient) and seven boards, in any combination;
+- a choice of looks: seven sets of pieces (classic, diagram, Gothic, anime,
+  bone, ancient and pixel) and eight boards, in any combination;
 - the window resizes freely; while nothing is happening the game draws nothing
   and uses no CPU at all.
 
@@ -252,6 +252,7 @@ closes it.
 | Аніме (Anime) | the same six classic silhouettes drawn as a cartoon would draw them: flat colour, a white edge, and a face of its own on every piece |
 | Кістяні (Bone) | turned bone, as sets were before Staunton: one side pale, the other stained red; yellowed and cracked |
 | Старовинні (Ancient) | chaturanga, an ancient Indian army: a king under a parasol, a counsellor, a chariot, an elephant, a horseman, a foot soldier; ivory against blackened wood |
+| Піксельні (Pixel) | pixel art: the pieces on a grid of 32 × 32, five tones a side and a dark outline |
 
 | Board | |
 |---|---|
@@ -262,6 +263,7 @@ closes it.
 | Сакура (Sakura) | cream and pink, flat as a frame of a cartoon, with fallen petals |
 | Шкіра (Leather) | an old tooled board: vellum and dark calf, every square ruled round with a line, foxed and cracked |
 | Камінь (Stone) | slabs of buff and red sandstone, chipped and pitted by time |
+| Пікселі (Pixels) | pixel tiles of 32 × 32, cream and green, on the same grid as the pixel pieces |
 
 ![The classic and the Gothic looks](docs/looks.png)
 
@@ -322,7 +324,21 @@ belongs to nobody; the outlines were drawn for this game from nothing, and no
 existing set or font was traced. The black pieces have a hairline of light
 round them, so they do not sink even into a dark square.
 
-In all six sets a piece's size goes by what it is worth: the pawn is the
+![The pixel set on the Pixels board](docs/pixel.png)
+
+The pixel set is the pieces as an old game console would have drawn them: a
+grid of 32 × 32, five tones a side and one dark outline. The silhouettes are
+the ordinary chess ones: the pawn's ball, the rook's battlements, the knight's
+head, a mitre with its cut, the queen's crown with a ball on each point, the
+king's crown and cross. The Pixels board is drawn on the same grid, so a pixel
+of a piece and a pixel of the square under it are the same size and sit on the
+same lines. The light pieces are cream, the dark ones grey-violet, the squares
+cream and green, so neither side sinks into the board. The game reduces these
+pictures to the size of a square with smoothing, as it does all the others, so
+in a small window the pixels are a little soft; they are sharpest in a large
+window or on a Retina screen.
+
+In all seven sets a piece's size goes by what it is worth: the pawn is the
 smallest, the knight and the bishop are alike, the rook stands above them, then
 the queen and the king. (Which is why the rook here is taller than the bishop,
 though in a real Staunton set it is shorter.)
@@ -335,18 +351,21 @@ Any set stands on any board:
 ![The anime set on every board](docs/anime-pieces.png)
 ![The bone set on every board](docs/bone-pieces.png)
 ![The ancient set on every board](docs/ancient-pieces.png)
+![The pixel set on every board](docs/pixel-pieces.png)
 
 The marks on the board — last move, selected square, where a piece can go,
 check — are each board's own: a green selection would be lost on the oxblood,
 and a red check on it would be no warning at all.
 
-All six sets and the five pictured boards were drawn for this game, and all
+All seven sets and the six pictured boards were drawn for this game, and all
 of it is code in `art/`. A set is one file (`art/classic.py`, `art/diagram.py`,
 `art/gothic.py`, `art/anime.py`, `art/bone.py`, `art/ancient.py`): twelve pieces described as outlines on a
 100 × 100 square, from which it writes the SVGs (`art/<set>/`) and the PNGs the
-game loads. To change something, change a number and run
+game loads. The pixel set (`art/pixel.py`) is described differently: the body
+of each piece row by row on a grid of 32 × 32, with the outline and the light
+worked out by the script. To change something, change a number and run
 `python3 art/gothic.py --sheet` (it needs `rsvg-convert` and Pillow). The
-squares of the Wood, Gothic, Sakura, Leather and Stone boards come from
+squares of the Wood, Gothic, Sakura, Leather, Stone and Pixels boards come from
 `art/boards.py` (which also needs numpy): two pictures a board, four different
 squares in each, and the game lays them so that neighbours do not repeat. What
 they share is `art/kit.py`; the thinking it was all drawn from is
@@ -542,11 +561,13 @@ game/                         the axmol application
   Content/pieces/anime/       the anime pieces (PNG)
   Content/pieces/bone/        the bone pieces (PNG)
   Content/pieces/ancient/     the ancient pieces, chaturanga (PNG)
+  Content/pieces/pixel/       the pixel pieces (PNG)
   Content/boards/wood/        the squares of the Wood board (PNG)
   Content/boards/gothic/      the squares of the Gothic board (PNG)
   Content/boards/sakura/      the squares of the Sakura board (PNG)
   Content/boards/leather/     the squares of the Leather board (PNG)
   Content/boards/stone/       the squares of the Stone board (PNG)
+  Content/boards/pixel/       the squares of the Pixels board (PNG)
   cmake/modules/              the game template from axmol 2.9.1
   proj.ios_mac/, proj.linux/  the entry points for macOS and Linux
 art/classic.py                the classic set: where its SVGs and PNGs come from
@@ -555,11 +576,12 @@ art/gothic.py                 the Gothic set: likewise
 art/anime.py                  the anime set: likewise
 art/bone.py                   the bone set: likewise
 art/ancient.py                the ancient set (chaturanga): likewise
-art/classic/, art/diagram/, art/gothic/, art/anime/, art/bone/, art/ancient/   their SVGs
-art/boards.py                 the squares of the Wood, Gothic, Sakura, Leather and Stone boards
+art/pixel.py                  the pixel set: a grid of 32 × 32, outline and light worked out
+art/classic/, art/diagram/, art/gothic/, art/anime/, art/bone/, art/ancient/, art/pixel/   their SVGs
+art/boards.py                 the squares of the Wood, Gothic, Sakura, Leather, Stone and Pixels boards
 art/kit.py                    what they share: outlines, rendering, the contact sheet
 art/plate.py                  the plate docs/looks.png
-art/DESIGN.md                 six looks, six schools: what it was all drawn from
+art/DESIGN.md                 seven looks, seven schools: what it was all drawn from
 cmake/Chess.cmake             the dependencies, preparing axmol, building Stockfish
 docs/                         screenshots and the source of the icon
 third-party/axmol/            axmol v2.9.1 (MIT)
@@ -675,7 +697,7 @@ Chess --puzzle m2-morphy                # a problem from the collection (the ids
   program.
 - **axmol** — MIT.
 
-All six piece sets and all seven boards contain nobody else's work: they were
+All seven piece sets and all eight boards contain nobody else's work: they were
 drawn for this project (the anime set is a style, not anybody's characters). (The classic set used to be Colin M.L. Burnett's “cburnett”,
 GPLv2+; it has been replaced and survives only in the git history.)
 

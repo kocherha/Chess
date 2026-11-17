@@ -50,6 +50,7 @@ inline constexpr const char* kPiecesGothic  = "Ґотичні";
 inline constexpr const char* kPiecesAnime   = "Аніме";
 inline constexpr const char* kPiecesBone    = "Кістяні";
 inline constexpr const char* kPiecesAncient = "Старовинні";
+inline constexpr const char* kPiecesPixel   = "Піксельні";
 inline constexpr const char* kBoardWood     = "Дерево";
 inline constexpr const char* kBoardGothic   = "Ґотика";
 inline constexpr const char* kBoardMarble   = "Мармур";
@@ -57,6 +58,7 @@ inline constexpr const char* kBoardEmerald  = "Смарагд";
 inline constexpr const char* kBoardSakura   = "Сакура";
 inline constexpr const char* kBoardLeather  = "Шкіра";
 inline constexpr const char* kBoardStone    = "Камінь";
+inline constexpr const char* kBoardPixel    = "Пікселі";
 
 // Asked before a game that is still being played is thrown away.
 inline constexpr const char* kUnfinishedTitle = "Партію не закінчено";

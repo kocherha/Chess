@@ -410,12 +410,61 @@ def stone():
     save([slab(rng, red, 0.12, 0.12, tone) for tone in (0.0, -0.04, 0.04, 0.015)], folder / "dark.png")
 
 
+# --- pixels -------------------------------------------------------------------
+
+def pixels():
+    """The Pixel board: every square a tile of 32 x 32, drawn on the same grid
+    as the pixel pieces (art/pixel.py). A tile is the same whichever way it is
+    turned over, as the game may turn it: a dark joint all round, a lit edge
+    inside it, and a few loose pixels and small clusters on its face."""
+    grid, pixel = 32, CELL // 32
+    rng = np.random.default_rng(1985)
+
+    def tile(face, lit, dim, joint):
+        square = np.empty((grid, grid, 3), dtype=np.uint8)
+        square[:] = face
+        square[0, :], square[-1, :], square[:, 0], square[:, -1] = joint, joint, joint, joint
+        square[1, 1:-1], square[-2, 1:-1], square[1:-1, 1], square[1:-1, -2] = lit, lit, lit, lit
+        for _ in range(int(rng.integers(7, 12))):                 # loose pixels
+            y, x = rng.integers(4, grid - 4, 2)
+            square[y, x] = lit if rng.random() < 0.5 else dim
+        for _ in range(int(rng.integers(2, 4))):                  # small clusters, two or three pixels
+            y, x = rng.integers(5, grid - 6, 2)
+            colour = dim if rng.random() < 0.7 else lit
+            square[y, x:x + 2] = colour
+            if rng.random() < 0.5:
+                square[y + 1, x + 1] = colour
+        if rng.random() < 0.6:                                    # a chequered patch, as a console shades
+            y, x = rng.integers(5, grid - 9, 2)
+            for dy in range(3):
+                for dx in range(4):
+                    if (dx + dy) % 2 == 0:
+                        square[y + dy, x + dx] = dim
+        return np.kron(square, np.ones((pixel, pixel, 1), dtype=np.uint8))
+
+    def write(squares, path):
+        size = grid * pixel
+        sheet = np.zeros((size * 2, size * 2, 3), dtype=np.uint8)
+        for index, square in enumerate(squares):
+            row, col = divmod(index, 2)
+            sheet[row * size:(row + 1) * size, col * size:(col + 1) * size] = square
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.fromarray(sheet, "RGB").save(path, optimize=True)
+
+    folder = kit.CONTENT / "boards" / "pixel"
+    write([tile((232, 220, 180), (244, 235, 203), (213, 198, 155), (190, 172, 130)) for _ in range(4)],
+          folder / "light.png")
+    write([tile((104, 148, 96), (124, 166, 110), (86, 128, 86), (66, 104, 76)) for _ in range(4)],
+          folder / "dark.png")
+
+
 def main():
     wood()
     gothic()
     sakura()
     leather()
     stone()
+    pixels()
 
 
 if __name__ == "__main__":

@@ -56,6 +56,9 @@ const std::vector<PieceSet>& pieceSets() {
         // four arms of an Indian army and its king — foot soldier, horseman,
         // elephant, chariot, counsellor, raja; see art/ancient.py.
         {"ancient", text::kPiecesAncient, "pieces/ancient"},
+        // And as an old console would have drawn them: on a grid of 32 x 32,
+        // five tones a side and one dark line; see art/pixel.py.
+        {"pixel", text::kPiecesPixel, "pieces/pixel"},
     };
     return sets;
 }
@@ -106,6 +109,12 @@ const std::vector<BoardStyle>& boards() {
         {"stone", text::kBoardStone,
          rgb(182, 151, 104), rgb(127, 66, 47), rgb(44, 28, 20), rgb(150, 110, 68), 0.2f, "boards/stone",
          rgb(70, 176, 150, 0.44f), rgb(244, 206, 70, 0.62f), rgb(26, 30, 24, 0.44f), rgb(255, 96, 30, 0.95f)},
+
+        // Tiles of 32 x 32 pixels, cream and green, on the same grid as the
+        // pixel pieces; a square frame, as nothing on that screen was round.
+        {"pixel", text::kBoardPixel,
+         rgb(228, 216, 176), rgb(102, 145, 95), rgb(40, 32, 52), rgb(244, 235, 203), 0.0f, "boards/pixel",
+         rgb(250, 214, 70, 0.5f), rgb(70, 170, 250, 0.58f), rgb(30, 24, 44, 0.42f), rgb(232, 52, 52, 0.9f)},
     };
     return styles;
 }

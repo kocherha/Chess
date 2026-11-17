@@ -107,7 +107,7 @@ def write_set(name, draw, letters="KQRBNP"):
 BOARDS = [("wood", "#e1c594", "#9e6942"), ("gothic", "#beb7a7", "#5d2127"),
           ("marble", "#e4e6ea", "#8d96a7"), ("emerald", "#ebecd0", "#739552"),
           ("sakura", "#fef4ef", "#f4abc0"), ("leather", "#c8b487", "#573823"),
-          ("stone", "#b69768", "#7f422f")]
+          ("stone", "#b69768", "#7f422f"), ("pixel", "#e4d8b0", "#66915f")]
 
 
 def sheet(name, target, cell=128, order="KQRBNP"):
