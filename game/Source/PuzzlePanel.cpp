@@ -175,6 +175,7 @@ void PuzzlePanel::setCastling(const std::array<bool, 4>& wanted, const std::arra
 }
 
 void PuzzlePanel::setEnPassant(const std::vector<Square>& candidates, Square chosen) {
+    const auto before = _passantSquares;
     _passantSquares.fill(kNoSquare);
     for (std::size_t i = 0; i < candidates.size() && i + 1 < _passant.size(); ++i) {
         _passantSquares[i + 1] = candidates[i];
@@ -183,7 +184,11 @@ void PuzzlePanel::setEnPassant(const std::vector<Square>& candidates, Square cho
     for (std::size_t i = 0; i < _passant.size(); ++i)
         _passant[i]->setChosen(_passantSquares[i] == chosen);
     _passant[0]->setEnabled(!candidates.empty());
-    layout();
+    // Which buttons the row has is a matter of layout; which is lit is not.
+    // The editor calls this after every change on the board, and most of
+    // them leave the squares as they were.
+    if (_passantSquares != before)
+        layout();
 }
 
 void PuzzlePanel::setFen(const std::string& fen) {
