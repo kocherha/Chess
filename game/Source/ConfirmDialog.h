@@ -19,7 +19,9 @@ public:
     static ConfirmDialog* create();
 
     // Asks. `proceed` is what the button that goes ahead says; `onProceed`
-    // runs if it is pressed, `onStay` if the other one is.
+    // runs if it is pressed, `onStay` if the other one is. A question still
+    // on screen is answered "stay" first: nothing it guarded happens, and
+    // what it would have done on the way back is not lost.
     void open(const std::string& title, const std::string& message, const std::string& proceed,
               std::function<void()> onProceed, std::function<void()> onStay = {});
 

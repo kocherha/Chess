@@ -59,6 +59,13 @@ bool ConfirmDialog::init() {
 
 void ConfirmDialog::open(const std::string& title, const std::string& message, const std::string& proceed,
                          std::function<void()> onProceed, std::function<void()> onStay) {
+    if (isOpen()) {
+        const auto then = std::move(_onStay);
+        _onProceed = _onStay = nullptr;
+        if (then)
+            then();
+    }
+
     _title->setString(title);
     _text = message;
     _go->setText(proceed);
