@@ -1,5 +1,7 @@
 #include "chess/Setup.h"
 
+#include "Board.h"
+
 #include <algorithm>
 #include <bit>
 #include <cctype>
@@ -10,17 +12,7 @@ namespace chess {
 
 namespace {
 
-struct Step {
-    int file, rank;
-};
-constexpr Step kKnightSteps[] = {{1, 2}, {2, 1}, {2, -1}, {1, -2}, {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}};
-constexpr Step kKingSteps[]   = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}};
-constexpr Step kDiagonals[]   = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-constexpr Step kStraights[]   = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
-
-constexpr std::uint8_t castleBit(Color color, bool kingSide) {
-    return static_cast<std::uint8_t>(1u << ((color == Color::White ? 0 : 2) + (kingSide ? 0 : 1)));
-}
+using namespace board;
 
 // The rank a side's pieces start on, and its pawns.
 constexpr int homeRank(Color color) { return color == Color::White ? 0 : 7; }
@@ -32,33 +24,6 @@ bool lightSquare(Square square) {
 
 bool slider(PieceType type) {
     return type == PieceType::Bishop || type == PieceType::Rook || type == PieceType::Queen;
-}
-
-PieceType typeFromLetter(char letter) {
-    switch (std::tolower(static_cast<unsigned char>(letter))) {
-    case 'p': return PieceType::Pawn;
-    case 'n': return PieceType::Knight;
-    case 'b': return PieceType::Bishop;
-    case 'r': return PieceType::Rook;
-    case 'q': return PieceType::Queen;
-    case 'k': return PieceType::King;
-    default:  return PieceType::None;
-    }
-}
-
-std::vector<std::string_view> splitFields(std::string_view text) {
-    std::vector<std::string_view> fields;
-    std::size_t i = 0;
-    while (i < text.size()) {
-        while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i])))
-            ++i;
-        const std::size_t start = i;
-        while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i])))
-            ++i;
-        if (i > start)
-            fields.push_back(text.substr(start, i - start));
-    }
-    return fields;
 }
 
 // Is `between` on the straight line from `from` to `to`, strictly inside it?

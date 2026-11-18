@@ -1,5 +1,7 @@
 #include "chess/Position.h"
 
+#include "Board.h"
+
 #include <algorithm>
 #include <cctype>
 #include <cstdlib>
@@ -9,54 +11,14 @@ namespace chess {
 
 namespace {
 
-constexpr std::uint8_t kWhiteKing = 1, kWhiteQueen = 2, kBlackKing = 4, kBlackQueen = 8;
+using namespace board;
 
 constexpr Square kA1 = 0, kE1 = 4, kH1 = 7, kA8 = 56, kE8 = 60, kH8 = 63;
-
-struct Step {
-    int file, rank;
-};
-constexpr Step kKnightSteps[] = {{1, 2}, {2, 1}, {2, -1}, {1, -2}, {-1, -2}, {-2, -1}, {-2, 1}, {-1, 2}};
-constexpr Step kKingSteps[]   = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, -1}, {1, -1}};
-constexpr Step kDiagonals[]   = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
-constexpr Step kStraights[]   = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
-
-constexpr std::uint8_t castleBit(Color color, bool kingSide) {
-    return color == Color::White ? (kingSide ? kWhiteKing : kWhiteQueen)
-                                 : (kingSide ? kBlackKing : kBlackQueen);
-}
-
-PieceType typeFromLetter(char letter) {
-    switch (std::tolower(static_cast<unsigned char>(letter))) {
-    case 'p': return PieceType::Pawn;
-    case 'n': return PieceType::Knight;
-    case 'b': return PieceType::Bishop;
-    case 'r': return PieceType::Rook;
-    case 'q': return PieceType::Queen;
-    case 'k': return PieceType::King;
-    default:  return PieceType::None;
-    }
-}
 
 bool fail(std::string* error, std::string message) {
     if (error != nullptr)
         *error = std::move(message);
     return false;
-}
-
-std::vector<std::string_view> splitFields(std::string_view text) {
-    std::vector<std::string_view> fields;
-    std::size_t i = 0;
-    while (i < text.size()) {
-        while (i < text.size() && std::isspace(static_cast<unsigned char>(text[i])))
-            ++i;
-        std::size_t start = i;
-        while (i < text.size() && !std::isspace(static_cast<unsigned char>(text[i])))
-            ++i;
-        if (i > start)
-            fields.push_back(text.substr(start, i - start));
-    }
-    return fields;
 }
 
 bool parseNumber(std::string_view text, int& out) {
