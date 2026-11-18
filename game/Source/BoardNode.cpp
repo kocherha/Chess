@@ -52,9 +52,7 @@ bool BoardNode::init() {
 
     for (Label*& sign : _signs) {
         sign = Label::createWithSystemFont("", theme::kSerif, 12.0f);
-        sign->setColor(Color3B(static_cast<uint8_t>(theme::kBadgeInk.r * 255.0f),
-                               static_cast<uint8_t>(theme::kBadgeInk.g * 255.0f),
-                               static_cast<uint8_t>(theme::kBadgeInk.b * 255.0f)));
+        sign->setColor(theme::toColor3B(theme::kBadgeInk));
         typeset::embolden(sign);
         sign->setVisible(false);
         addChild(sign, 5);
@@ -130,9 +128,7 @@ void BoardNode::redrawSquares() {
     const float points = std::clamp(s * 0.17f, 9.0f, 15.0f);
     const float inset  = std::max(2.0f, s * 0.05f);
     const auto tint = [&style](Square square) {
-        const Color4F& c = lightSquare(square) ? style.dark : style.light;
-        return Color3B(static_cast<uint8_t>(c.r * 255.0f), static_cast<uint8_t>(c.g * 255.0f),
-                       static_cast<uint8_t>(c.b * 255.0f));
+        return theme::toColor3B(lightSquare(square) ? style.dark : style.light);
     };
 
     for (int i = 0; i < 8; ++i) {
@@ -412,7 +408,7 @@ void BoardNode::openPromotion(Square target, Color colour) {
     for (int i = 0; i < 4; ++i) {
         const Vec2 cell = top + Vec2(0.0f, (_promotionDown ? -1.0f : 1.0f) * static_cast<float>(i) * s);
         shapes::roundedRect(back, cell + Vec2(2.0f, 2.0f), Vec2(s - 4.0f, s - 4.0f), s * 0.12f,
-                            theme::rgb(250, 248, 244), 1.5f, theme::rgb(118, 168, 72));
+                            theme::rgb(250, 248, 244), 1.5f, theme::kAccent);
         if (Sprite* sprite = makePiece(Piece{kPromotionOrder[i], colour})) {
             sprite->setPosition(cell + Vec2(s * 0.5f, s * 0.5f));
             sprite->setScale(sprite->getScale() * 0.9f);

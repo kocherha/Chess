@@ -494,11 +494,7 @@ void SidePanel::rebuildMoves() {
 
             // Its mark, straight after it, in the mark's own colour.
             if (const Mark mark = _list.mark(index); mark != Mark::None) {
-                const Color4F tint = theme::markColour(mark);
-                auto* sign = typeset::leftLabel(suffix(mark), 15.0f,
-                                            Color3B(static_cast<uint8_t>(tint.r * 255.0f),
-                                                    static_cast<uint8_t>(tint.g * 255.0f),
-                                                    static_cast<uint8_t>(tint.b * 255.0f)));
+                auto* sign = typeset::leftLabel(suffix(mark), 15.0f, theme::toColor3B(theme::markColour(mark)));
                 typeset::embolden(sign);
                 sign->setPosition(Vec2(x + move->getContentSize().width + 1.0f, y));
                 _moveRows->addChild(sign);

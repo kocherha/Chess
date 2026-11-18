@@ -25,6 +25,13 @@ inline ax::Color4F rgb(int r, int g, int b, float a = 1.0f) {
                        static_cast<float>(b) / 255.0f, a);
 }
 
+// The same colour for what takes a Color3B — a label's text — and has no
+// transparency.
+inline ax::Color3B toColor3B(const ax::Color4F& colour) {
+    return ax::Color3B(static_cast<uint8_t>(colour.r * 255.0f), static_cast<uint8_t>(colour.g * 255.0f),
+                       static_cast<uint8_t>(colour.b * 255.0f));
+}
+
 // The room.
 inline const ax::Color4F kBackground = rgb(24, 26, 31);
 inline const ax::Color4F kPanel      = rgb(33, 36, 43);
