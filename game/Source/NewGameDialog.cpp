@@ -213,9 +213,13 @@ void NewGameDialog::keyPressed(EventKeyboard::KeyCode code) {
             chooseLevel(chess::levelAtStrength(_setup.strength).number + 1);
         break;
     default:
-        // The digits pick a level directly.
-        if (computer && code >= Key::KEY_1 && code <= Key::KEY_8)
-            chooseLevel(static_cast<int>(code) - static_cast<int>(Key::KEY_1) + 1);
+        // The digits pick a level directly: 1 the first, and so on for as
+        // many levels as there are.
+        if (computer && code >= Key::KEY_1 && code <= Key::KEY_9) {
+            const int number = static_cast<int>(code) - static_cast<int>(Key::KEY_1) + 1;
+            if (number <= static_cast<int>(chess::levels().size()))
+                chooseLevel(number);
+        }
         break;
     }
 }
