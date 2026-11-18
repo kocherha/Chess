@@ -215,10 +215,10 @@ void Process::stop(int graceMs) {
     closeInput();
 
     if (_pid > 0) {
-        // Asked often: a UCI engine leaves within a millisecond or two of
-        // "quit", and this runs on the game's own thread — leaving the
-        // problems mode or closing the window waits for it. (Every ten
-        // milliseconds, as it was, made each of those waits ten.)
+        // A UCI engine leaves within a millisecond or two of "quit", and this
+        // runs on the game's own thread — closing the window waits for it. So
+        // it is looked for every millisecond: a coarser step would make every
+        // such wait at least that long.
         using Clock         = std::chrono::steady_clock;
         const auto deadline = Clock::now() + std::chrono::milliseconds(graceMs);
         int        status   = 0;
