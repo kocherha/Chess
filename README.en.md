@@ -412,7 +412,7 @@ chess notation. (In the move list the signs keep their colours.)
 
 | Sign | Meaning | When it is given |
 |---|---|---|
-| `!!` | brilliant | a sacrifice that works: the move leaves at least two pawns' worth of material to be taken, it is no worse than the best move, and the game was not won without it |
+| `!!` | brilliant | a sacrifice that works: the move leaves at least two pawns' worth of material to be taken, it is no worse than the best move, and the game was not won without it. The sign goes to the move that makes the offer, not to each later one that leaves it standing |
 | `!` | great | the only good move, and one that had to be found: the next best is worse by at least 10% of the winning chance |
 | `?!` | inaccuracy | the move gave up 5% of the winning chance or more |
 | `?` | mistake | 10% or more |
@@ -437,8 +437,17 @@ the lower levels the opponent replies in a fraction of a second), it comes back
 to the positions it missed as soon as it is free, the latest first. The signs
 also go into a copied game (`Nxe5!!`) and a copied move.
 
+A move is judged by what the engine said about the position when it had looked
+exactly 16 plies deep — not by its last word, which depends on how long it was
+given. So the same game gets the same signs on a fast machine and a slow one,
+today and tomorrow. (A machine that has no time for that judges by what it
+reached, if that is at least 14.) A position the engine has already seen — a
+move taken back, or the same position reached by another order of moves — is
+not looked at a second time.
+
 Bear in mind that these are an engine's signs at a modest depth, not a
-commentator's: `!!` means “a sacrifice, and a sound one”, not “beautiful”.
+commentator's: `!!` means “a sacrifice, and a sound one”, not “beautiful” or
+“hard to find”.
 
 ### Signs on the kings
 
@@ -545,6 +554,7 @@ engine/uci/                   talking to the engine; knows nothing of the rules
   tests/                      a fake engine (sh) and the real Stockfish
 engine/session/               the modes of the game without a screen: the rules + questions to the engine
   include/chess/PuzzleSession.h  a problem: a move, checking it, the defence, the hint, the solution
+  include/chess/PositionProbe.h  a position in the editor: is there a mate in it (the shortest), and who is better
   include/chess/Opponent.h    the opponent in a game: when and how to answer — from memory, at random or by the engine
   include/chess/Watcher.h     the engine that watches the game: the bar, the move marks, the hint
   include/chess/GameReview.h  what the engine found about a game's positions, and the marks from it (for Watcher)

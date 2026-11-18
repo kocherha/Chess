@@ -25,8 +25,8 @@ constexpr double kStillStanding = 0.45;
 // a queen up is housekeeping.
 constexpr double kAlreadyWon = 0.90;
 
-// What the opponent can win at once in `position`, in pawns: the best of the
-// captures open to it, each followed through to the end of the exchange.
+}  // namespace
+
 int onOffer(const Position& position) {
     int most = 0;
     for (const Move& move : position.legalMoves()) {
@@ -35,8 +35,6 @@ int onOffer(const Position& position) {
     }
     return most;
 }
-
-}  // namespace
 
 const char* suffix(Mark mark) {
     switch (mark) {
@@ -82,7 +80,57 @@ double loss(const Move& played, const Evidence& evidence) {
     return std::max(0.0, before - after);
 }
 
-Mark judge(const Position& before, const Move& played, const Evidence& evidence, const Move* previous) {
+namespace {
+
+// A sacrifice that works: after the move the opponent can win more than the
+// move itself took, the mover is no worse for it, and was not winning anyway.
+// `left`: what the opponent can take once the move is made.
+bool sacrifices(const Move& move, int left, const Evidence& evidence, const Lead& lead) {
+    // Promotions are left out — what stands on the last rank afterwards is
+    // not what was risked getting there. And without a second line there is
+    // no telling whether the game was won without it.
+    if (move.promotion != PieceType::None || !evidence.second)
+        return false;
+    if (left - pieceValue(move.captured) < kSacrifice)
+        return false;
+    const double kept     = 1.0 - winChance(evidence.after);
+    const double nextBest = winChance(*evidence.second);
+    if (kept < kStillStanding || nextBest > kAlreadyWon)
+        return false;
+    // The offer has to be this move's. If as much could already be taken
+    // before the opponent's last move, it was made then, and declined.
+    return lead.from == nullptr || left > onOffer(*lead.from);
+}
+
+// The only good move — but was there anything to find? Not when the position
+// itself said what to do.
+bool saidByThePosition(const Position& before, const Move& move, int left, const Lead& lead) {
+    // A capture that simply wins material;
+    if (move.isCapture() && before.exchange(move) > 0)
+        return true;
+    // taking back what has just been taken;
+    if (move.isCapture() && lead.move != nullptr && lead.move->isCapture() && lead.move->to == move.to)
+        return true;
+    // a check to be answered;
+    const auto idle = before.passed();
+    if (!idle)
+        return true;
+    // or something about to be taken, which the move saves.
+    const int threatened = onOffer(*idle);
+    return threatened > 0 && left < threatened;
+}
+
+// The engine's first choice, far above every other, and worth making.
+bool standsAlone(const Move& played, const Evidence& evidence) {
+    if (played.uci() != evidence.bestMove || !evidence.second)
+        return false;
+    const double worth = winChance(evidence.best);
+    return worth - winChance(*evidence.second) >= kOnlyMoveGap && worth >= kWorthKeeping;
+}
+
+}  // namespace
+
+Mark judge(const Position& before, const Move& played, const Evidence& evidence, const Lead& lead) {
     if (!evidence.best.known() || !evidence.after.known())
         return Mark::None;
 
@@ -102,44 +150,13 @@ Mark judge(const Position& before, const Move& played, const Evidence& evidence,
     if (!move || before.legalMoves().size() < 2)
         return Mark::None;  // a forced move is not a found one
 
-    const double kept       = 1.0 - winChance(evidence.after);
-    const double nextBest   = evidence.second ? winChance(*evidence.second) : 0.0;
-    const bool   firstChoice = played.uci() == evidence.bestMove;
-
     // What the opponent can take once the move is made.
     const int left = onOffer(before.after(*move));
 
-    // A sacrifice: after the move the opponent can win more than the move
-    // itself took. Promotions are left out — what stands on the last rank
-    // afterwards is not what was risked getting there.
-    if (move->promotion == PieceType::None && evidence.second) {
-        const int offered = left - pieceValue(move->captured);
-        if (offered >= kSacrifice && kept >= kStillStanding && nextBest <= kAlreadyWon)
-            return Mark::Brilliant;
-    }
-
-    if (firstChoice && evidence.second) {
-        const double worth = winChance(evidence.best);
-        if (worth - nextBest < kOnlyMoveGap || worth < kWorthKeeping)
-            return Mark::None;
-
-        // The only good move — but was there anything to find? Not when the
-        // position itself said what to do:
-        //   a capture that simply wins material;
-        const bool winsMaterial = move->isCapture() && before.exchange(*move) > 0;
-        //   taking back what has just been taken;
-        const bool takesBack = move->isCapture() && previous != nullptr && previous->isCapture() &&
-                               previous->to == move->to;
-        //   a check to be answered;
-        const auto idle      = before.passed();
-        const bool inCheck   = !idle.has_value();
-        //   or something about to be taken, which the move saves.
-        const int  threatened = idle ? onOffer(*idle) : 0;
-        const bool rescues    = threatened > 0 && left < threatened;
-
-        if (!winsMaterial && !takesBack && !inCheck && !rescues)
-            return Mark::Great;
-    }
+    if (sacrifices(*move, left, evidence, lead))
+        return Mark::Brilliant;
+    if (standsAlone(played, evidence) && !saidByThePosition(before, *move, left, lead))
+        return Mark::Great;
     return Mark::None;
 }
 

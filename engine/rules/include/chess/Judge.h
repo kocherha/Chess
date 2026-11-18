@@ -92,20 +92,38 @@ double loss(const Move& played, const Evidence& evidence);
 // thresholds lichess uses (it states them on a scale twice as long).
 inline constexpr double kInaccuracy = 0.05, kMistake = 0.10, kBlunder = 0.15;
 
-// The mark for `played` in `before`. `previous` is the move that led to
-// `before`, if there was one: taking back what was just taken is nobody's idea
-// of a fine move, however far ahead of the alternatives it is.
+// What the opponent can win at once in `position`, in pawns: the best of the
+// captures open to the side to move there, each followed through to the end
+// of the exchange.
+int onOffer(const Position& position);
+
+// How the game came to the position a move is judged in: the opponent's move,
+// and the position that move was made in. Either may be missing — the first
+// move of a game has neither.
+struct Lead {
+    const Move*     move = nullptr;
+    const Position* from = nullptr;
+};
+
+// The mark for `played` in `before`, which the game came to by `lead`.
 //
 // "!" is for a move that had to be found. Being the only good move is not
 // enough: the only square for an attacked queen is the only good move too, and
 // so is the one way out of a check. A move earns the mark when it stands well
 // above every other and nothing obvious pointed to it — it does not simply win
-// material, take back, answer a check, or save something that was about to be
-// taken.
+// material, take back what was just taken (lead.move), answer a check, or save
+// something that was about to be taken.
 //
 // "!!" is for a sacrifice that works: the move leaves material to be taken,
-// is as good as the best there was, and the game was not won without it.
-Mark judge(const Position& before, const Move& played, const Evidence& evidence,
-           const Move* previous = nullptr);
+// is as good as the best there was, and the game was not won without it. The
+// mark goes to the move that makes the offer, not to every move that leaves
+// it standing: what the opponent could already have taken before its last
+// move (in lead.from), and did not, is not sacrificed a second time.
+//
+// What "!!" does not say is that the move is beautiful, or hard to see. It
+// is a statement about material and the engine's score, at the depth the
+// position was looked at; an offer that anyone would decline at a glance
+// earns it as surely as the one that crowns a combination.
+Mark judge(const Position& before, const Move& played, const Evidence& evidence, const Lead& lead = {});
 
 }  // namespace chess

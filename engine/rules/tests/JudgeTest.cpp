@@ -213,7 +213,7 @@ TEST(Judge, TakingBackIsNotGreat) {
     previous.captured = PieceType::Knight;
 
     Evidence evidence{cp(0), "d2f3", cp(-300), cp(0)};
-    EXPECT_EQ(judge(position, played, evidence, &previous), Mark::None);
+    EXPECT_EQ(judge(position, played, evidence, Lead{&previous}), Mark::None);
     // The same capture with nothing just taken there would have been a find.
     EXPECT_EQ(judge(position, played, evidence), Mark::Great);
 }
@@ -278,6 +278,29 @@ TEST(Judge, ASoundSacrificeIsBrilliant) {
     // ...and not if the game was won without it.
     Evidence won{cp(900), "f3e5", cp(800), cp(-900)};
     EXPECT_EQ(judge(position, played, won), Mark::None);
+}
+
+// The offer is made once. The move that leaves it standing is not another
+// sacrifice.
+TEST(Judge, AGiftAlreadyDeclinedIsNotGivenAgain) {
+    // White's queen can be taken on d1 by the bishop, and could a move ago:
+    // black looked at it and played ...h6 instead. White's quiet reply leaves
+    // it there still.
+    Game game;
+    for (const char* san : {"e4", "e5", "Nf3", "d6", "Bc4", "Bg4", "Nc3", "g6", "Nxe5"})
+        ASSERT_TRUE(game.playSan(san)) << san;
+    const Position offered = game.position();  // black to move: the queen is on offer
+    ASSERT_GE(onOffer(offered), 9 - 3);
+    ASSERT_TRUE(game.playSan("h6"));  // declined
+    const Position position = game.position();
+    const Move     previous = *game.lastMove();
+    const Move     played   = uci(position, "h2h3");
+    ASSERT_GE(onOffer(position.after(played)), 9 - 3);  // still there
+
+    Evidence evidence{cp(350), "h2h3", cp(60), cp(-350)};
+    EXPECT_EQ(judge(position, played, evidence, Lead{&previous, &offered}), Mark::Great);  // good, alone: but no sacrifice
+    // Judged without knowing what went before, it would have looked like one.
+    EXPECT_EQ(judge(position, played, evidence), Mark::Brilliant);
 }
 
 TEST(Judge, ATradeIsNotASacrifice) {

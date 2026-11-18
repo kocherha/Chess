@@ -149,7 +149,8 @@ bool GameReview::judgeMoves() {
                 continue;
             evidence.after = after->score;
         }
-        marks[i] = judge(history[i].before, history[i].move, evidence, i > 0 ? &history[i - 1].move : nullptr);
+        const Lead lead = i > 0 ? Lead{&history[i - 1].move, &history[i - 1].before} : Lead{};
+        marks[i]        = judge(history[i].before, history[i].move, evidence, lead);
     }
 
     if (marks == _marks)
