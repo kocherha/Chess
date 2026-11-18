@@ -780,13 +780,13 @@ void GameScene::update(float delta) {
         {_replyPending, "a reply is about to be played"},
         {barMoving, "the evaluation bar is moving"},
         {_board->animating(), "a piece is moving"},
-        {_input.pressed(), "the mouse button is down"},
-        {_panel->dragging(), "the move list is being dragged"},
-        {_copiedFor > 0.0f, "the \"copied\" notice is up"},
+        {_input.pressed(), "the mouse button is down", Wakefulness::Kind::Stay},
+        {_panel->dragging(), "the move list is being dragged", Wakefulness::Kind::Stay},
+        {_copiedFor > 0.0f, "the \"copied\" notice is up", Wakefulness::Kind::Stay},
         {_opponent.state() == Engine::State::Starting, "the opponent is starting"},
         {_analysis.state() == Engine::State::Starting, "the analysis engine is starting"},
-        {!options.screenshot.empty(), "a screenshot is being taken"},
-        {options.autoplayGames > 0, "autoplay"},
+        {!options.screenshot.empty(), "a screenshot is being taken", Wakefulness::Kind::Stay},
+        {options.autoplayGames > 0, "autoplay", Wakefulness::Kind::Stay},
     });
 }
 
@@ -1319,8 +1319,5 @@ void GameScene::captureAndQuit() {
     // The picture is taken once the screen has stopped changing: the engine
     // has answered, the piece has landed, the bar has settled and every move
     // that is going to get a mark has it.
-    desktop::screenshotWhenSettled(this, launch().screenshot, [this] {
-        return _opponent.thinking() || _analysis.thinking() || _replyPending || _board->animating() ||
-               _opponent.state() == Engine::State::Starting || _analysis.state() == Engine::State::Starting;
-    });
+    desktop::screenshotWhenSettled(this, launch().screenshot, [this] { return _awake.working(); });
 }

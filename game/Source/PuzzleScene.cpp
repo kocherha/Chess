@@ -1095,16 +1095,13 @@ void PuzzleScene::update(float delta) {
         {_probeIn >= 0.0f, "the position is about to be looked at"},
         {_session.timerRunning(), "a reply or a take-back is due"},
         {_board->animating(), "a piece is moving"},
-        {_input.pressed() || _press.down, "the mouse button is down"},
-        {_flashFor > 0.0f, "a notice is up"},
+        {_input.pressed() || _press.down, "the mouse button is down", Wakefulness::Kind::Stay},
+        {_flashFor > 0.0f, "a notice is up", Wakefulness::Kind::Stay},
         {_engine.state() == Engine::State::Starting, "the engine is starting"},
-        {!_opening.screenshot.empty(), "a screenshot is being taken"},
+        {!_opening.screenshot.empty(), "a screenshot is being taken", Wakefulness::Kind::Stay},
     });
 }
 
 void PuzzleScene::captureAndQuit() {
-    desktop::screenshotWhenSettled(this, _opening.screenshot, [this] {
-        return _engine.thinking() || _probeIn >= 0.0f || _session.timerRunning() || _board->animating() ||
-               _engine.state() == Engine::State::Starting;
-    });
+    desktop::screenshotWhenSettled(this, _opening.screenshot, [this] { return _awake.working(); });
 }

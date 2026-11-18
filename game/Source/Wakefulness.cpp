@@ -9,11 +9,14 @@ using ax::Director;
 
 void Wakefulness::update(float delta, std::initializer_list<Reason> reasons) {
     const char* waiting = nullptr;
-    for (const Reason& reason : reasons)
-        if (reason.holds) {
+    _working = false;
+    for (const Reason& reason : reasons) {
+        if (!reason.holds)
+            continue;
+        if (waiting == nullptr)
             waiting = reason.why;
-            break;
-        }
+        _working = _working || reason.kind == Kind::Work;
+    }
 
     static const bool logging = std::getenv("CHESS_IDLE_LOG") != nullptr;
     if (logging && waiting != _because)

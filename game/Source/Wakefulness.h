@@ -27,14 +27,24 @@ class Wakefulness {
 public:
     static constexpr float kSleepAfter = 0.5f;  // seconds of quiet
 
+    // Work: the screen is going to change by itself — an engine is thinking,
+    // a piece is moving. Stay: no change is coming, but something still
+    // needs frames — a hand on the mouse, a notice counting down, a picture
+    // waiting to be taken.
+    enum class Kind { Work, Stay };
     struct Reason {
         bool        holds;
         const char* why;  // for the log: "the opponent is thinking"
+        Kind        kind = Kind::Work;
     };
 
     // Once a frame, with every reason the scene has to keep drawing. After
     // kSleepAfter with none of them holding, the drawing stops.
     void update(float delta, std::initializer_list<Reason> reasons);
+
+    // Did the last update() find work going on? What --shot waits out before
+    // it takes the picture, so the picture is of a screen that has settled.
+    bool working() const { return _working; }
 
     // Something has changed on screen, or is about to: draw, and start the
     // half second again.
@@ -43,4 +53,5 @@ public:
 private:
     float       _quiet   = 0.0f;     // seconds since anything last happened
     const char* _because = nullptr;  // what the last frame found to wait for, if anything
+    bool        _working = false;
 };
