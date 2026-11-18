@@ -626,7 +626,9 @@ evaluates every position at full strength for the bar, the hint and the move
 marks (which is why it reports its two best moves rather than one). They are
 kept apart on purpose — the opponent's handicap never leaks into the
 evaluation, and asking for a hint changes nothing about how the opponent plays.
-(The network itself, a hundred megabytes, is in memory once for both.)
+(The network itself, a hundred megabytes, is in memory once for both.) The
+opponent is started only when a game against the computer begins: in a game
+between two people its process does not exist at all.
 
 Nothing blocks: `search()` returns at once, a thread of its own reads the
 answers, and the main thread collects a finished move once a frame and looks at

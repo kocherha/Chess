@@ -108,7 +108,14 @@ private:
 
     bool againstComputer() const { return _setup.opponent == GameSetup::Opponent::Computer; }
     bool humanToMove() const;
-    void startEngine();
+    // The engine that watches starts with the scene. The opponent starts
+    // only when a game against the computer needs it: two people at one
+    // board never wake it. Each does nothing if its engine is running.
+    void startAnalysis();
+    void startOpponent();
+    // The UCI_Elo range Stockfish declares. Both processes run the same
+    // program, so whichever has said it already will do.
+    std::optional<chess::Engine::Spin> eloRange() const;
 
     // The choices in the new-game dialog are remembered between runs.
     static GameSetup rememberedSetup();

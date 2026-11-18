@@ -186,7 +186,7 @@ bool GameScene::init() {
                                  .resized = [this] { layout(); },
                                  .closing = [this](bool& closing) { askBeforeQuitting(closing); }});
 
-    startEngine();
+    startAnalysis();
 
     _board->show(_game.position());
     layout();
@@ -271,31 +271,42 @@ void GameScene::offerGameFrom(const Position& position) {
     keepAwake();
 }
 
-void GameScene::startEngine() {
+void GameScene::startAnalysis() {
+    if (_analysis.usable())
+        return;
     const std::string path = stockfish::path();
     if (path.empty()) {
         AXLOGW("no Stockfish found: only the two-player game is available");
         return;
     }
-
-    stockfish::traceIfAsked(_engine, "uci ");
     stockfish::traceIfAsked(_analysis, "eval");
-
-    // Two processes from one program: whichever of them is not running.
-    if (!_engine.usable()) {
-        if (_engine.start(path))
-            AXLOGI("engine: {}", path);
-        else
-            AXLOGW("engine {} did not start: {}", path, _engine.error());
-    }
-    if (!_analysis.usable() && !_analysis.start(path))
+    if (_analysis.start(path))
+        AXLOGI("engine: {}", path);
+    else
         AXLOGW("analysis engine did not start: {}", _analysis.error());
+}
+
+void GameScene::startOpponent() {
+    if (_engine.usable())
+        return;
+    const std::string path = stockfish::path();
+    if (path.empty())
+        return;
+    stockfish::traceIfAsked(_engine, "uci ");
+    if (!_engine.start(path))
+        AXLOGW("engine {} did not start: {}", path, _engine.error());
+}
+
+std::optional<Engine::Spin> GameScene::eloRange() const {
+    if (auto range = _analysis.spin("UCI_Elo"))
+        return range;
+    return _engine.spin("UCI_Elo");
 }
 
 // The rating the opponent is really asked for at this strength: the one on
 // the scale, brought inside the range this engine says it has.
 int GameScene::opponentElo(const Level& level) const {
-    const auto range = _engine.spin("UCI_Elo");
+    const auto range = eloRange();
     if (!range || range->min <= 0 || range->max < range->min)
         return level.elo;
     return std::clamp(level.elo, range->min, range->max);
@@ -336,10 +347,10 @@ void GameScene::startGame(const GameSetup& setup) {
     _setup   = setup;
     _started = true;
 
-    // A game against the computer needs the computer. If the engine has died
-    // since the last game, this is the moment to bring it back.
-    if (againstComputer() && !_engine.usable())
-        startEngine();
+    // A game against the computer needs the computer: started now if this is
+    // the first such game, or brought back if it has died since the last.
+    if (againstComputer())
+        startOpponent();
     if (againstComputer() && !_engine.usable())
         _setup.opponent = GameSetup::Opponent::Human;
 
@@ -349,8 +360,7 @@ void GameScene::startGame(const GameSetup& setup) {
     case GameSetup::Side::Random: _human = (_rng() & 1u) != 0 ? Color::White : Color::Black; break;
     }
 
-    if (!_analysis.usable())
-        startEngine();
+    startAnalysis();
 
     _engine.cancel();
     _engine.newGame();
@@ -465,7 +475,7 @@ void GameScene::askEngineIfItsTurn() {
         return;
     }
 
-    const auto elo = _engine.spin("UCI_Elo");
+    const auto elo = eloRange();
 
     SearchRequest request;
     request.position   = key;
@@ -787,16 +797,16 @@ void GameScene::askBeforeQuitting(bool& closing) {
 
 void GameScene::showNewGameDialog() {
     _input.cancelPromotion();
-    // The dialog is also the place to find out that Stockfish is back.
-    if (!_engine.usable() || !_analysis.usable())
-        startEngine();
-    const auto elo = _engine.spin("UCI_Elo");
+    // The dialog is also the place to find out that Stockfish is back. (The
+    // opponent, when it is needed, starts with the game.)
+    startAnalysis();
+    const auto elo = eloRange();
     // A game from a position set up in the editor: the side to move there is
     // the one offered to the player.
     GameSetup offered = _setup;
     if (_startFrom)
         offered.side = _startFrom->sideToMove() == Color::White ? GameSetup::Side::White : GameSetup::Side::Black;
-    _dialog->open(offered, _started, _engine.usable(), elo ? elo->min : 0, elo ? elo->max : 0);
+    _dialog->open(offered, _started, _analysis.usable(), elo ? elo->min : 0, elo ? elo->max : 0);
     keepAwake();
 }
 
