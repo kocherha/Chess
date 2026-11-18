@@ -167,7 +167,7 @@ private:
     chess::Engine& _engine;
     Question      _question = Question::None;
     int           _tag = 0, _nextTag = -1;
-    chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as update() last saw it
+    bool _engineWasUsable = false;  // as update() last saw it
 
     // Input. Solving: as in a game. The editor: a press on a tray or a
     // square, a click or — once the pointer has moved — a drag.

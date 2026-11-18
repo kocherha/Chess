@@ -171,6 +171,8 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     keyboard->onKeyPressed = [this](EventKeyboard::KeyCode code, Event*) { onKeyPressed(code); };
     _eventDispatcher->addEventListenerWithSceneGraphPriority(keyboard, this);
 
+    _engineWasUsable = _engine.usable();
+
     desktop::followWindow(this, {.wake    = [this] { keepAwake(); },
                                  .resized = [this] { layout(); },
                                  .closing = [this](bool& closing) { askBeforeQuitting(closing); }});
@@ -1048,9 +1050,10 @@ void PuzzleScene::update(float delta) {
         }
     }
 
-    // The engine's state can change by itself: started, or died.
-    if (_engine.state() != _engineState) {
-        _engineState = _engine.state();
+    // The engine can come or go by itself: started, or died. (Starting and
+    // then ready is no change: a question asked while it starts just waits.)
+    if (const bool usable = _engine.usable(); usable != _engineWasUsable) {
+        _engineWasUsable = usable;
         if (_page == Page::Editor)
             edited();
         else
