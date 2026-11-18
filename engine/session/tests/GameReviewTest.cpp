@@ -17,6 +17,19 @@ SearchResult said(std::optional<int> cp, std::optional<int> mate, int depth, con
 
 constexpr int kDeep = GameReview::kMarkDepth + 4;
 
+// A search that has passed the judging depth, saying `cp` there (and `second`
+// for its second line), and something else — `later` — by now.
+SearchResult noted(int cp, const char* best, std::optional<int> second, int later) {
+    SearchResult result = said(later, std::nullopt, GameReview::kJudgeDepth + 3);
+    result.pvMove       = "a2a3";  // where it has wandered since
+    result.secondCp     = second;
+    result.secondDepth  = second ? GameReview::kJudgeDepth + 2 : 0;
+    result.noted        = SearchResult::Noted{cp, std::nullopt, best, std::nullopt};
+    if (second)
+        result.noted->second = SearchResult::Noted::Second{second, std::nullopt};
+    return result;
+}
+
 Game played(std::initializer_list<const char*> moves, const Position& start = Position::initial()) {
     Game game(start);
     for (const char* move : moves)
@@ -119,13 +132,80 @@ TEST(GameReview, ASecondChoiceFromTooEarlyAnIterationIsLeftOut) {
     result.secondCp     = 25;
     result.secondDepth  = 18;
     review.note(review.now(), result, true);
-    EXPECT_FALSE(review.found(review.now())->second.has_value());
+    ASSERT_TRUE(review.found(review.now())->judged.has_value());
+    EXPECT_FALSE(review.found(review.now())->judged->second.has_value());
 
     result.secondDepth = 19;
     review.clear();
     review.note(review.now(), result, true);
-    ASSERT_TRUE(review.found(review.now())->second.has_value());
-    EXPECT_EQ(review.found(review.now())->second->cp, 25);
+    ASSERT_TRUE(review.found(review.now())->judged->second.has_value());
+    EXPECT_EQ(review.found(review.now())->judged->second->cp, 25);
+}
+
+// The point of judging at a fixed depth: what the engine goes on to say, or
+// whether it was let finish, makes no difference to the mark.
+TEST(GameReview, AMoveIsJudgedByWhatWasSaidAtTheJudgingDepth) {
+    GameReview review;
+    review.follow(played({"e2e4"}));
+
+    // Before the move: +0.30 at the judging depth, +3.00 by the time it was
+    // cut short. After it: −0.30 for black at the judging depth.
+    review.note(review.keys()[0], noted(30, "e2e4", 10, 300), false);
+    const auto* found = review.found(review.keys()[0]);
+    ASSERT_TRUE(found->judged.has_value());
+    EXPECT_EQ(found->judged->depth, GameReview::kJudgeDepth);
+    EXPECT_EQ(found->judged->score.cp, 30);
+    EXPECT_EQ(found->judged->best, "e2e4");
+    EXPECT_EQ(found->judged->second->cp, 10);
+    EXPECT_EQ(found->score.cp, 300);  // its latest word is kept too, for the bar
+    EXPECT_FALSE(found->complete);
+
+    // A later search of the same position, saying something else there:
+    // the first judgement stands.
+    review.note(review.keys()[0], noted(-500, "h2h4", -600, 0), true);
+    EXPECT_EQ(review.found(review.keys()[0])->judged->score.cp, 30);
+    EXPECT_EQ(review.found(review.keys()[0])->score.cp, 0);
+}
+
+TEST(GameReview, TheFirstLineAloneAtTheJudgingDepthIsNotYetAJudgement) {
+    GameReview   review;
+    SearchResult result = noted(30, "e2e4", std::nullopt, 40);
+    result.secondCp     = 10;  // the second line is still an iteration behind
+    result.secondDepth  = GameReview::kJudgeDepth - 1;
+    review.note(review.now(), result, false);
+    EXPECT_FALSE(review.found(review.now())->judged.has_value());
+
+    // With one legal move there is no second line to wait for.
+    review.clear();
+    review.note(review.now(), noted(30, "e2e4", std::nullopt, 40), false);
+    EXPECT_TRUE(review.found(review.now())->judged.has_value());
+}
+
+// 1. Nf3 Nf6 2. Nc3 Nc6 and 1. Nc3 Nc6 2. Nf3 Nf6 lead to one position.
+TEST(GameReview, APositionReachedByAnotherOrderOfMovesIsKnownAlready) {
+    GameReview review;
+    review.follow(played({"g1f3", "g8f6", "b1c3", "b8c6"}));
+    review.note(review.now(), noted(20, "d2d4", 15, 20), true);
+
+    review.follow(played({"b1c3", "b8c6", "g1f3", "g8f6"}));
+    const auto* found = review.found(review.now());
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->judged->best, "d2d4");
+    // Of the four positions on the way, the last needs no look.
+    const auto next = review.nextToReview();
+    ASSERT_TRUE(next.has_value());
+    EXPECT_NE(next->position, review.now());
+}
+
+// The knights go out and come back: the starting position stands a second
+// time, and a third would be a draw — it is not the position it was.
+TEST(GameReview, APositionStandingForTheSecondTimeIsLookedAtAfresh) {
+    GameReview review;
+    review.note(review.now(), noted(20, "e2e4", 15, 20), true);
+
+    review.follow(played({"g1f3", "g8f6", "f3g1", "f6g8"}));
+    EXPECT_EQ(review.found(review.now()), nullptr);
+    EXPECT_NE(review.found(review.keys()[0]), nullptr);  // its first time is still known
 }
 
 TEST(GameReview, AMoveTakenBackAndPlayedAgainIsMarkedAgainAtOnce) {
@@ -169,23 +249,26 @@ TEST(GameReview, TheReviewGoesBackFromTheMostRecentPosition) {
     auto next = review.nextToReview();
     ASSERT_TRUE(next.has_value());
     EXPECT_EQ(next->position, review.keys()[2]);
-    EXPECT_EQ(next->depth, GameReview::kReviewDepth);
+    EXPECT_EQ(next->depth, GameReview::kJudgeDepth);
+    EXPECT_EQ(next->noteDepth, GameReview::kJudgeDepth);
     EXPECT_EQ(next->moveTimeMs, GameReview::kReviewMs);
 
     review.note(review.keys()[2], said(30, std::nullopt, 25, "g1f3"), true);
-    // Deep enough, though cut short: no second look.
-    review.note(review.keys()[1], said(-30, std::nullopt, GameReview::kReviewDepth, "e7e5"), false);
+    // Cut short, but past the judging depth: no second look.
+    review.note(review.keys()[1], noted(-30, "e7e5", -40, -30), false);
     next = review.nextToReview();
     ASSERT_TRUE(next.has_value());
     EXPECT_EQ(next->position, review.keys()[0]);
 
     // Cut short too soon: looked at again.
-    review.note(review.keys()[0], said(30, std::nullopt, GameReview::kReviewDepth - 1, "e2e4"), false);
+    review.note(review.keys()[0], said(30, std::nullopt, GameReview::kJudgeDepth - 1, "e2e4"), false);
     next = review.nextToReview();
     ASSERT_TRUE(next.has_value());
     EXPECT_EQ(next->position, review.keys()[0]);
 
-    review.note(review.keys()[0], said(30, std::nullopt, 22, "e2e4"), true);
+    // Looked at to the end without getting deep enough — a slow machine:
+    // another look would be no deeper, so there is none.
+    review.note(review.keys()[0], said(30, std::nullopt, GameReview::kMarkDepth - 2, "e2e4"), true);
     EXPECT_FALSE(review.nextToReview().has_value());
 }
 

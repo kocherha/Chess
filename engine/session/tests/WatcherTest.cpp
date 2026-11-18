@@ -111,6 +111,55 @@ TEST(Watcher, GoesBackOverAPositionLeftEarlyOnlyOnceTheBoardIsDone) {
     EXPECT_EQ(review.position, play({"e2e4"}).uciPosition());
 }
 
+// A second look is not thrown away when the game moves on: it is let finish,
+// and the board is asked about the moment it has.
+TEST(Watcher, ASecondLookUnderWayIsLetFinishAndTheBoardComesNext) {
+    Watcher watcher = watching(play({"e2e4"}));
+    watcher.answer(said(asked(watcher), 22, -30, "e7e5"));  // the board is done
+    const SearchRequest second = asked(watcher);            // so: the position before it
+    EXPECT_EQ(second.position, Game().uciPosition());
+    EXPECT_EQ(second.noteDepth, GameReview::kJudgeDepth);
+
+    const Game game = play({"e2e4", "e7e5"});
+    watcher.follow(game);
+    auto work = watcher.toEngine();
+    EXPECT_FALSE(work.cancel);
+    EXPECT_FALSE(work.search.has_value());
+    watcher.wantHint();  // waits for both
+
+    watcher.answer(said(second, 16, 25, "e2e4"));
+    EXPECT_TRUE(watcher.review().found(Game().uciPosition())->complete);
+    const SearchRequest board = asked(watcher);
+    EXPECT_EQ(board.position, game.uciPosition());
+    EXPECT_FALSE(watcher.takeHint().has_value());
+
+    watcher.answer(said(board, 22, 20, "g1f3"));
+    EXPECT_EQ(watcher.takeHint(), std::optional<std::string>("g1f3"));
+}
+
+// What the engine noted at the judging depth before it was cut short is
+// enough: that position is not looked at a second time.
+TEST(Watcher, ASearchCutShortPastTheJudgingDepthNeedsNoSecondLook) {
+    Watcher watcher = watching(play({"e2e4"}));
+    const SearchRequest first = asked(watcher);
+    EXPECT_EQ(first.noteDepth, GameReview::kJudgeDepth);
+
+    SearchResult soFar = said(first, GameReview::kJudgeDepth + 1, -35, "e7e5");
+    soFar.noted        = SearchResult::Noted{-30, std::nullopt, "e7e5", std::nullopt};
+    watcher.progress(soFar);
+
+    // Black answers; the search is given up.
+    const Game game = play({"e2e4", "e7e5"});
+    watcher.follow(game);
+    watcher.answer(said(asked(watcher), 22, 25, "g1f3"));
+
+    // Only the starting position is left to go back over.
+    const SearchRequest second = asked(watcher);
+    EXPECT_EQ(second.position, Game().uciPosition());
+    watcher.answer(said(second, 16, 30, "e2e4"));
+    EXPECT_FALSE(watcher.toEngine().search.has_value());
+}
+
 TEST(Watcher, APositionSeenBeforeIsKnownAtOnce) {
     Watcher watcher = watching(play({"e2e4"}));
     watcher.answer(said(asked(watcher), 22, -40, "c7c5"));

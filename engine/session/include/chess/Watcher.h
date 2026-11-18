@@ -7,6 +7,12 @@
 // every move gets its mark. A hint is its own best move in the position on
 // the board: asked for before it has one, it comes the moment it has.
 //
+// What it gives up and what it does not: when the game moves on, a search of
+// the position that was on the board is abandoned for the new one — the bar
+// should follow the board at once. A second look at an earlier position is
+// let finish first: it takes a fraction of a second, and cut short it would
+// only have to be run again from the start.
+//
 // Like PuzzleSession and Opponent it decides what to ask and does not ask
 // it: the scene
 //
@@ -49,8 +55,8 @@ public:
     void newGame();
 
     // The game as it now stands, after a move, a take-back or a resignation,
-    // or once the engine is back from being lent. What it was looking at is
-    // kept as far as it got, and it turns to the position on the board.
+    // or once the engine is back from being lent. It turns to the position on
+    // the board — at once, or as soon as a second look under way is over.
     void follow(const Game& game);
 
     // There is an engine to ask, or there is not (any more). One coming up
@@ -93,7 +99,8 @@ private:
     void lookAtTheBoard();
     // With the board done, the next position worth a second look.
     void reviewNext();
-    void ask(SearchRequest request);
+    void ask(SearchRequest request, bool review);
+    void withdraw();
     // A search of the position on the board, rather than one gone back over?
     bool aboutTheBoard() const;
     void boardIsDone(const std::string& best, const Score& score);
@@ -109,6 +116,7 @@ private:
     // The question out now, and what the engine has said about it so far.
     int                         _tag = 0, _nextTag = 1;
     std::string                 _asked;  // its key in _review
+    bool                        _reviewing = false;  // it is a second look, not the board's
     std::optional<SearchResult> _lastProgress;
     std::optional<SearchRequest> _request;
     bool                         _cancel = false;

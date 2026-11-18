@@ -5,12 +5,7 @@
 namespace chess {
 
 void Watcher::newGame() {
-    if (_tag != 0)
-        _cancel = true;
-    _tag = 0;
-    _asked.clear();
-    _lastProgress.reset();
-    _request.reset();
+    withdraw();
     _game = Game();
     _following = false;
     _review.clear();
@@ -23,14 +18,15 @@ void Watcher::newGame() {
 }
 
 void Watcher::follow(const Game& game) {
-    // What the search in progress had found is kept; the search is not.
-    keepProgress();
-    if (_tag != 0)
-        _cancel = true;
-    _tag = 0;
-    _asked.clear();
-    _lastProgress.reset();
-    _request.reset();
+    // A search of the position that was on the board is given up for the new
+    // one, and what it had found is kept. A second look at an earlier
+    // position is let finish: it is as much use now as it was, a search cut
+    // short would only have to be run again, and the board is next
+    // (answer()).
+    if (!_reviewing) {
+        keepProgress();
+        withdraw();
+    }
 
     const std::string before = _following ? _review.now() : std::string();
     _game      = game;
@@ -81,11 +77,14 @@ void Watcher::answer(const SearchResult& result) {
     _tag = 0;
     _asked.clear();
     _lastProgress.reset();
+    _reviewing = false;
 
     if (_review.note(key, result, true))
         _marksChanged = true;
     if (board)
         boardIsDone(result.bestMove, Score{result.scoreCp, result.mateIn});
+    else if (!_boardDone)
+        lookAtTheBoard();  // the game moved on while an earlier position was looked at
     else
         reviewNext();
 }
@@ -94,10 +93,7 @@ void Watcher::lend() {
     keepProgress();
     // The engine's new user cancels what is left of the search; nothing to
     // ask of it here.
-    _tag = 0;
-    _asked.clear();
-    _lastProgress.reset();
-    _request.reset();
+    withdraw();
     _cancel = false;
 }
 
@@ -109,9 +105,10 @@ void Watcher::wantHint() {
         giveHint();
     else if (_tag == 0)
         lookAtTheBoard();
-    // Otherwise the search out now is about the board: nothing else is ever
-    // asked before the board is done (reviewNext), and the hint comes with
-    // its answer.
+    // Otherwise a search is out: of the board, and the hint comes with its
+    // answer; or a second look at an earlier position that the game moved on
+    // during, and the board is asked about the moment that is answered.
+    // Nothing else is ever started before the board is done (reviewNext).
 }
 
 std::optional<Standing> Watcher::takeStanding() {
@@ -155,12 +152,15 @@ void Watcher::lookAtTheBoard() {
         boardIsDone(known->best, known->score);
         return;
     }
+    if (_tag != 0)
+        return;  // a second look is finishing: answer() comes back here
 
     SearchRequest request;
     request.position   = _review.now();
     request.moveTimeMs = kBoardMs;
     request.depth      = kBoardDepth;
-    ask(std::move(request));
+    request.noteDepth  = GameReview::kJudgeDepth;  // what its moves will be judged by
+    ask(std::move(request), false);
 }
 
 void Watcher::reviewNext() {
@@ -169,14 +169,25 @@ void Watcher::reviewNext() {
     if (!_boardDone && !_game.status().over())
         return;  // the board first: a hint may be waiting for it
     if (auto request = _review.nextToReview())
-        ask(std::move(*request));
+        ask(std::move(*request), true);
 }
 
-void Watcher::ask(SearchRequest request) {
+void Watcher::ask(SearchRequest request, bool review) {
     request.tag = _tag = _nextTag++;
-    _asked = request.position;
+    _asked     = request.position;
+    _reviewing = review;
     _lastProgress.reset();
     _request = std::move(request);
+}
+
+void Watcher::withdraw() {
+    if (_tag != 0)
+        _cancel = true;
+    _tag = 0;
+    _asked.clear();
+    _reviewing = false;
+    _lastProgress.reset();
+    _request.reset();
 }
 
 bool Watcher::aboutTheBoard() const {
