@@ -83,7 +83,27 @@ public:
 
 private:
     bool init() override;
-    void layout();
+
+    // The page is laid out from the top down to the card, and the buttons
+    // from the bottom up; the card takes what is left between them, and
+    // whatever comes under the card (the FEN, the moves) only what remains.
+    // Each part takes the edge it starts from and gives back where it ended.
+    struct Metrics {
+        float width = 0.0f, left = 0.0f;
+        bool  compact = false;  // a short window: everything a little tighter
+        float button = 0.0f, small = 0.0f, gap = 0.0f;
+        float half = 0.0f, third = 0.0f;  // widths of two and of three buttons in a row
+    };
+    void  layout();
+    Metrics metrics() const;
+    float layoutHeader(const Metrics& m);
+    float layoutEditorButtons(const Metrics& m);
+    float layoutSolvingButtons(const Metrics& m);
+    float layoutEditorChoices(const Metrics& m, float y);
+    float layoutGoal(const Metrics& m, float y);
+    float layoutCard(const Metrics& m, float y, float bottom);
+    void  fitDetail(float card, float textWidth);
+    void  layoutFooter(const Metrics& m, float y, float bottom);
     void collectLive();
     // A label in the panel's own style, anchored at its left edge.
     ax::Label* addLabel(float points, const ax::Color3B& colour);

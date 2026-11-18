@@ -62,6 +62,20 @@ private:
     void chooseLevel(int number);
     void chooseStrength(int strength);
 
+    // The card is centred, so its height has to be known before anything is
+    // put in it: each section's height is written down once, here, and both
+    // the card and the layout go by it.
+    struct Heights {
+        float title = 0.0f, opponent = 0.0f, notice = 0.0f, side = 0.0f, level = 0.0f, buttons = 0.0f;
+        float total() const;
+    };
+    Heights heights(bool computer) const;
+    // Each section from its top edge down.
+    void layoutOpponent(float left, float top, float inner);
+    void layoutSide(float left, float top, float inner);
+    void layoutLevel(float left, float top, float inner);
+    void layoutButtons(const ax::Vec2& corner, float width);
+
     GameSetup _setup;
     bool _canCancel = false, _engineAvailable = true;
     int  _eloMin = 0, _eloMax = 0;

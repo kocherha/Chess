@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <utility>
 
 using namespace ax;
 using namespace chess;
@@ -230,173 +231,209 @@ void PuzzlePanel::collectLive() {
 void PuzzlePanel::layout() {
     if (_size.x <= 0.0f)
         return;
-
-    const float width = _size.x - 2.0f * kPadding;
-    const float left  = kPadding;
-    float y           = _size.y - kPadding;
-
-    // In a short window everything is drawn a little tighter, and the en
-    // passant row only appears when there is something to choose in it.
-    const bool  compact = _size.y < 660.0f;
-    const float button = compact ? 32.0f : kButton;
-    const float small  = compact ? 26.0f : kSmall;
-    const float gap    = compact ? 6.0f : kGap;
+    const Metrics m = metrics();
 
     _back->clear();
     shapes::rect(_back, Vec2::ZERO, _size, theme::kPanel);
     shapes::rect(_back, Vec2::ZERO, Vec2(1.0f, _size.y), theme::kLine);
 
-    // The title, as on the game's panel, and the switch between the modes.
-    _title->setPosition(Vec2(left, y - 15.0f));
-    looks->setFrame(Vec2(left + width - 92.0f, y - 30.0f), Vec2(92.0f, 30.0f));
+    float y = layoutHeader(m);
+    float bottom;
+    if (_page == Page::Editor) {
+        bottom = layoutEditorButtons(m);
+        y      = layoutEditorChoices(m, y);
+    } else {
+        bottom = layoutSolvingButtons(m);
+        y      = layoutGoal(m, y);
+    }
+    y = layoutCard(m, y, bottom);
+    layoutFooter(m, y, bottom);
+
+    collectLive();
+}
+
+PuzzlePanel::Metrics PuzzlePanel::metrics() const {
+    Metrics m;
+    m.width   = _size.x - 2.0f * kPadding;
+    m.left    = kPadding;
+    // In a short window everything is drawn a little tighter, and the en
+    // passant row only appears when there is something to choose in it.
+    m.compact = _size.y < 660.0f;
+    m.button  = m.compact ? 32.0f : kButton;
+    m.small   = m.compact ? 26.0f : kSmall;
+    m.gap     = m.compact ? 6.0f : kGap;
+    m.half    = std::floor((m.width - m.gap) * 0.5f);
+    m.third   = std::floor((m.width - 2.0f * m.gap) / 3.0f);
+    return m;
+}
+
+// The title, as on the game's panel, the switch between the modes, and the
+// page's own heading with the way to the collection at its side.
+float PuzzlePanel::layoutHeader(const Metrics& m) {
+    float y = _size.y - kPadding;
+    _title->setPosition(Vec2(m.left, y - 15.0f));
+    looks->setFrame(Vec2(m.left + m.width - 92.0f, y - 30.0f), Vec2(92.0f, 30.0f));
     y -= 42.0f;
-    const float half = std::floor((width - gap) * 0.5f);
-    modeGame->setFrame(Vec2(left, y - 30.0f), Vec2(half, 30.0f));
-    modePuzzles->setFrame(Vec2(left + width - half, y - 30.0f), Vec2(half, 30.0f));
+    modeGame->setFrame(Vec2(m.left, y - 30.0f), Vec2(m.half, 30.0f));
+    modePuzzles->setFrame(Vec2(m.left + m.width - m.half, y - 30.0f), Vec2(m.half, 30.0f));
     y -= 30.0f + 18.0f;
 
-    // The page's own heading, with the way to the collection at its side.
     const float collectionWidth = 124.0f;
-    collection->setFrame(Vec2(left + width - collectionWidth, y - 28.0f), Vec2(collectionWidth, 28.0f));
-    _heading->setPosition(Vec2(left, y - 14.0f));
+    collection->setFrame(Vec2(m.left + m.width - collectionWidth, y - 28.0f), Vec2(collectionWidth, 28.0f));
+    _heading->setPosition(Vec2(m.left, y - 14.0f));
     // A long title of a problem gives way to the button rather than run under it.
-    const float headingRoom = width - collectionWidth - 10.0f;
+    const float headingRoom = m.width - collectionWidth - 10.0f;
     _heading->setScale(1.0f);
     if (_heading->getContentSize().width > headingRoom && _heading->getContentSize().width > 0.0f)
         _heading->setScale(headingRoom / _heading->getContentSize().width);
-    y -= 28.0f + (compact ? 8.0f : 12.0f);
+    return y - (28.0f + (m.compact ? 8.0f : 12.0f));
+}
 
-    // The buttons at the bottom, from the bottom up; the space above them is
-    // what the rest of the page has.
-    float bottom    = kPadding;
-    const float third = std::floor((width - 2.0f * gap) / 3.0f);
-    const auto row2 = [&](Button* a, Button* b) {
-        a->setFrame(Vec2(left, bottom), Vec2(half, button));
-        b->setFrame(Vec2(left + width - half, bottom), Vec2(half, button));
-        bottom += button + gap;
-    };
+float PuzzlePanel::layoutEditorButtons(const Metrics& m) {
+    float bottom = kPadding;
+    solve->setFrame(Vec2(m.left, bottom), Vec2(m.width, m.button + 4.0f));
+    bottom += m.button + 4.0f + m.gap;
+    for (auto [a, b] : {std::pair{playFrom, saveMine}, std::pair{copyFen, pasteFen}}) {
+        a->setFrame(Vec2(m.left, bottom), Vec2(m.half, m.button));
+        b->setFrame(Vec2(m.left + m.width - m.half, bottom), Vec2(m.half, m.button));
+        bottom += m.button + m.gap;
+    }
+    start->setFrame(Vec2(m.left, bottom), Vec2(m.third, m.button));
+    clear->setFrame(Vec2(m.left + m.third + m.gap, bottom), Vec2(m.third, m.button));
+    flip->setFrame(Vec2(m.left + m.width - m.third, bottom), Vec2(m.third, m.button));
+    return bottom + m.button + (m.compact ? 8.0f : 14.0f);
+}
 
-    if (_page == Page::Editor) {
-        solve->setFrame(Vec2(left, bottom), Vec2(width, button + 4.0f));
-        bottom += button + 4.0f + gap;
-        row2(playFrom, saveMine);
-        row2(copyFen, pasteFen);
-        start->setFrame(Vec2(left, bottom), Vec2(third, button));
-        clear->setFrame(Vec2(left + third + gap, bottom), Vec2(third, button));
-        flip->setFrame(Vec2(left + width - third, bottom), Vec2(third, button));
-        bottom += button + (compact ? 8.0f : 14.0f);
+float PuzzlePanel::layoutSolvingButtons(const Metrics& m) {
+    float bottom = kPadding;
+    next->setFrame(Vec2(m.left, bottom), Vec2(m.width, m.button + 4.0f));
+    bottom += m.button + 4.0f + m.gap;
+    for (auto [a, b] : {std::pair{hint, solution}, std::pair{undo, restart},
+                        std::pair{edit, _mine ? removeMine : flipSolving}}) {
+        a->setFrame(Vec2(m.left, bottom), Vec2(m.half, m.button));
+        b->setFrame(Vec2(m.left + m.width - m.half, bottom), Vec2(m.half, m.button));
+        bottom += m.button + m.gap;
+    }
+    return bottom + 6.0f;
+}
 
-        // Rows of choices: a label on the left, buttons after it.
-        const float column = left + kLabelColumn;
-        const float room   = width - kLabelColumn;
-        const auto rowLabel = [&](Label* label) { label->setPosition(Vec2(left, y - small * 0.5f)); };
+// Rows of choices: a label on the left, buttons after it — the side to move,
+// castling for each side, the en passant square.
+float PuzzlePanel::layoutEditorChoices(const Metrics& m, float y) {
+    const float column    = m.left + kLabelColumn;
+    const float room      = m.width - kLabelColumn;
+    const float sideWidth = std::floor((room - m.gap) * 0.5f);
+    const auto  rowLabel  = [&](Label* label) { label->setPosition(Vec2(m.left, y - m.small * 0.5f)); };
 
-        rowLabel(_toMoveLabel);
-        const float sideWidth = std::floor((room - gap) * 0.5f);
-        _white->setFrame(Vec2(column, y - small), Vec2(sideWidth, small));
-        _black->setFrame(Vec2(column + sideWidth + gap, y - small), Vec2(sideWidth, small));
-        y -= small + gap;
+    rowLabel(_toMoveLabel);
+    _white->setFrame(Vec2(column, y - m.small), Vec2(sideWidth, m.small));
+    _black->setFrame(Vec2(column + sideWidth + m.gap, y - m.small), Vec2(sideWidth, m.small));
+    y -= m.small + m.gap;
 
-        _castlingLabel->setPosition(Vec2(left, y - 8.0f));
-        y -= compact ? 16.0f : 22.0f;
-        for (int row = 0; row < 2; ++row) {
-            rowLabel(row == 0 ? _whiteLabel : _blackLabel);
-            for (int i = 0; i < 2; ++i)
-                _castling[static_cast<std::size_t>(row * 2 + i)]->setFrame(
-                    Vec2(column + static_cast<float>(i) * (sideWidth + gap), y - small), Vec2(sideWidth, small));
-            y -= small + gap;
-        }
-
-        const bool passantRow = !compact || _passantSquares[1] != kNoSquare;
-        _passantLabel->setVisible(passantRow);
-        rowLabel(_passantLabel);
-        int shown = 0;
-        for (std::size_t i = 0; i < _passant.size(); ++i) {
-            const bool used = passantRow && (i == 0 || _passantSquares[i] != kNoSquare);
-            _passant[i]->setVisible(_page == Page::Editor && used);
-            if (!used)
-                continue;
-            const float cell = 46.0f;
-            _passant[i]->setFrame(Vec2(column + static_cast<float>(shown) * (cell + 6.0f), y - small),
-                                  Vec2(cell, small));
-            ++shown;
-        }
-        if (passantRow)
-            y -= small + (compact ? 10.0f : 16.0f);
-    } else {
-        _note->setString(typeset::wrap(_noteText, 12.0f, width));
-        _note->setPosition(Vec2(left, y + 6.0f));
-        if (!_noteText.empty())
-            y -= _note->getContentSize().height + 6.0f;
-        _goal->setString(typeset::wrap(_goalText, 14.0f, width));
-        _goal->setPosition(Vec2(left, y));
-        y -= _goal->getContentSize().height + 16.0f;
-
-        next->setFrame(Vec2(left, bottom), Vec2(width, button + 4.0f));
-        bottom += button + 4.0f + gap;
-        row2(hint, solution);
-        row2(undo, restart);
-        row2(edit, _mine ? removeMine : flipSolving);
-        bottom += 6.0f;
+    _castlingLabel->setPosition(Vec2(m.left, y - 8.0f));
+    y -= m.compact ? 16.0f : 22.0f;
+    for (int row = 0; row < 2; ++row) {
+        rowLabel(row == 0 ? _whiteLabel : _blackLabel);
+        for (int i = 0; i < 2; ++i)
+            _castling[static_cast<std::size_t>(row * 2 + i)]->setFrame(
+                Vec2(column + static_cast<float>(i) * (sideWidth + m.gap), y - m.small), Vec2(sideWidth, m.small));
+        y -= m.small + m.gap;
     }
 
-    // The card: one line in the middle, or a headline and paragraphs under it.
+    const bool passantRow = !m.compact || _passantSquares[1] != kNoSquare;
+    _passantLabel->setVisible(passantRow);
+    rowLabel(_passantLabel);
+    int shown = 0;
+    for (std::size_t i = 0; i < _passant.size(); ++i) {
+        const bool used = passantRow && (i == 0 || _passantSquares[i] != kNoSquare);
+        _passant[i]->setVisible(used);
+        if (!used)
+            continue;
+        const float cell = 46.0f;
+        _passant[i]->setFrame(Vec2(column + static_cast<float>(shown) * (cell + 6.0f), y - m.small),
+                              Vec2(cell, m.small));
+        ++shown;
+    }
+    if (passantRow)
+        y -= m.small + (m.compact ? 10.0f : 16.0f);
+    return y;
+}
+
+// The problem's note, if it has one, and what it asks for.
+float PuzzlePanel::layoutGoal(const Metrics& m, float y) {
+    _note->setString(typeset::wrap(_noteText, 12.0f, m.width));
+    _note->setPosition(Vec2(m.left, y + 6.0f));
+    if (!_noteText.empty())
+        y -= _note->getContentSize().height + 6.0f;
+    _goal->setString(typeset::wrap(_goalText, 14.0f, m.width));
+    _goal->setPosition(Vec2(m.left, y));
+    return y - (_goal->getContentSize().height + 16.0f);
+}
+
+// The card: one line in the middle, or a headline and paragraphs under it.
+float PuzzlePanel::layoutCard(const Metrics& m, float y, float bottom) {
     _headline->setString(_headlineText);
     _headline->setColor(_tone == Tone::Good      ? theme::kGood
                         : _tone == Tone::Warning ? theme::kWarn
                         : _tone == Tone::Bad     ? theme::kBad
                                                  : theme::kInk);
-    _detail->setString(typeset::wrapParagraphs(_detailText, kDetailPoints, width - 28.0f));
+    const float textWidth = m.width - 28.0f;
+    _detail->setString(typeset::wrapParagraphs(_detailText, kDetailPoints, textWidth));
     const bool twoLines = !_detailText.empty();
     // As tall as it needs, but never pushing into the buttons: what does not
     // fit is cut at the card's bottom edge (the first lines matter most).
     const float wanted   = twoLines ? 40.0f + _detail->getContentSize().height + 12.0f : 56.0f;
-    const float reserve  = compact ? 8.0f : _page == Page::Editor ? 34.0f : 40.0f;  // for the FEN or the moves
+    const float reserve  = m.compact ? 8.0f : _page == Page::Editor ? 34.0f : 40.0f;  // for the FEN or the moves
     const float room     = std::max(56.0f, y - bottom - reserve);
     const float card     = std::min(wanted, room);
     const Color4F border = _tone == Tone::Good      ? theme::kAccent
                            : _tone == Tone::Warning ? theme::rgb(170, 130, 70)
                            : _tone == Tone::Bad     ? theme::rgb(176, 72, 64)
                                                     : theme::kLine;
-    shapes::roundedRect(_back, Vec2(left, y - card), Vec2(width, card), 10.0f, theme::kCard, 1.0f, border);
-    _headline->setPosition(Vec2(left + 14.0f, y - (twoLines ? 22.0f : card * 0.5f)));
-    _detail->setPosition(Vec2(left + 14.0f, y - 38.0f));
+    shapes::roundedRect(_back, Vec2(m.left, y - card), Vec2(m.width, card), 10.0f, theme::kCard, 1.0f, border);
+    _headline->setPosition(Vec2(m.left + 14.0f, y - (twoLines ? 22.0f : card * 0.5f)));
+    _detail->setPosition(Vec2(m.left + 14.0f, y - 38.0f));
     // Lines that would hang out of the card are not drawn.
     _detail->setVisible(twoLines && _detail->getContentSize().height <= card - 44.0f + 1.0f);
     if (twoLines && !_detail->isVisible()) {
-        // Too long: keep as many whole paragraphs as fit.
-        std::string kept, rest = _detailText;
-        while (!rest.empty()) {
-            const std::size_t end  = rest.find('\n');
-            const std::string para = rest.substr(0, end);
-            const std::string trial = kept.empty() ? para : kept + "\n" + para;
-            _detail->setString(typeset::wrapParagraphs(trial, kDetailPoints, width - 28.0f));
-            if (_detail->getContentSize().height > card - 44.0f)
-                break;
-            kept = trial;
-            rest = end == std::string::npos ? "" : rest.substr(end + 1);
-        }
-        _detail->setString(typeset::wrapParagraphs(kept, kDetailPoints, width - 28.0f));
-        _detail->setVisible(!kept.empty());
-        if (kept.empty())
+        fitDetail(card, textWidth);
+        if (!_detail->isVisible())
             _headline->setPositionY(y - card * 0.5f);
     }
-    y -= card + 12.0f;
+    return y - (card + 12.0f);
+}
 
+// The detail is too long for the card: keep as many whole paragraphs as fit.
+void PuzzlePanel::fitDetail(float card, float textWidth) {
+    std::string kept, rest = _detailText;
+    while (!rest.empty()) {
+        const std::size_t end   = rest.find('\n');
+        const std::string para  = rest.substr(0, end);
+        const std::string trial = kept.empty() ? para : kept + "\n" + para;
+        _detail->setString(typeset::wrapParagraphs(trial, kDetailPoints, textWidth));
+        if (_detail->getContentSize().height > card - 44.0f)
+            break;
+        kept = trial;
+        rest = end == std::string::npos ? "" : rest.substr(end + 1);
+    }
+    _detail->setString(typeset::wrapParagraphs(kept, kDetailPoints, textWidth));
+    _detail->setVisible(!kept.empty());
+}
+
+// Under the card, in what is left: in the editor the position in FEN, small,
+// and — if there is room — how to use the editor; when solving, the moves.
+void PuzzlePanel::layoutFooter(const Metrics& m, float y, float bottom) {
     if (_page == Page::Editor) {
-        // The position in FEN, small, and — if there is room — how to use the editor.
-        _fen->setString(typeset::wrap(_fenText, 11.5f, width));
-        _fen->setPosition(Vec2(left, y));
+        _fen->setString(typeset::wrap(_fenText, 11.5f, m.width));
+        _fen->setPosition(Vec2(m.left, y));
         y -= _fen->getContentSize().height + 10.0f;
-        _help->setString(typeset::wrap(text::kEditorHelp, 12.0f, width));
-        _help->setPosition(Vec2(left, y));
+        _help->setString(typeset::wrap(text::kEditorHelp, 12.0f, m.width));
+        _help->setPosition(Vec2(m.left, y));
         _help->setVisible(y - _help->getContentSize().height > bottom);
         _fen->setVisible(_fen->getPositionY() - _fen->getContentSize().height > bottom - 4.0f);
     } else {
-        _moves->setString(typeset::wrap(_movesText, 15.0f, width));
-        _moves->setPosition(Vec2(left, y));
+        _moves->setString(typeset::wrap(_movesText, 15.0f, m.width));
+        _moves->setPosition(Vec2(m.left, y));
         _moves->setVisible(y - _moves->getContentSize().height > bottom - 4.0f);
     }
-
-    collectLive();
 }

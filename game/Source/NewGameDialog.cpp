@@ -276,22 +276,9 @@ void NewGameDialog::layout(const Vec2& screen) {
     _notice->setVisible(!_engineAvailable);
     _cancel->setVisible(_canCancel);
 
-    // Room for two lines whatever the level, so the card does not change
-    // height as the player steps through them.
-    const float descriptionHeight = std::max(36.0f, _levelDescription->getContentSize().height);
-    const float noticeHeight      = _notice->getContentSize().height;
-
-    float height = kPadding + 34.0f + 22.0f;        // title
-    height += 22.0f + kRow + 22.0f;                 // opponent
-    if (computer) {
-        height += 22.0f + kRow + 22.0f;             // colour
-        height += 22.0f + kRow + kSliderGap + kSlider + 8.0f + 24.0f + descriptionHeight + 14.0f;  // level
-    }
-    if (!_engineAvailable)
-        height += noticeHeight + 20.0f;
-    height += kRow + 4.0f + kPadding;               // buttons
-
-    const Vec2 corner(std::floor((screen.x - width) * 0.5f), std::floor((screen.y - height) * 0.5f));
+    const Heights h      = heights(computer);
+    const float   height = h.total();
+    const Vec2    corner(std::floor((screen.x - width) * 0.5f), std::floor((screen.y - height) * 0.5f));
 
     _back->clear();
     shapes::rect(_back, Vec2::ZERO, screen, theme::kScrim);
@@ -301,52 +288,82 @@ void NewGameDialog::layout(const Vec2& screen) {
     float y          = corner.y + height - kPadding;
 
     _title->setPosition(Vec2(left, y - 17.0f));
-    y -= 34.0f + 22.0f;
-
-    _opponentTitle->setPosition(Vec2(left, y - 8.0f));
-    y -= 22.0f;
-    {
-        // The second label is the longer one, so it gets the larger share.
-        const float first = std::floor((inner - kGap) * 0.4f);
-        _computer->setFrame(Vec2(left, y - kRow), Vec2(first, kRow));
-        _human->setFrame(Vec2(left + first + kGap, y - kRow), Vec2(inner - first - kGap, kRow));
-    }
-    y -= kRow + 22.0f;
-
+    y -= h.title;
+    layoutOpponent(left, y, inner);
+    y -= h.opponent;
     if (!_engineAvailable) {
         _notice->setPosition(Vec2(left, y));
-        y -= noticeHeight + 20.0f;
+        y -= h.notice;
     }
-
     if (computer) {
-        _sideTitle->setPosition(Vec2(left, y - 8.0f));
-        y -= 22.0f;
-        const float third = (inner - 2.0f * kGap) / 3.0f;
-        _white->setFrame(Vec2(left, y - kRow), Vec2(third, kRow));
-        _random->setFrame(Vec2(left + third + kGap, y - kRow), Vec2(third, kRow));
-        _black->setFrame(Vec2(left + 2.0f * (third + kGap), y - kRow), Vec2(third, kRow));
-        y -= kRow + 22.0f;
-
-        _levelTitle->setPosition(Vec2(left, y - 8.0f));
-        y -= 22.0f;
-        const float cell = (inner - 7.0f * kGap) / 8.0f;
-        for (std::size_t i = 0; i < _levels.size(); ++i)
-            _levels[i]->setFrame(Vec2(left + static_cast<float>(i) * (cell + kGap), y - kRow), Vec2(cell, kRow));
-        y -= kRow + kSliderGap;
-
-        // The slider runs from under the middle of the first button to under
-        // the middle of the last, so each of its stops is under its button.
-        _strength->setFrame(Vec2(left + cell * 0.5f, y - kSlider), Vec2(inner - cell, kSlider));
-        y -= kSlider + 8.0f;
-
-        _levelName->setPosition(Vec2(left, y - 12.0f));
-        _levelMeasure->setPosition(Vec2(left + inner, y - 12.0f));
-        y -= 24.0f;
-        _levelDescription->setPosition(Vec2(left, y - 2.0f));
-        y -= descriptionHeight + 14.0f;
+        layoutSide(left, y, inner);
+        y -= h.side;
+        layoutLevel(left, y, inner);
     }
+    layoutButtons(corner, width);
+}
 
-    const float bottom = corner.y + kPadding;
+float NewGameDialog::Heights::total() const {
+    return kPadding + title + opponent + notice + side + level + buttons + kPadding;
+}
+
+NewGameDialog::Heights NewGameDialog::heights(bool computer) const {
+    Heights h;
+    h.title    = 34.0f + 22.0f;
+    h.opponent = 22.0f + kRow + 22.0f;
+    if (!_engineAvailable)
+        h.notice = _notice->getContentSize().height + 20.0f;
+    if (computer) {
+        h.side = 22.0f + kRow + 22.0f;
+        // Room for two lines of description whatever the level, so the card
+        // does not change height as the player steps through them.
+        const float description = std::max(36.0f, _levelDescription->getContentSize().height);
+        h.level = 22.0f + kRow + kSliderGap + kSlider + 8.0f + 24.0f + description + 14.0f;
+    }
+    h.buttons = kRow + 4.0f;
+    return h;
+}
+
+void NewGameDialog::layoutOpponent(float left, float top, float inner) {
+    _opponentTitle->setPosition(Vec2(left, top - 8.0f));
+    const float y = top - 22.0f;
+    // The second label is the longer one, so it gets the larger share.
+    const float first = std::floor((inner - kGap) * 0.4f);
+    _computer->setFrame(Vec2(left, y - kRow), Vec2(first, kRow));
+    _human->setFrame(Vec2(left + first + kGap, y - kRow), Vec2(inner - first - kGap, kRow));
+}
+
+void NewGameDialog::layoutSide(float left, float top, float inner) {
+    _sideTitle->setPosition(Vec2(left, top - 8.0f));
+    const float y     = top - 22.0f;
+    const float third = (inner - 2.0f * kGap) / 3.0f;
+    _white->setFrame(Vec2(left, y - kRow), Vec2(third, kRow));
+    _random->setFrame(Vec2(left + third + kGap, y - kRow), Vec2(third, kRow));
+    _black->setFrame(Vec2(left + 2.0f * (third + kGap), y - kRow), Vec2(third, kRow));
+}
+
+// The eight levels, the slider under them, and what the chosen strength is.
+void NewGameDialog::layoutLevel(float left, float top, float inner) {
+    _levelTitle->setPosition(Vec2(left, top - 8.0f));
+    float y = top - 22.0f;
+    const float cell = (inner - 7.0f * kGap) / 8.0f;
+    for (std::size_t i = 0; i < _levels.size(); ++i)
+        _levels[i]->setFrame(Vec2(left + static_cast<float>(i) * (cell + kGap), y - kRow), Vec2(cell, kRow));
+    y -= kRow + kSliderGap;
+
+    // The slider runs from under the middle of the first button to under
+    // the middle of the last, so each of its stops is under its button.
+    _strength->setFrame(Vec2(left + cell * 0.5f, y - kSlider), Vec2(inner - cell, kSlider));
+    y -= kSlider + 8.0f;
+
+    _levelName->setPosition(Vec2(left, y - 12.0f));
+    _levelMeasure->setPosition(Vec2(left + inner, y - 12.0f));
+    y -= 24.0f;
+    _levelDescription->setPosition(Vec2(left, y - 2.0f));
+}
+
+void NewGameDialog::layoutButtons(const Vec2& corner, float width) {
+    const float bottom    = corner.y + kPadding;
     const float playWidth = 150.0f, cancelWidth = 130.0f;
     _play->setFrame(Vec2(corner.x + width - kPadding - playWidth, bottom), Vec2(playWidth, kRow + 4.0f));
     _cancel->setFrame(Vec2(corner.x + width - kPadding - playWidth - kGap - cancelWidth, bottom),
