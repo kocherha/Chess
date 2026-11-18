@@ -13,41 +13,47 @@ namespace puzzles {
 
 namespace {
 
+// What a problem of the collection is. Its name, and where it comes from, are
+// in Strings.cpp under the same id.
+struct Entry {
+    const char* id;
+    const char* fen;
+    int         mateIn;
+};
+
 // The collection. Checked with tools outside the game (Stockfish, `go mate N`
 // and then each first move on its own with `searchmoves`): every one is a mate
-// in exactly the number of moves given, and every one but "Дві тури" has a
+// in exactly the number of moves given, and every one but "m2-two-rooks" has a
 // single first move that does it.
-const std::vector<Puzzle> kCollection = {
+const Entry kCollection[] = {
     // Mate in one: the patterns every player should know by sight.
-    {"m1-back-rank", "Остання горизонталь", "", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", 1},
-    {"m1-black-back-rank", "Остання горизонталь, чорні", "", "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", 1},
-    {"m1-smothered", "Спертий мат", "", "6rk/6pp/7N/8/8/8/8/6K1 w - - 0 1", 1},
-    {"m1-arabian", "Арабський мат", "", "7k/R7/5N2/8/8/8/8/6K1 w - - 0 1", 1},
-    {"m1-anastasia", "Мат Анастасії", "", "5r2/4Nppk/8/R7/8/8/8/6K1 w - - 0 1", 1},
-    {"m1-boden", "Мат Бодена", "", "2kr4/3p4/8/8/5B2/8/8/5BK1 w - - 0 1", 1},
-    {"m1-epaulette", "Еполетний мат", "", "3rkr2/8/8/8/8/8/Q7/6K1 w - - 0 1", 1},
-    {"m1-scholar", "Дитячий мат", "", "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", 1},
-    {"m1-fool", "Дурний мат", "", "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", 1},
+    {"m1-back-rank", "6k1/5ppp/8/8/8/8/5PPP/4R1K1 w - - 0 1", 1},
+    {"m1-black-back-rank", "4r1k1/5ppp/8/8/8/8/5PPP/6K1 b - - 0 1", 1},
+    {"m1-smothered", "6rk/6pp/7N/8/8/8/8/6K1 w - - 0 1", 1},
+    {"m1-arabian", "7k/R7/5N2/8/8/8/8/6K1 w - - 0 1", 1},
+    {"m1-anastasia", "5r2/4Nppk/8/R7/8/8/8/6K1 w - - 0 1", 1},
+    {"m1-boden", "2kr4/3p4/8/8/5B2/8/8/5BK1 w - - 0 1", 1},
+    {"m1-epaulette", "3rkr2/8/8/8/8/8/Q7/6K1 w - - 0 1", 1},
+    {"m1-scholar", "r1bqkb1r/pppp1ppp/2n2n2/4p2Q/2B1P3/8/PPPP1PPP/RNB1K1NR w KQkq - 4 4", 1},
+    {"m1-fool", "rnbqkbnr/pppp1ppp/8/4p3/6P1/5P2/PPPPP2P/RNBQKBNR b KQkq - 0 2", 1},
 
     // Mate in two.
-    {"m2-morphy", "Задача Морфі", "Пол Морфі", "kbK5/pp6/1P6/8/8/8/8/R7 w - - 0 1", 2},
-    {"m2-opera", "Партія в опері", "Морфі — герцог Брауншвейзький і граф Ізуар, Париж, 1858",
-     "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 16", 2},
-    {"m2-legal", "Мат Легаля", "", "rn1qkbnr/ppp2p1p/3p2p1/4N3/2B1P3/2N5/PPPP1PPP/R1BbK2R w KQkq - 0 6", 2},
-    {"m2-smothered", "Спертий мат із жертвою", "", "5r1k/6pp/7N/8/2Q5/8/8/6K1 w - - 0 1", 2},
-    {"m2-anastasia", "Мат Анастасії з жертвою", "", "5r1k/4Nppp/8/7Q/8/3R4/8/6K1 w - - 0 1", 2},
-    {"m2-king-rook", "Король і тура", "", "k7/8/8/1K6/8/8/8/7R w - - 0 1", 2},
-    {"m2-two-rooks", "Дві тури", "", "7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 2},
-    {"m2-black-rooks", "Чорні тури", "", "6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 1", 2},
+    {"m2-morphy", "kbK5/pp6/1P6/8/8/8/8/R7 w - - 0 1", 2},
+    {"m2-opera", "4kb1r/p2n1ppp/4q3/4p1B1/4P3/1Q6/PPP2PPP/2KR4 w k - 1 16", 2},
+    {"m2-legal", "rn1qkbnr/ppp2p1p/3p2p1/4N3/2B1P3/2N5/PPPP1PPP/R1BbK2R w KQkq - 0 6", 2},
+    {"m2-smothered", "5r1k/6pp/7N/8/2Q5/8/8/6K1 w - - 0 1", 2},
+    {"m2-anastasia", "5r1k/4Nppp/8/7Q/8/3R4/8/6K1 w - - 0 1", 2},
+    {"m2-king-rook", "k7/8/8/1K6/8/8/8/7R w - - 0 1", 2},
+    {"m2-two-rooks", "7k/8/8/8/8/8/R7/1R4K1 w - - 0 1", 2},
+    {"m2-black-rooks", "6k1/pp4p1/2p5/2bp4/8/P5Pb/1P3rrP/2BRRN1K b - - 0 1", 2},
 
     // Mate in three and more.
-    {"m3-queen-rook", "Ферзь і тура", "", "6k1/5p1p/6p1/8/8/8/5PPP/2Q1R1K1 w - - 0 1", 3},
-    {"m3-rook-bishop", "Тура й слон", "", "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 0 1", 3},
-    {"m3-black-queen", "Чорний ферзь", "", "2r3k1/p4p2/3Rp2p/1p2P1pK/8/1P4P1/P3Q2P/1q6 b - - 0 1", 3},
-    {"m3-immortal", "Безсмертна партія", "Андерсен — Кізерицький, Лондон, 1851",
-     "r1b1k1nr/p2p1ppp/n2B4/1p1NPN1P/6P1/3P1Q2/P1P1K3/q5b1 w kq - 0 1", 3},
-    {"m4-philidor", "Мат Філідора", "", "r6k/6pp/8/4N3/2Q5/8/5PPP/6K1 w - - 0 1", 4},
-    {"m5-bishop-rook-queen", "Слон, тура й ферзь", "", "5r1k/6pp/8/8/8/1B6/6PP/3R2QK w - - 0 1", 5},
+    {"m3-queen-rook", "6k1/5p1p/6p1/8/8/8/5PPP/2Q1R1K1 w - - 0 1", 3},
+    {"m3-rook-bishop", "r5rk/5p1p/5R2/4B3/8/8/7P/7K w - - 0 1", 3},
+    {"m3-black-queen", "2r3k1/p4p2/3Rp2p/1p2P1pK/8/1P4P1/P3Q2P/1q6 b - - 0 1", 3},
+    {"m3-immortal", "r1b1k1nr/p2p1ppp/n2B4/1p1NPN1P/6P1/3P1Q2/P1P1K3/q5b1 w kq - 0 1", 3},
+    {"m4-philidor", "r6k/6pp/8/4N3/2Q5/8/5PPP/6K1 w - - 0 1", 4},
+    {"m5-bishop-rook-queen", "5r1k/6pp/8/8/8/1B6/6PP/3R2QK w - - 0 1", 5},
 };
 
 constexpr const char* kMineKey   = "puzzles.mine";      // one per line: number, mate, FEN
@@ -97,7 +103,21 @@ bool parse(const std::string& line, Puzzle& out) {
 }  // namespace
 
 const std::vector<Puzzle>& collection() {
-    return kCollection;
+    static const std::vector<Puzzle> list = [] {
+        std::vector<Puzzle> out;
+        for (const Entry& entry : kCollection) {
+            const text::PuzzleName name = text::puzzleName(entry.id);
+            Puzzle puzzle;
+            puzzle.id     = entry.id;
+            puzzle.title  = *name.title != '\0' ? name.title : entry.id;
+            puzzle.note   = name.note;
+            puzzle.fen    = entry.fen;
+            puzzle.mateIn = entry.mateIn;
+            out.push_back(std::move(puzzle));
+        }
+        return out;
+    }();
+    return list;
 }
 
 std::vector<Puzzle> mine() {

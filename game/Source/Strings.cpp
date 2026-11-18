@@ -281,6 +281,41 @@ const char* toMoveCaption(Color color) {
     return color == Color::White ? kWhiteToMove : kBlackToMove;
 }
 
+PuzzleName puzzleName(std::string_view id) {
+    static const struct {
+        const char* id;
+        PuzzleName  name;
+    } names[] = {
+        {"m1-back-rank", {"Остання горизонталь", ""}},
+        {"m1-black-back-rank", {"Остання горизонталь, чорні", ""}},
+        {"m1-smothered", {"Спертий мат", ""}},
+        {"m1-arabian", {"Арабський мат", ""}},
+        {"m1-anastasia", {"Мат Анастасії", ""}},
+        {"m1-boden", {"Мат Бодена", ""}},
+        {"m1-epaulette", {"Еполетний мат", ""}},
+        {"m1-scholar", {"Дитячий мат", ""}},
+        {"m1-fool", {"Дурний мат", ""}},
+        {"m2-morphy", {"Задача Морфі", "Пол Морфі"}},
+        {"m2-opera", {"Партія в опері", "Морфі — герцог Брауншвейзький і граф Ізуар, Париж, 1858"}},
+        {"m2-legal", {"Мат Легаля", ""}},
+        {"m2-smothered", {"Спертий мат із жертвою", ""}},
+        {"m2-anastasia", {"Мат Анастасії з жертвою", ""}},
+        {"m2-king-rook", {"Король і тура", ""}},
+        {"m2-two-rooks", {"Дві тури", ""}},
+        {"m2-black-rooks", {"Чорні тури", ""}},
+        {"m3-queen-rook", {"Ферзь і тура", ""}},
+        {"m3-rook-bishop", {"Тура й слон", ""}},
+        {"m3-black-queen", {"Чорний ферзь", ""}},
+        {"m3-immortal", {"Безсмертна партія", "Андерсен — Кізерицький, Лондон, 1851"}},
+        {"m4-philidor", {"Мат Філідора", ""}},
+        {"m5-bishop-rook-queen", {"Слон, тура й ферзь", ""}},
+    };
+    for (const auto& entry : names)
+        if (id == entry.id)
+            return entry.name;
+    return {};
+}
+
 std::string minePuzzleTitle(int number) {
     return "Моя задача " + std::to_string(number);
 }

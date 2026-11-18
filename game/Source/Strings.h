@@ -11,6 +11,7 @@
 
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace text {
 
@@ -149,6 +150,23 @@ inline constexpr const char* kSolvedHelped = "Мат поставлено — з
 inline constexpr const char* kSolutionDone = "Мат. Спробуйте розв'язати самостійно — «Спочатку».";
 inline constexpr const char* kFindingBest  = "Stockfish шукає найкращий хід…";
 inline constexpr const char* kHintLooking  = "Шукаю підказку…";
+
+// The collection, in groups by the length of the mate.
+inline constexpr const char* kGroupMateIn1  = "Мат в 1 хід";
+inline constexpr const char* kGroupMateIn2  = "Мат у 2 ходи";
+inline constexpr const char* kGroupLonger   = "Мат у 3–5 ходів";
+// After the title of one of the player's own that has no forced mate, where
+// the others have "#3": its goal is the best move.
+inline constexpr const char* kBestMoveShort = "хід";
+
+// The name of a problem in the collection, by its id (Puzzles.cpp), and where
+// it comes from when that is known: "Задача Морфі", "Пол Морфі". Empty for an
+// id there is no name for.
+struct PuzzleName {
+    const char* title = "";
+    const char* note  = "";
+};
+PuzzleName puzzleName(std::string_view id);
 
 // The set-up position is legal but the game in it is already over.
 std::string alreadyOver(chess::Color toMove, bool inCheck);

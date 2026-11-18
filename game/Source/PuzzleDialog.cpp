@@ -85,9 +85,9 @@ void PuzzleDialog::rebuild() {
         _groups.push_back(std::move(g));
         return _groups.back();
     };
-    group("Мат в 1 хід");
-    group("Мат у 2 ходи");
-    group("Мат у 3–5 ходів");
+    group(text::kGroupMateIn1);
+    group(text::kGroupMateIn2);
+    group(text::kGroupLonger);
     for (const Puzzle& puzzle : puzzles::collection()) {
         const std::size_t index = puzzle.mateIn <= 1 ? 0 : puzzle.mateIn == 2 ? 1 : 2;
         _groups[index].puzzles.push_back(puzzle);
@@ -98,7 +98,8 @@ void PuzzleDialog::rebuild() {
         for (const Puzzle& puzzle : g.puzzles) {
             std::string label = puzzle.title;
             if (puzzle.mine)
-                label += puzzle.mateIn > 0 ? " · #" + std::to_string(puzzle.mateIn) : std::string(" · хід");
+                label += std::string(" · ") +
+                         (puzzle.mateIn > 0 ? "#" + std::to_string(puzzle.mateIn) : text::kBestMoveShort);
             Button* button  = Button::create(label, Button::Style::Plain, 12.5f);
             button->onClick = [this, puzzle] {
                 if (onChoose)
