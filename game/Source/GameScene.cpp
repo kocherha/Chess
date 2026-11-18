@@ -12,6 +12,7 @@
 #include "chess/Difficulty.h"
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <ctime>
 #include <thread>
@@ -958,11 +959,19 @@ void GameScene::askHint() {
     // The hint is the watching engine's own choice. It has usually finished
     // with this position long before anyone asks; if not, the hint appears the
     // moment it does.
+    //
+    // "If not" relies on this: while the position on the board has not been
+    // looked at to the end, the search in progress, if any, is about it — a
+    // review of an earlier position (reviewNext) is only started once the
+    // board's own analysis is done. Were it otherwise, the hint would wait for
+    // an answer about another position and never come.
     _hintWanted = true;
     if (_analysisDone)
         showHint();
     else if (_analysisTag == 0)
         analyse();
+    else
+        assert(_searchKey == _review.now());
     refresh();
 }
 
