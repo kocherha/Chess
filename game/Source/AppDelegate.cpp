@@ -4,9 +4,11 @@
 #include "Strings.h"
 #include "chess/Engine.h"
 
+#include <charconv>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <optional>
 #include <filesystem>
 #include <sstream>
 #include <string_view>
@@ -56,6 +58,18 @@ AppDelegate::~AppDelegate() = default;
 void AppDelegate::parseArguments(int argc, char** argv) {
     GameScene::Launch& launch = GameScene::launch();
 
+    // A whole number; or a word in the log and nothing, so that the option
+    // stays as it was: "--level abc" must not quietly become level 0.
+    const auto number = [](std::string_view flag, std::string_view text) -> std::optional<int> {
+        int value = 0;
+        const auto [end, error] = std::from_chars(text.data(), text.data() + text.size(), value);
+        if (error != std::errc() || end != text.data() + text.size()) {
+            AXLOGW("{} ignored: \"{}\" is not a whole number", flag, text);
+            return std::nullopt;
+        }
+        return value;
+    };
+
     for (int i = 1; i < argc; ++i) {
         const std::string_view flag = argv[i];
         const bool hasValue         = i + 1 < argc;
@@ -73,9 +87,11 @@ void AppDelegate::parseArguments(int argc, char** argv) {
         } else if (flag == "--board" && hasValue) {
             launch.board = argv[++i];
         } else if (flag == "--level" && hasValue) {
-            launch.level = std::atoi(argv[++i]);
+            if (const auto n = number(flag, argv[++i]))
+                launch.level = n;
         } else if (flag == "--elo" && hasValue) {
-            launch.elo = std::atoi(argv[++i]);
+            if (const auto n = number(flag, argv[++i]))
+                launch.elo = n;
         } else if (flag == "--side" && hasValue) {
             const std::string_view side = argv[++i];
             launch.side = side == "black"    ? GameSetup::Side::Black
@@ -84,7 +100,7 @@ void AppDelegate::parseArguments(int argc, char** argv) {
         } else if (flag == "--two-players") {
             launch.opponent = GameSetup::Opponent::Human;
         } else if (flag == "--autoplay" && hasValue) {
-            launch.autoplayGames = std::atoi(argv[++i]);
+            launch.autoplayGames = number(flag, argv[++i]).value_or(launch.autoplayGames);
         } else if (flag == "--puzzles") {
             launch.puzzles = true;
         } else if (flag == "--edit" && hasValue) {
