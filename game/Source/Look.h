@@ -93,4 +93,10 @@ void drawBoard(ax::DrawNode* node, ax::Node* tiles, const BoardStyle& style, con
 // every style, so that changing the board does not move anything around it.
 float frameWidth(float square);
 
+// The colour a coordinate — "a", "8" — is written in on a light square of
+// the board, or a dark one: the colour of the other kind of square, so that
+// the letters belong to the board. Unless the two are too alike to read one
+// on the other (cream and pink): then both are written in the frame's.
+ax::Color3B coordinateColour(const BoardStyle& style, bool onLight);
+
 }  // namespace look

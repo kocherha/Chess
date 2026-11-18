@@ -227,6 +227,32 @@ float frameWidth(float square) {
 
 namespace {
 
+// How far apart two colours are to the eye: the ratio of their luminances
+// as the accessibility guidelines (WCAG) define it, from 1 (the same) to 21
+// (black on white).
+float contrast(const Color4F& a, const Color4F& b) {
+    const auto luminance = [](const Color4F& colour) {
+        const auto linear = [](float v) { return v <= 0.03928f ? v / 12.92f : std::pow((v + 0.055f) / 1.055f, 2.4f); };
+        return 0.2126f * linear(colour.r) + 0.7152f * linear(colour.g) + 0.0722f * linear(colour.b);
+    };
+    const float la = luminance(a), lb = luminance(b);
+    return (std::max(la, lb) + 0.05f) / (std::min(la, lb) + 0.05f);
+}
+
+// Below this a letter in one square's colour is hard to find on the other.
+// Of the boards here only "Сакура" is under it (1.7); the next is 2.4.
+constexpr float kReadable = 2.2f;
+
+}  // namespace
+
+Color3B coordinateColour(const BoardStyle& style, bool onLight) {
+    if (contrast(style.light, style.dark) < kReadable)
+        return theme::toColor3B(style.frame);
+    return theme::toColor3B(onLight ? style.dark : style.light);
+}
+
+namespace {
+
 // One square of a board laid from pictures: one of the four cuts in the
 // picture, perhaps turned over. Which, is decided by where the square is and
 // nothing else, so the board is the same board every time it is drawn.

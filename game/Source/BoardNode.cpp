@@ -124,12 +124,11 @@ void BoardNode::redrawSquares() {
     look::drawBoard(_squares, _tiles, style, Vec2::ZERO, s, 8, 8, look::frameWidth(s));
 
     // Coordinates live inside the edge squares, in the colour of the other
-    // kind of square: letters along the bottom, numbers up the left side.
+    // kind of square (see look::coordinateColour): letters along the bottom,
+    // numbers up the left side.
     const float points = std::clamp(s * 0.17f, 9.0f, 15.0f);
     const float inset  = std::max(2.0f, s * 0.05f);
-    const auto tint = [&style](Square square) {
-        return theme::toColor3B(lightSquare(square) ? style.dark : style.light);
-    };
+    const auto tint = [&style](Square square) { return look::coordinateColour(style, lightSquare(square)); };
 
     for (int i = 0; i < 8; ++i) {
         // The square in screen column i of the bottom row, and row i of the
