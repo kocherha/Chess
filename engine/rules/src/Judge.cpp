@@ -51,7 +51,10 @@ const char* suffix(Mark mark) {
 }
 
 double winChance(int centipawns) {
-    return 1.0 / (1.0 + std::exp(-0.00368208 * static_cast<double>(centipawns)));
+    // lichess's curve (its "winning chances", fitted to rated games), so that
+    // the marks mean here what they mean there.
+    constexpr double kSteepness = 0.00368208;
+    return 1.0 / (1.0 + std::exp(-kSteepness * static_cast<double>(centipawns)));
 }
 
 double winChance(const Score& score) {
