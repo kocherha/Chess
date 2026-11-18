@@ -6,6 +6,8 @@
 // written at the leading side's end.
 #pragma once
 
+#include "chess/Judge.h"
+
 #include "axmol.h"
 
 #include <string>
@@ -14,20 +16,7 @@ class EvalBar : public ax::Node
 {
 public:
     // Always from white's point of view: positive is good for white.
-    struct Score {
-        enum class Kind {
-            Unknown,     // nothing to go on yet
-            Centipawns,  // `value` hundredths of a pawn
-            Mate,        // mate in `value` moves; negative: black mates
-            WhiteWon,
-            BlackWon,
-            Drawn,
-        };
-        Kind kind  = Kind::Unknown;
-        int  value = 0;
-
-        bool operator==(const Score&) const = default;
-    };
+    using Score = chess::Standing;
 
     static EvalBar* create();
 

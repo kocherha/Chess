@@ -50,6 +50,15 @@ const char* suffix(Mark mark) {
     return "";
 }
 
+Standing standingFor(const Score& score, Color toMove) {
+    const int sign = toMove == Color::White ? 1 : -1;
+    if (score.mate && *score.mate != 0)
+        return {Standing::Kind::Mate, sign * *score.mate};
+    if (score.cp)
+        return {Standing::Kind::Centipawns, sign * *score.cp};
+    return {};
+}
+
 double winChance(int centipawns) {
     // lichess's curve (its "winning chances", fitted to rated games), so that
     // the marks mean here what they mean there.

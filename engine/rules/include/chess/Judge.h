@@ -43,6 +43,26 @@ struct Score {
     bool operator==(const Score&) const = default;
 };
 
+// How the game stands, always from white's point of view — what the
+// evaluation bar shows: a score turned round to be white's, or the result.
+struct Standing {
+    enum class Kind {
+        Unknown,     // nothing to go on yet
+        Centipawns,  // `value` hundredths of a pawn; negative: black is better
+        Mate,        // mate in `value` moves; negative: black mates
+        WhiteWon,
+        BlackWon,
+        Drawn,
+    };
+    Kind kind  = Kind::Unknown;
+    int  value = 0;
+
+    bool operator==(const Standing&) const = default;
+};
+
+// `score`, which is for `toMove`, as white sees it; Unknown if it says nothing.
+Standing standingFor(const Score& score, Color toMove);
+
 // The chance of winning a score stands for, from 0 (lost) through 0.5 (level)
 // to 1 (won), for the side the score is for. The usual logistic curve: a pawn
 // up is about 0.59, three pawns 0.75, five 0.86. An unknown score is 0.5.
