@@ -609,10 +609,14 @@ third-party/Stockfish/        Stockfish, tag stockfish-dev-20260930-49ea5ded (GP
 third-party/googletest/       googletest, main of 2026-10-02 (BSD-3-Clause), tests only
 ```
 
-The three parts do not know about each other. The rules have never heard of an
-engine or a window. The engine client does not know the rules: moves cross its
-boundary as UCI text (`e2e4`). The nodes on screen show what they are told. All
-of it meets in one place, `GameScene`.
+The rules have never heard of an engine or a window. The engine client does not
+know the rules: moves cross its boundary as UCI text (`e2e4`). The modes of the
+game (`engine/session`) know the rules and what to ask the engine, but have no
+window and no engine process: solving a problem, marking moves and the move
+list are tested like the rules are. The nodes on screen show what they are told.
+The scenes (`GameScene`, `PuzzleScene`) only bring it together: an event → the
+model → what to draw and what to ask the engine. The rule that keeps the line:
+no axmol in the models, no decisions about chess in the scenes.
 
 **Stockfish is a separate process, and there are two of them.** The game starts
 it and talks to it over stdin/stdout, as any chess interface does. One copy is
