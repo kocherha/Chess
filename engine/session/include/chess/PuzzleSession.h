@@ -26,6 +26,7 @@
 #include "chess/Game.h"
 #include "chess/Judge.h"
 
+#include <map>
 #include <optional>
 #include <string>
 #include <vector>
@@ -132,9 +133,16 @@ public:
     // What to do with the engine, given once: first abandon the search in
     // progress if `cancel`, then start `search` if there is one. The search's
     // `tag` is the session's own; the engine options are the caller's.
+    //
+    // A question the engine has answered before — the same move tried again,
+    // a hint asked twice, a problem started over — is not asked again: its
+    // answer comes back as `known`, to be handed straight to answer() (which
+    // may ask something else in turn: call toEngine() again until there is
+    // nothing more).
     struct ToEngine {
         bool                         cancel = false;
         std::optional<SearchRequest> search;
+        std::optional<SearchResult>  known;
     };
     ToEngine toEngine();
     // An answer from the engine. Answers to anything but the latest question
@@ -219,7 +227,12 @@ private:
     Question                     _question = Question::None;
     int                          _tag = 0, _nextTag = 1;
     std::optional<SearchRequest> _request;
+    std::optional<SearchResult>  _known;     // the answer to _question, from _answers
     bool                         _cancel = false;
+    // Every answer the engine has given this session, by the question.
+    // Kept across problems and restarts: it is the restarts it is for.
+    std::map<std::string, SearchResult> _answers;
+    std::string                         _asked;  // the key of the question out now
 
     std::vector<Event> _events;
 };

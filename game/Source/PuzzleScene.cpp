@@ -232,12 +232,17 @@ void PuzzleScene::ask(Question question, SearchRequest request) {
 }
 
 void PuzzleScene::talkToEngine() {
-    auto work = _session.toEngine();
-    if (work.cancel)
-        _engine.cancel();
-    if (work.search) {
-        work.search->options = puzzleOptions();
-        _engine.search(std::move(*work.search));
+    for (;;) {
+        auto work = _session.toEngine();
+        if (work.cancel)
+            _engine.cancel();
+        if (work.search) {
+            work.search->options = puzzleOptions();
+            _engine.search(std::move(*work.search));
+        }
+        if (!work.known)
+            return;
+        _session.answer(*work.known);  // asked before: the engine is spared
     }
 }
 

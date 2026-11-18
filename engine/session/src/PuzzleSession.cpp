@@ -7,6 +7,16 @@ namespace chess {
 
 namespace {
 
+// What makes two questions to the engine the same question: everything in the
+// request but its tag (the options are the caller's, and always the same).
+std::string questionKey(const SearchRequest& request) {
+    std::string key = request.position + "|" + std::to_string(request.mate) + "|" +
+                      std::to_string(request.depth) + "|" + std::to_string(request.moveTimeMs);
+    for (const std::string& move : request.searchMoves)
+        key += " " + move;
+    return key;
+}
+
 using Note  = PuzzleSession::Note;
 using Event = PuzzleSession::Event;
 
@@ -162,13 +172,23 @@ PuzzleSession::ToEngine PuzzleSession::toEngine() {
     ToEngine work;
     work.cancel = std::exchange(_cancel, false);
     work.search = std::exchange(_request, std::nullopt);
+    work.known  = std::exchange(_known, std::nullopt);
     return work;
 }
 
 void PuzzleSession::ask(Question question, SearchRequest request) {
     request.tag = _tag = _nextTag++;
     _question       = question;
-    _request        = std::move(request);  // replaces one not yet sent: the engine never hears of it
+    _asked          = questionKey(request);
+    if (const auto known = _answers.find(_asked); known != _answers.end()) {
+        _known      = known->second;
+        _known->tag = _tag;
+        _request.reset();  // the engine never hears of it,
+        _cancel = true;    // and stops whatever it was asked before
+        return;
+    }
+    _known.reset();
+    _request = std::move(request);  // replaces one not yet sent: the engine never hears of it
 }
 
 void PuzzleSession::askForTheMate() {
@@ -194,11 +214,13 @@ void PuzzleSession::dropQuestion() {
     _question = Question::None;
     _tag      = 0;
     _request.reset();
+    _known.reset();
 }
 
 void PuzzleSession::answer(const SearchResult& result) {
     if (_question == Question::None || result.tag != _tag)
         return;  // to a question nobody is asking any more
+    _answers[_asked] = result;
     const Question question = _question;
     _question = Question::None;
     _tag      = 0;

@@ -657,6 +657,12 @@ have found — and that is exactly the search a player's move is judged by. If
 no mate is found from the attacking side, before saying “no” the engine is also
 asked from the defending side: is it mated within the moves that are left?
 
+The engine is never asked the same thing twice. Answers in the problems are
+remembered for as long as the mode is open, so the same move tried again, a
+hint followed by the solution, or a problem started over cost no search; what
+it said about a position in the editor is remembered for as long as the
+program runs.
+
 **The rules are an 8×8 array, not bitboards.** This library answers a person at
 a board a few dozen times a second at most; the thinking is Stockfish's job.
 Its correctness is checked by perft: the number of positions reachable in N

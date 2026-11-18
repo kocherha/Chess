@@ -28,6 +28,15 @@ SearchRequest asked(PuzzleSession& session) {
     return work.search.value_or(SearchRequest{});
 }
 
+// A question asked before: the session answers it from what the engine said
+// then, and the engine is not asked at all.
+void answeredFromMemory(PuzzleSession& session) {
+    auto work = session.toEngine();
+    EXPECT_FALSE(work.search.has_value()) << "the engine was asked again";
+    ASSERT_TRUE(work.known.has_value()) << "no answer from memory";
+    session.answer(*work.known);
+}
+
 SearchResult answerTo(const SearchRequest& request, const char* best, std::optional<int> mate,
                       std::optional<int> cp = std::nullopt) {
     SearchResult result;
@@ -165,6 +174,36 @@ TEST(PuzzleSession, AWrongMoveInAMateProblem) {
     EXPECT_FALSE(session.toEngine().search.has_value());  // nothing more to ask
 }
 
+TEST(PuzzleSession, TheSameWrongMoveTriedAgainIsJudgedFromMemory) {
+    PuzzleSession session = opened(kMorphy, 2);
+    ASSERT_TRUE(session.play(uci(session, "a1a2")));
+    session.answer(answerTo(asked(session), "a1a2", std::nullopt, 300));
+    session.answer(answerTo(asked(session), "a8a7", std::nullopt, -300));
+    ASSERT_EQ(session.phase(), Phase::Wrong);
+    session.tick(PuzzleSession::kWrongSeconds + 0.1f);  // taken back
+    ASSERT_EQ(session.phase(), Phase::Ready);
+
+    ASSERT_TRUE(session.play(uci(session, "a1a2")));
+    answeredFromMemory(session);  // is it still mate in two? no...
+    answeredFromMemory(session);  // ...and the defence is not mated either
+    EXPECT_EQ(session.phase(), Phase::Wrong);
+    EXPECT_EQ(session.note().kind, Note::Kind::NoMate);
+}
+
+TEST(PuzzleSession, TheSolutionAfterAHintStartsFromWhatTheHintFound) {
+    PuzzleSession session = opened(kMorphy, 2);
+    session.hint();
+    session.answer(answerTo(asked(session), "a1a6", 2));
+    session.takeEvents();
+
+    session.showSolution();
+    answeredFromMemory(session);  // the same question as the hint's
+    const auto events = session.takeEvents();
+    ASSERT_FALSE(events.empty());
+    EXPECT_EQ(events.back().kind, Event::Kind::Moved);
+    EXPECT_EQ(events.back().move, "a1a6");
+}
+
 TEST(PuzzleSession, AnswersToOldQuestionsAreIgnored) {
     PuzzleSession session = opened(kMorphy, 2);
     ASSERT_TRUE(session.play(uci(session, "a1a6")));
@@ -290,10 +329,10 @@ TEST(PuzzleSession, TheSolutionOfABestMoveProblemAfterItWasSolved) {
     session.takeEvents();
 
     session.showSolution();
-    EXPECT_EQ(session.phase(), Phase::Preparing);  // from the start: the best move is looked for again
+    EXPECT_EQ(session.phase(), Phase::Preparing);  // from the start
     EXPECT_EQ(session.game().plies(), 0u);
     EXPECT_TRUE(session.showingSolution());
-    session.answer(answerTo(asked(session), "e2e4", std::nullopt, 30));
+    answeredFromMemory(session);  // the best move is known already
 
     const auto events = session.takeEvents();
     ASSERT_EQ(kinds(events), (std::vector{Event::Kind::Opened, Event::Kind::Moved, Event::Kind::Finished}));
@@ -311,7 +350,7 @@ TEST(PuzzleSession, TheSolutionOfABestMoveProblemAfterAWrongMove) {
     ASSERT_EQ(session.phase(), Phase::Wrong);
 
     session.showSolution();
-    session.answer(answerTo(asked(session), "e2e4", std::nullopt, 30));
+    answeredFromMemory(session);
     EXPECT_EQ(session.phase(), Phase::Solved);
     EXPECT_EQ(session.game().history().back().move.uci(), "e2e4");
 }
