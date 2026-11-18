@@ -343,9 +343,11 @@ king's crown and cross. The Pixels board is drawn on the same grid, so a pixel
 of a piece and a pixel of the square under it are the same size and sit on the
 same lines. The light pieces are cream, the dark ones grey-violet, the squares
 cream and green, so neither side sinks into the board. The game reduces these
-pictures to the size of a square with smoothing, as it does all the others, so
-in a small window the pixels are a little soft; they are sharpest in a large
-window or on a Retina screen.
+pictures to the size of a square differently from all the others: with no
+smoothing, pixel for pixel, so that the edges stay hard on an ordinary screen
+too. Where a square is not a whole number of grid cells across, some pixels of
+the drawing come out one screen pixel wider than others; in a large window or
+on a Retina screen that cannot be seen at all.
 
 In all seven sets a piece's size goes by what it is worth: the pawn is the
 smallest, the knight and the bishop are alike, the rook stands above them, then
