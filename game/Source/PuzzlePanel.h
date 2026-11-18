@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Button.h"
+#include "Theme.h"
 
 #include "chess/Types.h"
 
@@ -18,7 +19,7 @@ class PuzzlePanel : public ax::Node
 {
 public:
     enum class Page { Editor, Solving };
-    enum class Tone { Neutral, Good, Warning, Bad };
+    using Tone = theme::Tone;
 
     static PuzzlePanel* create();
 

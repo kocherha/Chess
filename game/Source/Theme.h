@@ -51,6 +51,32 @@ inline const ax::Color3B kFaint(104, 109, 122);
 inline const ax::Color3B kOnAccent(255, 255, 255);
 inline const ax::Color3B kGood(150, 200, 100);
 inline const ax::Color3B kWarn(232, 178, 92);
+inline const ax::Color3B kBad(236, 112, 100);  // what is wrong: a move, a position from the editor
+
+// How the status card on either panel feels: neutral, good news, a warning,
+// or — in the problems — a wrong move. Its headline is written in one colour
+// and its border drawn in another.
+enum class Tone { Neutral, Good, Warning, Bad };
+
+inline ax::Color3B toneInk(Tone tone) {
+    switch (tone) {
+    case Tone::Good:    return kGood;
+    case Tone::Warning: return kWarn;
+    case Tone::Bad:     return kBad;
+    case Tone::Neutral: break;
+    }
+    return kInk;
+}
+
+inline ax::Color4F toneBorder(Tone tone) {
+    switch (tone) {
+    case Tone::Good:    return kAccent;
+    case Tone::Warning: return rgb(170, 130, 70);
+    case Tone::Bad:     return rgb(176, 72, 64);
+    case Tone::Neutral: break;
+    }
+    return kLine;
+}
 
 // The colour a move's mark is written in in the list of moves: the five other
 // chess programs have taught people to expect, green-blue for the finds,
@@ -81,7 +107,5 @@ inline const ax::Color4F kHint = rgb(66, 140, 224, 0.82f);
 
 // The position editor's red: a square that makes the position impossible.
 inline const ax::Color4F kProblem = rgb(214, 48, 40, 0.58f);
-// And on the panel, the line that says what is wrong.
-inline const ax::Color3B kBad(236, 112, 100);
 
 }  // namespace theme

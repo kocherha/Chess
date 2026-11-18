@@ -372,10 +372,7 @@ float PuzzlePanel::layoutGoal(const Metrics& m, float y) {
 // The card: one line in the middle, or a headline and paragraphs under it.
 float PuzzlePanel::layoutCard(const Metrics& m, float y, float bottom) {
     _headline->setString(_headlineText);
-    _headline->setColor(_tone == Tone::Good      ? theme::kGood
-                        : _tone == Tone::Warning ? theme::kWarn
-                        : _tone == Tone::Bad     ? theme::kBad
-                                                 : theme::kInk);
+    _headline->setColor(theme::toneInk(_tone));
     const float textWidth = m.width - 28.0f;
     _detail->setString(typeset::wrapParagraphs(_detailText, kDetailPoints, textWidth));
     const bool twoLines = !_detailText.empty();
@@ -385,11 +382,8 @@ float PuzzlePanel::layoutCard(const Metrics& m, float y, float bottom) {
     const float reserve  = m.compact ? 8.0f : _page == Page::Editor ? 34.0f : 40.0f;  // for the FEN or the moves
     const float room     = std::max(56.0f, y - bottom - reserve);
     const float card     = std::min(wanted, room);
-    const Color4F border = _tone == Tone::Good      ? theme::kAccent
-                           : _tone == Tone::Warning ? theme::rgb(170, 130, 70)
-                           : _tone == Tone::Bad     ? theme::rgb(176, 72, 64)
-                                                    : theme::kLine;
-    shapes::roundedRect(_back, Vec2(m.left, y - card), Vec2(m.width, card), 10.0f, theme::kCard, 1.0f, border);
+    shapes::roundedRect(_back, Vec2(m.left, y - card), Vec2(m.width, card), 10.0f, theme::kCard, 1.0f,
+                        theme::toneBorder(_tone));
     _headline->setPosition(Vec2(m.left + 14.0f, y - (twoLines ? 22.0f : card * 0.5f)));
     _detail->setPosition(Vec2(m.left + 14.0f, y - 38.0f));
     // Lines that would hang out of the card are not drawn.

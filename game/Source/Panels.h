@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Button.h"
+#include "Theme.h"
 
 #include "chess/Judge.h"
 #include "chess/MoveList.h"
@@ -49,7 +50,7 @@ private:
 class SidePanel : public ax::Node
 {
 public:
-    enum class Tone { Neutral, Good, Warning };
+    using Tone = theme::Tone;
 
     static SidePanel* create();
 

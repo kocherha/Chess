@@ -258,18 +258,13 @@ void SidePanel::layout() {
     // the middle of it; a second line goes underneath and may wrap, and the
     // card grows to hold it.
     _headline->setString(_headlineText);
-    _headline->setColor(_tone == Tone::Good      ? theme::kGood
-                        : _tone == Tone::Warning ? theme::kWarn
-                                                 : theme::kInk);
+    _headline->setColor(theme::toneInk(_tone));
     _detail->setString(typeset::wrap(_detailText, 14.0f, width - 32.0f));
 
     const bool twoLines    = !_detailText.empty();
     const float cardHeight = twoLines ? std::max(76.0f, 44.0f + _detail->getContentSize().height + 14.0f) : 76.0f;
     shapes::roundedRect(_back, Vec2(kPadding, y - cardHeight), Vec2(width, cardHeight), 10.0f, theme::kCard,
-                        1.0f,
-                        _tone == Tone::Good      ? theme::kAccent
-                        : _tone == Tone::Warning ? theme::rgb(170, 130, 70)
-                                                 : theme::kLine);
+                        1.0f, theme::toneBorder(_tone));
     _headline->setPosition(Vec2(kPadding + 16.0f, y - (twoLines ? 27.0f : cardHeight * 0.5f)));
     _detail->setPosition(Vec2(kPadding + 16.0f, y - 44.0f));
     y -= cardHeight + 20.0f;
