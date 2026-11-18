@@ -215,16 +215,23 @@ void Process::stop(int graceMs) {
     closeInput();
 
     if (_pid > 0) {
-        int  status = 0;
-        bool exited = false;
-        for (int waited = 0; waited <= graceMs; waited += 10) {
+        // Asked often: a UCI engine leaves within a millisecond or two of
+        // "quit", and this runs on the game's own thread — leaving the
+        // problems mode or closing the window waits for it. (Every ten
+        // milliseconds, as it was, made each of those waits ten.)
+        using Clock         = std::chrono::steady_clock;
+        const auto deadline = Clock::now() + std::chrono::milliseconds(graceMs);
+        int        status   = 0;
+        bool       exited   = false;
+        for (;;) {
             const pid_t r = ::waitpid(_pid, &status, WNOHANG);
             if (r == _pid || (r < 0 && errno != EINTR)) {
                 exited = true;
                 break;
             }
-            if (waited < graceMs)
-                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+            if (Clock::now() >= deadline)
+                break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
         if (!exited) {
             ::kill(_pid, SIGKILL);
