@@ -91,7 +91,6 @@ private:
     void place(chess::Square square, chess::Piece piece);
     void probe();
     void refreshEditor();
-    std::optional<chess::Position> setupPosition() const;
     void copyFen();
     void pasteFen();
     void saveMine();
@@ -151,6 +150,10 @@ private:
 
     // The editor.
     chess::Setup      _setup;
+    // What is wrong with it, and the position itself once nothing is: worked
+    // out once per change, in edited(), and read from here by the rest.
+    std::vector<chess::Issue>      _issues;
+    std::optional<chess::Position> _setupPosition;
     PieceTray::Item   _brush;     // what a click on the board puts there
     float             _probeIn = -1.0f;  // seconds until the position is given to the engine; < 0: not due
     std::string       _probeFen;  // what the engine said the following about

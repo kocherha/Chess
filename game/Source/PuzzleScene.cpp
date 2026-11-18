@@ -318,10 +318,6 @@ void PuzzleScene::openEditor(const Setup& setup) {
     edited();
 }
 
-std::optional<Position> PuzzleScene::setupPosition() const {
-    return _setup.position();
-}
-
 void PuzzleScene::edited() {
     // Whatever the engine was saying is about a position that is gone.
     if (_question == Question::Probe || _question == Question::Shorter) {
@@ -335,13 +331,15 @@ void PuzzleScene::edited() {
     _probeFen.clear();
     _probeIn = -1.0f;
 
+    _issues        = _setup.issues();
+    _setupPosition = _issues.empty() ? Position::fromFen(_setup.fen()) : std::nullopt;
+
     if (const auto known = verdicts().find(_setup.fen()); known != verdicts().end()) {
         _probeFen  = known->first;
         _probeDone = true;
         _probeMate = known->second.mate;
         _probeCp   = known->second.cp;
-    } else if (const auto position = setupPosition();
-               position && position->hasLegalMoves() && _engine.usable()) {
+    } else if (_setupPosition && _setupPosition->hasLegalMoves() && _engine.usable()) {
         _probeIn = kProbeDelay;
     }
     eventlog::note("setup " + _setup.fen());
@@ -351,7 +349,7 @@ void PuzzleScene::edited() {
 
 void PuzzleScene::probe() {
     _probeIn = -1.0f;
-    const auto position = setupPosition();
+    const auto& position = _setupPosition;
     if (_page != Page::Editor || !position || !position->hasLegalMoves() || !_engine.usable())
         return;
     _probeFen = _setup.fen();
@@ -398,8 +396,8 @@ void PuzzleScene::refreshEditor() {
     _panel->setFen(_setup.fen());
 
     using Tone = PuzzlePanel::Tone;
-    const auto issues   = _setup.issues();
-    const auto position = issues.empty() ? setupPosition() : std::nullopt;
+    const auto& issues   = _issues;
+    const auto& position = _setupPosition;
     const bool playable = position && position->hasLegalMoves();
 
     if (!issues.empty()) {
@@ -482,8 +480,8 @@ void PuzzleScene::solveSetup() {
 }
 
 void PuzzleScene::playFromSetup() {
-    if (const auto position = setupPosition(); position && position->hasLegalMoves() && _hooks.playFrom)
-        _hooks.playFrom(*position);
+    if (_setupPosition && _setupPosition->hasLegalMoves() && _hooks.playFrom)
+        _hooks.playFrom(*_setupPosition);
 }
 
 // --- solving -----------------------------------------------------------------------
@@ -1004,7 +1002,7 @@ void PuzzleScene::refreshMarks() {
     BoardNode::Marks marks;
 
     if (_page == Page::Editor) {
-        for (const Issue& issue : _setup.issues())
+        for (const Issue& issue : _issues)
             for (Square square : issue.squares)
                 marks.problems.push_back(square);
         _board->setMarks(marks);
