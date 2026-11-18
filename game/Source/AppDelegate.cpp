@@ -2,6 +2,7 @@
 
 #include "GameScene.h"
 #include "Strings.h"
+#include "chess/Engine.h"
 
 #include <chrono>
 #include <cstdio>
@@ -144,8 +145,10 @@ bool AppDelegate::applicationDidFinishLaunching() {
 
     // Where the piece sets are. On a Mac they are in the bundle's Resources,
     // which is already searched; elsewhere CMake links the folder next to the
-    // executable as Content/.
-    FileUtils::getInstance()->addSearchPath("Content");
+    // executable as Content/. By its full path: a relative one would be looked
+    // for in whatever directory the game happened to be started from.
+    if (const std::string here = chess::executableDirectory(); !here.empty())
+        FileUtils::getInstance()->addSearchPath(here + "/Content");
 
     director->runWithScene(utils::createInstance<GameScene>());
     return true;
