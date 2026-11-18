@@ -154,23 +154,9 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     _collection->onCancel = [this] { _collection->close(); };
 
     // Input: one listener each, as in the game.
-    auto* mouse        = EventListenerMouse::create();
-    mouse->onMouseDown = [this](EventMouse* event) {
-        const auto button = event->getMouseButton();
-        if (button == EventMouse::MouseButton::BUTTON_LEFT || button == EventMouse::MouseButton::BUTTON_RIGHT)
-            onMouseDown(event->getLocation(), button == EventMouse::MouseButton::BUTTON_RIGHT);
-        return true;
-    };
-    mouse->onMouseUp = [this](EventMouse* event) {
-        if (event->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
-            onMouseUp(event->getLocation());
-        return true;
-    };
-    mouse->onMouseMove = [this](EventMouse* event) {
-        onMouseMove(event->getLocation());
-        return true;
-    };
-    _eventDispatcher->addEventListenerWithSceneGraphPriority(mouse, this);
+    desktop::followMouse(this, {.down = [this](const Vec2& point, bool right) { onMouseDown(point, right); },
+                                .up   = [this](const Vec2& point) { onMouseUp(point); },
+                                .move = [this](const Vec2& point) { onMouseMove(point); }});
 
     auto* keyboard         = EventListenerKeyboard::create();
     keyboard->onKeyPressed = [this](EventKeyboard::KeyCode code, Event*) { onKeyPressed(code); };

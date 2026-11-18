@@ -144,32 +144,19 @@ bool GameScene::init() {
     // open dialog, a button, the promotion column, the board — is decided
     // here, in that order, instead of by whichever node happened to hear it
     // first.
-    auto* mouse        = EventListenerMouse::create();
-    mouse->onMouseDown = [this](EventMouse* event) {
-        if (event->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
-            onMouseDown(event->getLocation());
-        return true;
-    };
-    mouse->onMouseUp = [this](EventMouse* event) {
-        if (event->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
-            onMouseUp(event->getLocation());
-        return true;
-    };
-    mouse->onMouseMove = [this](EventMouse* event) {
-        onMouseMove(event->getLocation());
-        return true;
-    };
-    mouse->onMouseScroll = [this](EventMouse* event) {
-        // The wheel belongs to the move list, and only while the pointer is
-        // over it. Anywhere else there is nothing to scroll.
-        if (modal() != nullptr || !_panel->overList(event->getLocation()))
-            return true;
-        // Wheel up is negative here; up means "earlier moves".
-        if (_panel->scroll(-event->getScrollY() * kRowsPerScrollUnit))
-            keepAwake();
-        return true;
-    };
-    _eventDispatcher->addEventListenerWithSceneGraphPriority(mouse, this);
+    desktop::followMouse(this, {.down  = [this](const Vec2& point, bool right) {
+                                    if (!right)
+                                        onMouseDown(point);
+                                },
+                                .up    = [this](const Vec2& point) { onMouseUp(point); },
+                                .move  = [this](const Vec2& point) { onMouseMove(point); },
+                                .wheel = [this](const Vec2& point, float amount) {
+                                    // The wheel belongs to the move list, and only while the
+                                    // pointer is over it. Up means "earlier moves".
+                                    if (modal() == nullptr && _panel->overList(point) &&
+                                        _panel->scroll(-amount * kRowsPerScrollUnit))
+                                        keepAwake();
+                                }});
 
     auto* keyboard         = EventListenerKeyboard::create();
     keyboard->onKeyPressed = [this](EventKeyboard::KeyCode code, Event*) { onKeyPressed(code); };

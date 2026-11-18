@@ -31,6 +31,21 @@ struct WindowHooks {
 };
 void followWindow(ax::Node* scene, WindowHooks hooks);
 
+// The mouse, for a scene that decides itself whom each event belongs to —
+// an open dialog, a button, the board — in one place, instead of every node
+// listening and the first to hear a click taking it. The scene's handlers
+// get the point in world coordinates; `down` is told whether it was the
+// right button (the left one otherwise; the middle one is not passed on),
+// `up` comes for the left button only. `wheel`, if given, gets the wheel's
+// or trackpad's movement as the system reports it: negative is up.
+struct MouseHooks {
+    std::function<void(const ax::Vec2& point, bool right)>   down;
+    std::function<void(const ax::Vec2& point)>               up;
+    std::function<void(const ax::Vec2& point)>               move;
+    std::function<void(const ax::Vec2& point, float amount)> wheel;
+};
+void followMouse(ax::Node* scene, MouseHooks hooks);
+
 // Saves a picture of the window to `path` and quits — once the screen has
 // stopped changing: `busy` has said no for a little while (an engine
 // answering, a piece landing, a bar settling). Looked at four times a second,

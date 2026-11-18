@@ -54,6 +54,33 @@ void followWindow(Node* scene, WindowHooks hooks) {
 #endif
 }
 
+void followMouse(Node* scene, MouseHooks hooks) {
+    auto* mouse        = EventListenerMouse::create();
+    mouse->onMouseDown = [down = hooks.down](EventMouse* event) {
+        const auto button = event->getMouseButton();
+        if (button == EventMouse::MouseButton::BUTTON_LEFT || button == EventMouse::MouseButton::BUTTON_RIGHT)
+            down(event->getLocation(), button == EventMouse::MouseButton::BUTTON_RIGHT);
+        return true;
+    };
+    mouse->onMouseUp = [up = hooks.up](EventMouse* event) {
+        if (event->getMouseButton() == EventMouse::MouseButton::BUTTON_LEFT)
+            up(event->getLocation());
+        return true;
+    };
+    mouse->onMouseMove = [move = hooks.move](EventMouse* event) {
+        move(event->getLocation());
+        return true;
+    };
+    if (hooks.wheel) {
+        mouse->onMouseScroll = [wheel = hooks.wheel](EventMouse* event) {
+            wheel(event->getLocation(), event->getScrollY());
+            return true;
+        };
+    }
+    // Scene-graph priority: the listener goes with the scene.
+    scene->getEventDispatcher()->addEventListenerWithSceneGraphPriority(mouse, scene);
+}
+
 void screenshotWhenSettled(Node* host, const std::string& path, std::function<bool()> busy) {
     // How long it has waited, and for how long nothing has been going on.
     struct Clock {
