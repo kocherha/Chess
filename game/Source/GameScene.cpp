@@ -40,6 +40,9 @@ constexpr int kAnalysisMinDepth = 6;
 
 // The pause before a reply that needed no thinking.
 constexpr float kReplyPause = 0.45f;
+// The best move and the runner-up: how far apart they are is what tells an
+// only move from one of several good ones.
+constexpr int kAnalysisLines = 2;
 
 // How long "copied" stays up after something has been put on the clipboard.
 constexpr float kCopiedSeconds = 1.6f;
@@ -646,7 +649,7 @@ void GameScene::analyse() {
     request.position   = _review.now();
     request.moveTimeMs = kAnalysisMs;
     request.depth      = kAnalysisDepth;
-    request.options    = analysisOptions();
+    request.options    = watcherOptions(kAnalysisLines);
     request.tag = _analysisTag = _nextTag++;
     _searchKey = _review.now();
     _analysis.search(std::move(request));
@@ -661,7 +664,7 @@ void GameScene::reviewNext() {
     auto request = _review.nextToReview();
     if (!request)
         return;
-    request->options = analysisOptions();
+    request->options = watcherOptions(kAnalysisLines);
     request->tag = _analysisTag = _nextTag++;
     _searchKey = request->position;
     _analysis.search(std::move(*request));

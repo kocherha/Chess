@@ -182,9 +182,10 @@ TEST(Difficulty, SwitchingLevelsLeavesNothingBehind) {
 }
 
 TEST(Difficulty, TheAnalystIsStrongAndQuiet) {
-    const auto options = asMap(analysisOptions());
+    const auto options = asMap(watcherOptions(2));
     EXPECT_EQ(options.at("UCI_LimitStrength"), "false");
     EXPECT_EQ(options.at("Skill Level"), "20");
     EXPECT_EQ(options.at("Threads"), "1");
     EXPECT_EQ(options.at("MultiPV"), "2");  // the runner-up too: marks need it
+    EXPECT_EQ(asMap(watcherOptions(1)).at("MultiPV"), "1");
 }

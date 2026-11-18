@@ -91,10 +91,16 @@ std::vector<std::pair<std::string, std::string>> engineOptions(const Level& leve
 // Full strength, on as many threads as it is polite to take.
 std::vector<std::pair<std::string, std::string>> fullStrengthOptions(unsigned hardwareThreads);
 
-// Options for the engine that only watches: full strength, so that what it
-// says about a position is true whatever level is being played, but on a
-// single thread — it runs after every move and must not be what the fan is
-// for. It reports its two best moves, which judging a move needs (Judge.h).
-std::vector<std::pair<std::string, std::string>> analysisOptions();
+// Options for the engine that only watches — the game's, which the problems
+// borrow: full strength, so that what it says about a position is true
+// whatever level is being played, but on a single thread. One thread because
+// it runs after every move and must not be what the fan is for; and because
+// with more, Stockfish sometimes ends a search restricted to one move
+// ("searchmoves") after a few plies, without the mate it would have found —
+// and the verdict on a move in a problem is exactly that search.
+//
+// `lines`: how many best moves it reports. Two in a game, where judging a
+// move needs the runner-up (Judge.h); one in the problems.
+std::vector<std::pair<std::string, std::string>> watcherOptions(int lines);
 
 }  // namespace chess

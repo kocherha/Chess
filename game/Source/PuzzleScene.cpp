@@ -31,12 +31,6 @@ constexpr int kProbeMate = 8;      // the longest mate the editor looks for
 constexpr int kProbeMs   = 3000;
 constexpr int kShorterMs = 2000;   // then: is there a shorter one?
 
-// One thread. With more, Stockfish sometimes ends a search restricted to a
-// single move ("searchmoves") after a few plies, without the mate it would
-// have found — and the verdict on the player's move is exactly that search.
-std::vector<std::pair<std::string, std::string>> puzzleOptions() {
-    return {{"Threads", "1"}, {"MultiPV", "1"}, {"UCI_LimitStrength", "false"}, {"Skill Level", "20"}};
-}
 
 // What the engine said about positions set up in the editor, for as long as
 // the program runs: the shortest mate it found (negative: the side to move
@@ -225,7 +219,7 @@ void PuzzleScene::onEnter() {
 // --- the engine --------------------------------------------------------------------
 
 void PuzzleScene::ask(Question question, SearchRequest request) {
-    request.options = puzzleOptions();
+    request.options = watcherOptions(1);
     request.tag = _tag = _nextTag--;  // negative: the session's are positive
     _question       = question;
     _engine.search(std::move(request));
@@ -237,7 +231,7 @@ void PuzzleScene::talkToEngine() {
         if (work.cancel)
             _engine.cancel();
         if (work.search) {
-            work.search->options = puzzleOptions();
+            work.search->options = watcherOptions(1);
             _engine.search(std::move(*work.search));
         }
         if (!work.known)
