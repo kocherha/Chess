@@ -125,7 +125,6 @@ inline constexpr const char* kNoEngineHere = "Stockfish не знайдено: �
 
 // Solving.
 inline constexpr const char* kChecking      = "Перевіряю хід…";
-inline constexpr const char* kDefending     = "Суперник шукає захист…";
 inline constexpr const char* kRight         = "Так!";
 inline constexpr const char* kWrong         = "Ні, не те";
 inline constexpr const char* kSolved        = "Розв'язано!";
@@ -138,9 +137,7 @@ inline constexpr const char* kDeleteMine    = "Видалити з моїх";
 inline constexpr const char* kMine          = "Мої задачі";
 inline constexpr const char* kMineEmpty =
     "Тут з'являться позиції, збережені в редакторі кнопкою «Зберегти в мої».";
-inline constexpr const char* kTheirTurn     = "Хід суперника";
 inline constexpr const char* kTryAgain      = "Спробуйте інший хід.";
-inline constexpr const char* kBestMoveGoal  = "знайти найкращий хід";
 
 inline constexpr const char* kFromEditor   = "Позиція з редактора";
 inline constexpr const char* kNoForcedMate =
