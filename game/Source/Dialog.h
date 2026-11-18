@@ -19,8 +19,12 @@ public:
     bool isOpen() const { return isVisible(); }
     void close() { setVisible(false); }
 
-    // Lays the dialog out in the middle of a screen of this size.
-    virtual void layout(const ax::Vec2& screen) = 0;
+    // The screen is this size now: the dialog lays itself out in the middle
+    // of it — at once if it is open, and otherwise when it next opens.
+    void layout(const ax::Vec2& screen) {
+        _screen = screen;
+        relayout();
+    }
 
     // True if the pointer moved onto or off a button, i.e. there is something
     // to redraw. Virtual for a dialog with more on it than buttons.
@@ -33,6 +37,15 @@ public:
     virtual void keyPressed(ax::EventKeyboard::KeyCode code) = 0;
 
 protected:
+    // Lays the dialog out again on the screen it was last given: when it
+    // opens, or when what is on it has changed size.
+    void relayout() {
+        if (isOpen() && _screen.x > 0.0f)
+            place(_screen);
+    }
+    // The dialog's own layout, on a screen of this size. Only while it is open.
+    virtual void place(const ax::Vec2& screen) = 0;
+
     // Clears `back` and draws on it what every dialog stands on: the scrim
     // over the whole screen, and the card of this size in its middle. Returns
     // the card's lower left corner, from which the rest is laid out.
@@ -45,4 +58,7 @@ protected:
     }
 
     ButtonSet _buttons;
+
+private:
+    ax::Vec2 _screen;
 };

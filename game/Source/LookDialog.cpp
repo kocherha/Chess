@@ -88,7 +88,7 @@ bool LookDialog::init() {
 
 void LookDialog::open() {
     setVisible(true);
-    layout(_screen);
+    relayout();
 }
 
 void LookDialog::choosePieces(int index) {
@@ -172,11 +172,7 @@ void LookDialog::refresh() {
     }
 }
 
-void LookDialog::layout(const Vec2& screen) {
-    _screen = screen;
-    if (!isVisible() || screen.x <= 0.0f)
-        return;
-
+void LookDialog::place(const Vec2& screen) {
     const float width = std::min(kWidth, screen.x - 40.0f);
     const float inner = width - 2.0f * kPadding;
 

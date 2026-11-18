@@ -134,12 +134,12 @@ void NewGameDialog::open(const GameSetup& setup, bool canCancel, bool engineAvai
         _setup.opponent = GameSetup::Opponent::Human;
 
     setVisible(true);
-    layout(_screen);
+    relayout();
 }
 
 void NewGameDialog::choose(GameSetup::Opponent opponent) {
     _setup.opponent = opponent;
-    layout(_screen);
+    relayout();
 }
 
 void NewGameDialog::choose(GameSetup::Side side) {
@@ -154,7 +154,7 @@ void NewGameDialog::chooseLevel(int number) {
 void NewGameDialog::chooseStrength(int strength) {
     _setup.strength = std::clamp(strength, 0, chess::strengthCount() - 1);
     // The description can be one line or two, and the card is sized to it.
-    layout(_screen);
+    relayout();
 }
 
 // While the slider is held it has the pointer to itself: dragging the thumb
@@ -247,11 +247,7 @@ void NewGameDialog::refresh() {
     _notice->setString(typeset::wrap(text::kNoEngine, 14.0f, _textWidth));
 }
 
-void NewGameDialog::layout(const Vec2& screen) {
-    _screen = screen;
-    if (!isVisible() || screen.x <= 0.0f)
-        return;
-
+void NewGameDialog::place(const Vec2& screen) {
     const bool computer = _setup.opponent == GameSetup::Opponent::Computer;
     const float width   = std::min(kWidth, screen.x - 40.0f);
     const float inner   = width - 2.0f * kPadding;

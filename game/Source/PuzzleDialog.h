@@ -19,13 +19,13 @@ public:
     // since it was last open.
     void open();
 
-    void layout(const ax::Vec2& screen) override;
     void keyPressed(ax::EventKeyboard::KeyCode code) override;
 
     std::function<void(const Puzzle&)> onChoose;
     std::function<void()>              onCancel;
 
 private:
+    void place(const ax::Vec2& screen) override;
     bool init() override;
     void rebuild();
 
@@ -35,7 +35,6 @@ private:
         std::vector<Button*> buttons;
     };
 
-    ax::Vec2 _screen;
     ax::DrawNode* _back  = nullptr;
     ax::DrawNode* _ticks = nullptr;
     ax::Node*     _content = nullptr;  // everything that is made anew on each open

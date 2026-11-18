@@ -40,7 +40,6 @@ public:
     // really be asked for.
     void open(const GameSetup& setup, bool canCancel, bool engineAvailable, int eloMin, int eloMax);
 
-    void layout(const ax::Vec2& screen) override;
     void keyPressed(ax::EventKeyboard::KeyCode code) override;
 
     // The slider is not a button, so the pointer is offered to it first.
@@ -55,6 +54,7 @@ public:
     std::function<void()>                 onPuzzles;
 
 private:
+    void place(const ax::Vec2& screen) override;
     bool init() override;
     void refresh();
     void choose(GameSetup::Opponent opponent);
@@ -79,7 +79,6 @@ private:
     GameSetup _setup;
     bool _canCancel = false, _engineAvailable = true;
     int  _eloMin = 0, _eloMax = 0;
-    ax::Vec2 _screen;
     float    _textWidth = 0.0f;  // how wide a line of running text may be
 
     ax::DrawNode* _back = nullptr;

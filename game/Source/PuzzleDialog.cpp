@@ -63,7 +63,7 @@ bool PuzzleDialog::init() {
 void PuzzleDialog::open() {
     rebuild();
     setVisible(true);
-    layout(_screen);
+    relayout();
 }
 
 void PuzzleDialog::rebuild() {
@@ -120,11 +120,7 @@ void PuzzleDialog::keyPressed(EventKeyboard::KeyCode code) {
         onCancel();
 }
 
-void PuzzleDialog::layout(const Vec2& screen) {
-    _screen = screen;
-    if (!isVisible() || screen.x <= 0.0f)
-        return;
-
+void PuzzleDialog::place(const Vec2& screen) {
     const bool  shortScreen = screen.y < kShortScreen;
     const std::size_t across = shortScreen ? kAcross + 1 : kAcross;
     const float row    = shortScreen ? kRowShort : kRow;

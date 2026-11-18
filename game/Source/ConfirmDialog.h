@@ -34,13 +34,12 @@ public:
     void proceed();
     void stay();
 
-    void layout(const ax::Vec2& screen) override;
     void keyPressed(ax::EventKeyboard::KeyCode code) override;
 
 private:
+    void place(const ax::Vec2& screen) override;
     bool init() override;
 
-    ax::Vec2    _screen;
     std::string _text;  // the message as given; it is wrapped again whenever the width changes
     std::function<void()> _onProceed, _onStay;
     bool _quitting = false;  // the question asked last was "really close?"

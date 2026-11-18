@@ -73,7 +73,7 @@ void ConfirmDialog::open(const std::string& title, const std::string& message, c
     _onStay    = std::move(onStay);
 
     setVisible(true);
-    layout(_screen);
+    relayout();
 }
 
 // The callback is taken out before it is called: it may well open this very
@@ -116,11 +116,7 @@ void ConfirmDialog::keyPressed(EventKeyboard::KeyCode code) {
     }
 }
 
-void ConfirmDialog::layout(const Vec2& screen) {
-    _screen = screen;
-    if (!isVisible() || screen.x <= 0.0f)
-        return;
-
+void ConfirmDialog::place(const Vec2& screen) {
     const float width = std::min(kWidth, screen.x - 40.0f);
     const float inner = width - 2.0f * kPadding;
 
