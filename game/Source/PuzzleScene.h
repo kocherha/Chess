@@ -34,6 +34,7 @@
 #include "chess/Engine.h"
 #include "chess/Game.h"
 #include "chess/Judge.h"
+#include "chess/PositionProbe.h"
 #include "chess/PuzzleSession.h"
 #include "chess/Setup.h"
 
@@ -75,13 +76,9 @@ public:
     void onExit() override;
 
 private:
-    explicit PuzzleScene(chess::Engine& engine) : _engine(engine) {}
+    explicit PuzzleScene(chess::Engine& engine);
 
     enum class Page { Editor, Solving };
-
-    // What the editor has asked the engine. (Solving asks through the
-    // session; see talkToEngine().)
-    enum class Question { None, Probe, Shorter };
 
     bool initWith(Hooks hooks, Opening opening);
 
@@ -89,7 +86,6 @@ private:
     void openEditor(const chess::Setup& setup);
     void edited();  // something on the board or the panel changed
     void place(chess::Square square, chess::Piece piece);
-    void probe();
     void refreshEditor();
     void copyFen();
     void pasteFen();
@@ -112,7 +108,7 @@ private:
     bool playerToMove() const { return _page == Page::Solving && _session.playerToMove(); }
 
     // --- the engine ---
-    void ask(Question question, chess::SearchRequest request);  // the editor's questions
+    void sendProbe();                                          // the editor's questions
     void talkToEngine();                                       // the session's
     void pollEngine();
 
@@ -155,22 +151,17 @@ private:
     std::vector<chess::Issue>      _issues;
     std::optional<chess::Position> _setupPosition;
     PieceTray::Item   _brush;     // what a click on the board puts there
-    float             _probeIn = -1.0f;  // seconds until the position is given to the engine; < 0: not due
-    std::string       _probeFen;  // what the engine said the following about
-    bool              _probeDone = false;
-    std::optional<int> _probeMate, _probeCp;
+    chess::PositionProbe _probe;  // what the engine finds in it: a mate, or who is better
 
     // Solving: the problem as the collection has it (its id, name, whose it
     // is), and the session that is solving it.
     Puzzle               _puzzle;
     chess::PuzzleSession _session;
 
-    // The engine. The editor's questions carry negative tags, the session's
-    // positive ones: one engine, two askers, and each answer goes back to
-    // the one that asked.
+    // The engine. The editor's probe tags its questions with negative
+    // numbers, the session with positive ones: one engine, two askers, and
+    // each answer goes back to the one that asked.
     chess::Engine& _engine;
-    Question      _question = Question::None;
-    int           _tag = 0, _nextTag = -1;
     bool _engineWasUsable = false;  // as update() last saw it
 
     // Input. Solving: as in a game. The editor: a press on a tray or a

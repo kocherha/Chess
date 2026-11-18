@@ -22,25 +22,14 @@ namespace {
 constexpr float kTrayShare = 0.82f;  // a tray's height, in squares
 constexpr float kTrayGap   = 10.0f;
 
-constexpr float kProbeDelay   = 0.3f;   // after the last edit, before the engine is asked
 constexpr float kFlashSeconds = 1.6f;
-
-// What the editor asks the engine, and for how long. (What solving asks is
-// chess::PuzzleSession's.)
-constexpr int kProbeMate = 8;      // the longest mate the editor looks for
-constexpr int kProbeMs   = 3000;
-constexpr int kShorterMs = 2000;   // then: is there a shorter one?
 
 
 // What the engine said about positions set up in the editor, for as long as
-// the program runs: the shortest mate it found (negative: the side to move
-// is mated), or none, and its score. Coming back to a position — an edit
-// undone, the problems opened again — asks it nothing a second time.
-struct Verdict {
-    std::optional<int> mate, cp;
-};
-std::map<std::string, Verdict>& verdicts() {
-    static std::map<std::string, Verdict> known;
+// the program runs: coming back to a position — an edit undone, the problems
+// opened again — asks it nothing a second time.
+PositionProbe::Memory& verdicts() {
+    static PositionProbe::Memory known;
     return known;
 }
 
@@ -202,11 +191,17 @@ void PuzzleScene::onEnter() {
 
 // --- the engine --------------------------------------------------------------------
 
-void PuzzleScene::ask(Question question, SearchRequest request) {
-    request.options = watcherOptions(1);
-    request.tag = _tag = _nextTag--;  // negative: the session's are positive
-    _question       = question;
-    _engine.search(std::move(request));
+PuzzleScene::PuzzleScene(Engine& engine) : _probe(verdicts()), _engine(engine) {}
+
+// What the editor's probe wants of the engine.
+void PuzzleScene::sendProbe() {
+    auto work = _probe.toEngine();
+    if (work.cancel)
+        _engine.cancel();
+    if (!work.search)
+        return;
+    work.search->options = watcherOptions(1);
+    _engine.search(std::move(*work.search));
 }
 
 void PuzzleScene::talkToEngine() {
@@ -233,47 +228,11 @@ void PuzzleScene::pollEngine() {
             answered = true;
             continue;
         }
-        if (_tag == 0 || result.tag != _tag)
-            continue;
-        const Question question = _question;
-        _question = Question::None;
-        _tag      = 0;
-
-        switch (question) {
-        case Question::Probe:
-        case Question::Shorter: {
-            if (_page != Page::Editor || _setup.fen() != _probeFen)
-                break;
-            bool found = false;  // a mate, or a shorter one than before
-            if (question == Question::Probe) {
-                _probeDone = true;
-                _probeMate = result.mateIn && *result.mateIn != 0 ? result.mateIn : std::nullopt;
-                _probeCp   = result.scoreCp;
-                found      = true;
-            } else if (result.mateIn && *result.mateIn > 0 && _probeMate && *result.mateIn < *_probeMate) {
-                _probeMate = result.mateIn;
-                found      = true;
-            }
-            // A mate was found; the search stops at the first one it sees,
-            // which need not be the quickest. Ask for one a move shorter
-            // until there is none — and then the engine has said all it will.
-            if (found && _probeMate && *_probeMate > 1) {
-                SearchRequest shorter;
-                shorter.position   = "position fen " + _probeFen;
-                shorter.mate       = *_probeMate - 1;
-                shorter.moveTimeMs = kShorterMs;
-                ask(Question::Shorter, shorter);
-            } else {
-                verdicts()[_probeFen] = {_probeMate, _probeCp};
-            }
-            refreshEditor();
-            break;
-        }
-
-        case Question::None:
-            break;
-        }
+        _probe.answer(result);  // the editor's: its tags are negative
     }
+    sendProbe();
+    if (_probe.takeChanged() && _page == Page::Editor)
+        refreshEditor();
     if (answered && _page == Page::Solving)
         sessionChanged();
 }
@@ -285,8 +244,6 @@ void PuzzleScene::openEditor(const Setup& setup) {
     _session.close();
     _session.toEngine();
     _engine.cancel();
-    _question = Question::None;
-    _tag      = 0;
     _page     = Page::Editor;
     _setup    = setup;
     _brush    = {};
@@ -303,46 +260,18 @@ void PuzzleScene::openEditor(const Setup& setup) {
 }
 
 void PuzzleScene::edited() {
-    // Whatever the engine was saying is about a position that is gone.
-    if (_question == Question::Probe || _question == Question::Shorter) {
-        _engine.cancel();
-        _question = Question::None;
-        _tag      = 0;
-    }
-    _probeDone = false;
-    _probeMate.reset();
-    _probeCp.reset();
-    _probeFen.clear();
-    _probeIn = -1.0f;
-
     _issues        = _setup.issues();
     _setupPosition = _issues.empty() ? Position::fromFen(_setup.fen()) : std::nullopt;
 
-    if (const auto known = verdicts().find(_setup.fen()); known != verdicts().end()) {
-        _probeFen  = known->first;
-        _probeDone = true;
-        _probeMate = known->second.mate;
-        _probeCp   = known->second.cp;
-    } else if (_setupPosition && _setupPosition->hasLegalMoves() && _engine.usable()) {
-        _probeIn = kProbeDelay;
-    }
+    // Whatever the engine was saying is about a position that is gone; this
+    // one it is asked about in a moment, if it is worth asking.
+    _probe.look(_setup.fen(), _setupPosition && _setupPosition->hasLegalMoves() && _engine.usable());
+    sendProbe();
+    _probe.takeChanged();
+
     eventlog::note("setup " + _setup.fen());
     refreshEditor();
     keepAwake();
-}
-
-void PuzzleScene::probe() {
-    _probeIn = -1.0f;
-    const auto& position = _setupPosition;
-    if (_page != Page::Editor || !position || !position->hasLegalMoves() || !_engine.usable())
-        return;
-    _probeFen = _setup.fen();
-    SearchRequest request;
-    request.position   = "position fen " + _probeFen;
-    request.mate       = kProbeMate;
-    request.moveTimeMs = kProbeMs;
-    ask(Question::Probe, request);
-    refreshEditor();
 }
 
 // A piece goes down on a square. There is one king of a colour: putting one
@@ -395,16 +324,16 @@ void PuzzleScene::refreshEditor() {
                           Tone::Neutral);
     } else if (!_engine.usable()) {
         _panel->setStatus(text::kPossible, text::kNoEngineHere, Tone::Good);
-    } else if (!_probeDone) {
+    } else if (const auto& verdict = _probe.verdict(); !verdict) {
         _panel->setStatus(text::kPossible, text::kStudying, Tone::Good);
     } else {
-        std::string detail = text::finding(position->sideToMove(), _probeMate, _probeCp);
-        if (!_probeMate || *_probeMate < 0)
+        std::string detail = text::finding(position->sideToMove(), verdict->mate, verdict->cp);
+        if (_probe.mateToSolve() == 0)
             detail += std::string("\n") + text::kNoForcedMate;
         _panel->setStatus(text::kPossible, detail, Tone::Good);
     }
 
-    const bool studied = playable && (_probeDone || !_engine.usable());
+    const bool studied = playable && (_probe.verdict() || !_engine.usable());
     _panel->solve->setEnabled(studied && _engine.usable());
     _panel->saveMine->setEnabled(studied);
     _panel->playFrom->setEnabled(playable);
@@ -434,7 +363,7 @@ void PuzzleScene::pasteFen() {
 void PuzzleScene::saveMine() {
     if (!_panel->saveMine->enabled())
         return;
-    puzzles::save(_setup.fen(), _probeMate && *_probeMate > 0 ? *_probeMate : 0);
+    puzzles::save(_setup.fen(), _probe.mateToSolve());
     flash(_panel->saveMine, text::kSaved, [this] { _panel->saveMine->setText(text::kSaveMine); });
 }
 
@@ -447,14 +376,14 @@ void PuzzleScene::solveSetup() {
     for (const Puzzle& puzzle : puzzles::mine())
         if (puzzle.fen == fen) {
             Puzzle again = puzzle;
-            again.mateIn = _probeMate && *_probeMate > 0 ? *_probeMate : 0;
+            again.mateIn = _probe.mateToSolve();
             openPuzzle(again);
             return;
         }
     Puzzle puzzle;
     puzzle.title  = text::kFromEditor;
     puzzle.fen    = fen;
-    puzzle.mateIn = _probeMate && *_probeMate > 0 ? *_probeMate : 0;
+    puzzle.mateIn = _probe.mateToSolve();
     openPuzzle(puzzle);
 }
 
@@ -467,11 +396,8 @@ void PuzzleScene::playFromSetup() {
 
 void PuzzleScene::openPuzzle(const Puzzle& puzzle) {
     // A question the editor had out is about the position being left.
-    if (_question != Question::None) {
-        _engine.cancel();
-        _question = Question::None;
-        _tag      = 0;
-    }
+    _probe.drop();
+    sendProbe();
 
     _session.setEngineUsable(_engine.usable());
     std::string error;
@@ -1002,11 +928,8 @@ void PuzzleScene::refreshMarks() {
 void PuzzleScene::update(float delta) {
     pollEngine();
 
-    if (_probeIn >= 0.0f) {
-        _probeIn -= delta;
-        if (_probeIn < 0.0f)
-            probe();
-    }
+    _probe.tick(delta);
+    sendProbe();
 
     // The session's own time: a defence about to be played, a wrong move
     // about to be taken back.
@@ -1040,7 +963,7 @@ void PuzzleScene::update(float delta) {
     // list has to be complete (see Wakefulness.h).
     _awake.update(delta, {
         {_engine.thinking(), "the engine is thinking"},
-        {_probeIn >= 0.0f, "the position is about to be looked at"},
+        {_probe.waiting(), "the position is about to be looked at"},
         {_session.timerRunning(), "a reply or a take-back is due"},
         {_board->animating(), "a piece is moving"},
         {_input.pressed() || _press.down, "the mouse button is down", Wakefulness::Kind::Stay},

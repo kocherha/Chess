@@ -3,6 +3,7 @@ add_executable(chess_session_tests
     GameReviewTest.cpp
     MoveListTest.cpp
     OpponentTest.cpp
+    PositionProbeTest.cpp
     PuzzleSessionTest.cpp
     WatcherTest.cpp
 )
