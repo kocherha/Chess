@@ -58,7 +58,7 @@ const std::vector<PieceSet>& pieceSets() {
         {"ancient", text::kPiecesAncient, "pieces/ancient"},
         // And as an old console would have drawn them: on a grid of 32 x 32,
         // five tones a side and one dark line; see art/pixel.py.
-        {"pixel", text::kPiecesPixel, "pieces/pixel"},
+        {"pixel", text::kPiecesPixel, "pieces/pixel", /*pixelArt=*/true},
     };
     return sets;
 }
@@ -114,7 +114,8 @@ const std::vector<BoardStyle>& boards() {
         // pixel pieces; a square frame, as nothing on that screen was round.
         {"pixel", text::kBoardPixel,
          rgb(228, 216, 176), rgb(102, 145, 95), rgb(40, 32, 52), rgb(244, 235, 203), 0.0f, "boards/pixel",
-         rgb(250, 214, 70, 0.5f), rgb(70, 170, 250, 0.58f), rgb(30, 24, 44, 0.42f), rgb(232, 52, 52, 0.9f)},
+         rgb(250, 214, 70, 0.5f), rgb(70, 170, 250, 0.58f), rgb(30, 24, 44, 0.42f), rgb(232, 52, 52, 0.9f),
+         /*pixelArt=*/true},
     };
     return styles;
 }
@@ -195,6 +196,16 @@ void smooth(Sprite* sprite) {
     }
 }
 
+// Pixel art is the other way round: its pixels are the drawing. Smoothed,
+// they blur into one another on an ordinary display; taken as they are — the
+// nearest one, no blending — each stays a hard-edged square. (At a size that
+// is not a whole number of screen pixels per pixel of the drawing some come
+// out a pixel wider than others; that shows far less than the blur did.)
+void keepPixels(Sprite* sprite) {
+    if (Texture2D* texture = sprite->getTexture())
+        texture->setAliasTexParameters();
+}
+
 }  // namespace
 
 Sprite* sprite(const PieceSet& set, chess::Piece piece, float square) {
@@ -207,7 +218,7 @@ Sprite* sprite(const PieceSet& set, chess::Piece piece, float square) {
     auto* made = Sprite::create(name);
     if (made == nullptr)
         return nullptr;
-    smooth(made);
+    set.pixelArt ? keepPixels(made) : smooth(made);
 
     const float width = made->getContentSize().width;
     if (width > 0.0f)
@@ -260,7 +271,7 @@ Sprite* tile(const BoardStyle& style, bool light, int column, int row, float squ
     auto* made = Sprite::create(std::string(style.tiles) + (light ? "/light.png" : "/dark.png"));
     if (made == nullptr)
         return nullptr;
-    smooth(made);
+    style.pixelArt ? keepPixels(made) : smooth(made);
 
     const unsigned pick = static_cast<unsigned>(column * 73 + row * 151 + column * row * 31) % 16u;
     const Vec2 half(made->getContentSize().width * 0.5f, made->getContentSize().height * 0.5f);

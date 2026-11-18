@@ -24,6 +24,9 @@ struct PieceSet {
     const char* id;      // what is remembered between runs, and --pieces
     const char* name;    // what the player reads
     const char* folder;  // under Content/: twelve files, wK.png ... bP.png
+    // Drawn pixel by pixel, and to be shown that way: not smoothed when it
+    // is scaled to the board.
+    bool pixelArt = false;
 };
 
 struct BoardStyle {
@@ -47,6 +50,9 @@ struct BoardStyle {
     // Marks on the board. Translucent, so the square still reads through, and
     // chosen per board because they have to show against both of its colours.
     ax::Color4F lastMove, selected, target, check;
+
+    // The pictures are pixel art: see PieceSet.
+    bool pixelArt = false;
 };
 
 const std::vector<PieceSet>&   pieceSets();
