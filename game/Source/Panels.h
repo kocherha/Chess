@@ -6,6 +6,7 @@
 #include "Button.h"
 
 #include "chess/Judge.h"
+#include "chess/MoveList.h"
 #include "chess/Types.h"
 
 #include "axmol.h"
@@ -114,15 +115,14 @@ public:
 private:
     bool init() override;
     void layout();
-    // The move list: its labels, and then what is drawn under them.
+    // The move list — what is in it and where it is scrolled to is _list's —
+    // drawn: its labels, and then what is drawn under them.
     void rebuildMoves();
     // Only what is drawn under the labels — the cells lit up for the newest
     // move, the one under the pointer and the one just copied, and the scroll
     // bar. The pointer moving over the list changes nothing else, and a label
     // is a texture to make.
     void redrawHighlights();
-    int  rowCount() const;
-    int  visibleRows() const;
 
     // The scroll bar's thumb as it stands now, in this node's coordinates.
     struct Thumb {
@@ -140,18 +140,7 @@ private:
     int   moveAt(const ax::Vec2& local) const;
 
     ax::Vec2 _size;
-    std::vector<std::string> _moves;
-    std::vector<chess::Mark> _marks;
-    std::string _result;
-    bool _whiteFirst = true;
-    int  _firstNumber = 1;    // the number of the first row
-    int  _firstRow   = 0;     // first row on screen
-    bool _following  = true;  // stay at the end as moves arrive
-    float _scrollCarry = 0.0f;  // the part of a row scroll() has not used yet
-
-    int  _hoverMove   = -1;  // the move under the pointer
-    int  _pressedMove = -1;  // the move the button went down on
-    int  _markedMove  = -1;
+    chess::MoveList _list;
     bool _barHot        = false;  // the pointer is on the scroll bar
     bool _draggingThumb = false;
     float _thumbGrab    = 0.0f;   // from the thumb's top edge to where it is held

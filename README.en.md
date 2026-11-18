@@ -546,6 +546,7 @@ engine/uci/                   talking to the engine; knows nothing of the rules
 engine/session/               the modes of the game without a screen: the rules + questions to the engine
   include/chess/PuzzleSession.h  a problem: a move, checking it, the defence, the hint, the solution
   include/chess/GameReview.h  what the engine found about a game's positions, and the marks from it
+  include/chess/MoveList.h    the move list without the drawing: rows, numbers, scrolling, what the pointer is on
   tests/                      every step of it, with no window and no real engine
 game/                         the axmol application
   Source/AppDelegate.*        the window, the command line, the main loop
@@ -553,7 +554,7 @@ game/                         the axmol application
   Source/BoardNode.*          the board, the pieces, the marks, dragging
   Source/BoardInput.*         moving with the mouse: select, click-click, drag, promote — for both modes
   Source/EvalBar.*            the evaluation bar
-  Source/Panels.*             the players' strips and the panel on the right
+  Source/Panels.*             the players' strips and the panel on the right (the move list drawn from MoveList)
   Source/Look.*               piece sets and boards: the tables, the current choice, drawing a board
   Source/Dialog.h             what the two dialogs share
   Source/NewGameDialog.*      the new-game dialog
@@ -690,7 +691,7 @@ cmake -S . -B build -DCHESS_BUILD_APP=OFF && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-149 tests. Those that play against the real Stockfish skip themselves if the
+162 tests. Those that play against the real Stockfish skip themselves if the
 binary is not there; among them are games at every level in which each move the
 engine makes has to be legal by this project's own rules.
 

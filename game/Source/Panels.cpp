@@ -299,74 +299,31 @@ void SidePanel::layout() {
     _listBottom = bottom;
     shapes::rect(_back, Vec2(kPadding, _listTop + 2.0f), Vec2(width, 1.0f), theme::kLine);
 
+    _list.setVisibleRows(static_cast<int>((_listTop - _listBottom) / kRowHeight));
     rebuildMoves();
 }
 
-int SidePanel::rowCount() const {
-    // The result, once there is one, has the line after the last move.
-    const int result = _result.empty() ? 0 : 1;
-    if (_moves.empty())
-        return result;
-    // A game that began with black to move has an empty first cell.
-    const std::size_t cells = _moves.size() + (_whiteFirst ? 0 : 1);
-    return static_cast<int>((cells + 1) / 2) + result;
-}
-
-int SidePanel::visibleRows() const {
-    return std::max(1, static_cast<int>((_listTop - _listBottom) / kRowHeight));
-}
-
 void SidePanel::setMoves(const std::vector<std::string>& moves, bool whiteFirst, int firstNumber) {
-    firstNumber = std::max(1, firstNumber);
-    if (moves == _moves && whiteFirst == _whiteFirst && firstNumber == _firstNumber)
+    if (!_list.setMoves(moves, whiteFirst, firstNumber))
         return;
-    // A new move, or a move taken back, means the player is looking at the
-    // present: go back to following the end of the list.
-    _moves       = moves;
-    _whiteFirst  = whiteFirst;
-    _firstNumber = firstNumber;
-    _following   = true;
-    _scrollCarry = 0.0f;
-    // What the pointer was over, or had hold of, is not there any more.
-    _hoverMove = _pressedMove = _markedMove = -1;
-    _draggingThumb = false;
-    copy->setEnabled(!_moves.empty());
+    _draggingThumb = false;  // what it had hold of is not there any more
+    copy->setEnabled(_list.moveCount() > 0);
     rebuildMoves();
 }
 
 void SidePanel::setMarks(const std::vector<Mark>& marks) {
-    if (marks == _marks)
-        return;
-    _marks = marks;
-    rebuildMoves();
+    if (_list.setMarks(marks))
+        rebuildMoves();
 }
 
 void SidePanel::setResult(const std::string& result) {
-    if (result == _result)
-        return;
-    _result = result;
-    // The end of the game is news: show it, wherever the list had been left.
-    if (!_result.empty())
-        _following = true;
-    rebuildMoves();
+    if (_list.setResult(result))
+        rebuildMoves();
 }
 
 bool SidePanel::scroll(float rows) {
-    _scrollCarry += rows;
-    const int whole = static_cast<int>(_scrollCarry);  // towards zero: the remainder keeps its sign
-    if (whole == 0)
+    if (!_list.scroll(rows))
         return false;
-    _scrollCarry -= static_cast<float>(whole);
-
-    const int last = std::max(0, rowCount() - visibleRows());
-    const int next = std::clamp(_firstRow - whole, 0, last);
-    _following     = next == last;
-    if (next == _firstRow) {
-        // Up against one end: nothing is owed in that direction any more.
-        _scrollCarry = 0.0f;
-        return false;
-    }
-    _firstRow = next;
     rebuildMoves();
     return true;
 }
@@ -380,7 +337,7 @@ bool SidePanel::overList(const Vec2& worldPoint) const {
 
 SidePanel::Thumb SidePanel::thumb() const {
     Thumb t;
-    const int rows = rowCount(), visible = visibleRows();
+    const int rows = _list.rowCount(), visible = _list.visibleRows();
     if (_size.x <= 0.0f || rows <= visible)
         return t;
 
@@ -389,8 +346,8 @@ SidePanel::Thumb SidePanel::thumb() const {
     t.top    = _listTop - 4.0f;
     t.length = std::max(24.0f, track * static_cast<float>(visible) / static_cast<float>(rows));
     t.travel = track - t.length;
-    t.last   = rows - visible;
-    t.at     = t.top - t.travel * static_cast<float>(_firstRow) / static_cast<float>(t.last);
+    t.last   = _list.lastFirstRow();
+    t.at     = t.top - t.travel * static_cast<float>(_list.firstRow()) / static_cast<float>(t.last);
     return t;
 }
 
@@ -405,21 +362,15 @@ void SidePanel::dragThumbTo(float y) {
     if (!t.shown || t.travel <= 0.0f)
         return;
     // Where the thumb's top edge would be, as a share of how far it can go.
-    const float share = std::clamp((t.top - (y + _thumbGrab)) / t.travel, 0.0f, 1.0f);
-    const int next    = static_cast<int>(std::lround(share * static_cast<float>(t.last)));
-    _following        = next == t.last;
-    _scrollCarry      = 0.0f;
-    if (next != _firstRow) {
-        _firstRow = next;
+    if (_list.scrollTo((t.top - (y + _thumbGrab)) / t.travel))
         rebuildMoves();
-    }
 }
 
 int SidePanel::moveAt(const Vec2& local) const {
-    if (_moves.empty() || local.y > _listTop - 4.0f)
+    if (_list.moveCount() == 0 || local.y > _listTop - 4.0f)
         return -1;
     const int line = static_cast<int>((_listTop - 4.0f - local.y) / kRowHeight);
-    if (line < 0 || line >= visibleRows())
+    if (line < 0 || line >= _list.visibleRows())
         return -1;
 
     const float width  = _size.x - 2.0f * kPadding;
@@ -432,8 +383,7 @@ int SidePanel::moveAt(const Vec2& local) const {
     if (x - static_cast<float>(side) * column > column - 6.0f)
         return -1;
 
-    const int index = (_firstRow + line) * 2 + side - (_whiteFirst ? 0 : 1);
-    return index >= 0 && index < static_cast<int>(_moves.size()) ? index : -1;
+    return _list.moveIn(_list.firstRow() + line, side);
 }
 
 bool SidePanel::mouseDown(const Vec2& worldPoint) {
@@ -452,25 +402,26 @@ bool SidePanel::mouseDown(const Vec2& worldPoint) {
         return true;
     }
 
-    _pressedMove = moveAt(local);
-    return _pressedMove >= 0;
+    const int index = moveAt(local);
+    _list.press(index);
+    return index >= 0;
 }
 
 bool SidePanel::mouseMove(const Vec2& worldPoint) {
     const Vec2 local = convertToNodeSpace(worldPoint);
 
     if (_draggingThumb) {
-        const int before = _firstRow;
+        const int before = _list.firstRow();
         dragThumbTo(local.y);
-        return _firstRow != before;
+        return _list.firstRow() != before;
     }
 
     const bool hot  = overBar(local);
     const int hover = hot ? -1 : moveAt(local);
-    if (hot == _barHot && hover == _hoverMove)
+    if (hot == _barHot && hover == _list.hovered())
         return false;
-    _barHot    = hot;
-    _hoverMove = hover;
+    _barHot = hot;
+    _list.setHovered(hover);
     redrawHighlights();
     return true;
 }
@@ -485,17 +436,13 @@ void SidePanel::mouseUp(const Vec2& worldPoint) {
         return;
     }
 
-    const int pressed = _pressedMove;
-    _pressedMove      = -1;
-    if (pressed >= 0 && moveAt(local) == pressed && onMoveClicked)
-        onMoveClicked(pressed);
+    if (const auto clicked = _list.release(moveAt(local)); clicked && onMoveClicked)
+        onMoveClicked(*clicked);
 }
 
 void SidePanel::markMove(int index) {
-    if (index == _markedMove)
-        return;
-    _markedMove = index;
-    redrawHighlights();
+    if (_list.setMarked(index))
+        redrawHighlights();
 }
 
 void SidePanel::rebuildMoves() {
@@ -506,7 +453,7 @@ void SidePanel::rebuildMoves() {
 
     const float width = _size.x - 2.0f * kPadding;
 
-    if (_moves.empty() && _result.empty()) {
+    if (_list.empty()) {
         auto* empty = typeset::label(text::kNoMoves, 14.0f, theme::kFaint);
         empty->setAnchorPoint(Vec2(0.0f, 0.5f));
         empty->setPosition(Vec2(kPadding, _listTop - kRowHeight * 0.5f - 4.0f));
@@ -514,52 +461,43 @@ void SidePanel::rebuildMoves() {
         return;
     }
 
-    const int rows    = rowCount();
-    const int visible = visibleRows();
-    const int last    = std::max(0, rows - visible);
-    _firstRow         = _following ? last : std::clamp(_firstRow, 0, last);
-
     // Only the rows on screen are built. A long game has hundreds of moves,
     // and a label is a texture.
     const float numberWidth = kNumberWidth;
     const float column      = (width - numberWidth) * 0.5f;
-    const int offset        = _whiteFirst ? 0 : 1;
-    const int newest        = static_cast<int>(_moves.size()) - 1;
+    const int   first       = _list.firstRow();
+    const int   end         = std::min(_list.rowCount(), first + _list.visibleRows());
 
-    for (int row = _firstRow; row < std::min(rows, _firstRow + visible); ++row) {
-        const float y = _listTop - 4.0f - (static_cast<float>(row - _firstRow) + 0.5f) * kRowHeight;
+    for (int row = first; row < end; ++row) {
+        const float y = _listTop - 4.0f - (static_cast<float>(row - first) + 0.5f) * kRowHeight;
 
-        if (!_result.empty() && row == rows - 1) {
+        if (_list.isResultRow(row)) {
             // Under the middle of the two columns of moves.
-            auto* result = typeset::label(_result, 15.0f, theme::kInk);
+            auto* result = typeset::label(_list.result(), 15.0f, theme::kInk);
             typeset::embolden(result);
             result->setPosition(Vec2(kPadding + numberWidth - 8.0f + column, y));
             _moveRows->addChild(result);
             continue;
         }
 
-        auto* number = typeset::label(std::to_string(_firstNumber + row) + ".", 14.0f, theme::kFaint);
+        auto* number = typeset::label(std::to_string(_list.number(row)) + ".", 14.0f, theme::kFaint);
         number->setAnchorPoint(Vec2(1.0f, 0.5f));
         number->setPosition(Vec2(kPadding + numberWidth - 10.0f, y));
         _moveRows->addChild(number);
 
         for (int side = 0; side < 2; ++side) {
-            const int index = row * 2 + side - offset;
-            if (index < 0 || index > newest)
+            const int index = _list.moveIn(row, side);
+            if (index < 0)
                 continue;
             const float x = kPadding + numberWidth + static_cast<float>(side) * column;
 
-            auto* move = typeset::label(_moves[static_cast<std::size_t>(index)], 15.0f,
-                                   index == newest ? theme::kInk : theme::kDim);
+            auto* move = typeset::label(_list.move(index), 15.0f, index == _list.newest() ? theme::kInk : theme::kDim);
             move->setAnchorPoint(Vec2(0.0f, 0.5f));
             move->setPosition(Vec2(x, y));
             _moveRows->addChild(move);
 
             // Its mark, straight after it, in the mark's own colour.
-            const Mark mark = static_cast<std::size_t>(index) < _marks.size()
-                                  ? _marks[static_cast<std::size_t>(index)]
-                                  : Mark::None;
-            if (mark != Mark::None) {
+            if (const Mark mark = _list.mark(index); mark != Mark::None) {
                 const Color4F tint = theme::markColour(mark);
                 auto* sign = typeset::label(suffix(mark), 15.0f,
                                             Color3B(static_cast<uint8_t>(tint.r * 255.0f),
@@ -578,25 +516,20 @@ void SidePanel::rebuildMoves() {
 
 void SidePanel::redrawHighlights() {
     _highlights->clear();
-    if (_size.x <= 0.0f || (_moves.empty() && _result.empty()))
+    if (_size.x <= 0.0f || _list.empty())
         return;
 
-    // The same rows and cells rebuildMoves() put the labels in; _firstRow is
-    // as it left it.
+    // The same rows and cells rebuildMoves() put the labels in.
     const float width  = _size.x - 2.0f * kPadding;
     const float column = (width - kNumberWidth) * 0.5f;
-    const int rows     = rowCount();
-    const int visible  = visibleRows();
-    const int offset   = _whiteFirst ? 0 : 1;
-    const int newest   = static_cast<int>(_moves.size()) - 1;
+    const int   first  = _list.firstRow();
+    const int   end    = std::min(_list.rowCount(), first + _list.visibleRows());
 
-    for (int row = _firstRow; row < std::min(rows, _firstRow + visible); ++row) {
-        if (!_result.empty() && row == rows - 1)
-            continue;
-        const float y = _listTop - 4.0f - (static_cast<float>(row - _firstRow) + 0.5f) * kRowHeight;
+    for (int row = first; row < end; ++row) {
+        const float y = _listTop - 4.0f - (static_cast<float>(row - first) + 0.5f) * kRowHeight;
         for (int side = 0; side < 2; ++side) {
-            const int index = row * 2 + side - offset;
-            if (index < 0 || index > newest)
+            const int index = _list.moveIn(row, side);
+            if (index < 0)
                 continue;
             const float x = kPadding + kNumberWidth + static_cast<float>(side) * column;
             const Vec2 cellOrigin(x - 8.0f, y - kRowHeight * 0.5f + 2.0f);
@@ -605,11 +538,11 @@ void SidePanel::redrawHighlights() {
             // The move just played is the one the eye is looking for; the one
             // under the pointer says it can be clicked; the one just copied
             // wears a ring until the notice goes away.
-            if (index == _markedMove)
+            if (index == _list.marked())
                 shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCardHover, 1.5f, theme::kAccent);
-            else if (index == newest)
+            else if (index == _list.newest())
                 shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCardHover);
-            else if (index == _hoverMove)
+            else if (index == _list.hovered())
                 shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCard);
         }
     }

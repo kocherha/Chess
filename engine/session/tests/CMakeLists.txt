@@ -1,5 +1,6 @@
 add_executable(chess_session_tests
     GameReviewTest.cpp
+    MoveListTest.cpp
     PuzzleSessionTest.cpp
 )
 target_link_libraries(chess_session_tests PRIVATE chess_session GTest::gtest_main)
