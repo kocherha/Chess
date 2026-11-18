@@ -44,10 +44,6 @@ namespace {
 // would wake it.
 constexpr float kSleepAfter = 0.5f;
 
-// How far the pointer must travel with the button down before a press on a
-// piece counts as carrying it rather than clicking it.
-constexpr float kDragThreshold = 5.0f;
-
 constexpr float kMargin    = 26.0f;
 constexpr float kBarHeight = 38.0f;
 
@@ -120,6 +116,11 @@ bool GameScene::init() {
     addChild(_backdrop, -1);
 
     _board   = BoardNode::create();
+    _input.attach(_board);
+    _input.position         = [this]() -> const Position& { return _game.position(); };
+    _input.mayMove          = [this] { return humanToMove(); };
+    _input.play             = [this](const Move& move, bool slide) { play(move, slide); };
+    _input.selectionChanged = [this] { refreshMarks(); };
     _evalBar = EvalBar::create();
     _top    = PlayerBar::create();
     _bottom = PlayerBar::create();
@@ -273,8 +274,8 @@ void GameScene::onEnter() {
 }
 
 void GameScene::openPuzzles() {
-    cancelPromotion();
-    _selected = kNoSquare;
+    _input.cancelPromotion();
+    _input.select(kNoSquare);
 
     PuzzleScene::Hooks hooks;
     hooks.backToGame  = [] { Director::getInstance()->popScene(); };
@@ -446,10 +447,9 @@ void GameScene::startGame(const GameSetup& setup) {
     }
     options.moves.clear();
 
-    _selected = _hintFrom = _hintTo = kNoSquare;
+    _input.reset();
+    _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
-    cancelPress();
-    _promoteFrom = _promoteTo = kNoSquare;
     _board->closePromotion();
 
     // The player sits at the bottom of their own side of the board.
@@ -475,7 +475,8 @@ void GameScene::play(const Move& move, bool slide) {
         return;
     eventlog::note("move " + move.uci());
 
-    _selected = _hintFrom = _hintTo = kNoSquare;
+    _input.reset();
+    _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
     _hintWanted = false;  // a hint still being worked out was for a position that is gone
 
@@ -812,7 +813,7 @@ void GameScene::update(float delta) {
         {_replyPending, "a reply is about to be played"},
         {barMoving, "the evaluation bar is moving"},
         {_board->animating(), "a piece is moving"},
-        {_pressed, "the mouse button is down"},
+        {_input.pressed(), "the mouse button is down"},
         {_panel->dragging(), "the move list is being dragged"},
         {_copiedFor > 0.0f, "the \"copied\" notice is up"},
         {_engine.state() == Engine::State::Starting, "the opponent is starting"},
@@ -861,7 +862,7 @@ void GameScene::openNewGame() {
         showNewGameDialog();
         return;
     }
-    cancelPromotion();
+    _input.cancelPromotion();
     _quitAsked = false;
     _confirm->open(text::kUnfinishedTitle, text::kLoseByNewGame, text::kNewGame, [this] { showNewGameDialog(); });
     keepAwake();
@@ -881,7 +882,7 @@ void GameScene::askBeforeQuitting(bool& closing) {
 }
 
 void GameScene::showNewGameDialog() {
-    cancelPromotion();
+    _input.cancelPromotion();
     // The dialog is also the place to find out that Stockfish is back.
     if (!engineUsable() || !analysisUsable())
         startEngine();
@@ -896,7 +897,7 @@ void GameScene::showNewGameDialog() {
 }
 
 void GameScene::openLooks() {
-    cancelPromotion();
+    _input.cancelPromotion();
     _looks->open();
     keepAwake();
 }
@@ -983,8 +984,8 @@ void GameScene::showCopied() {
 void GameScene::undo() {
     if (!_started)
         return;
-    cancelPromotion();
-    cancelPress();
+    _input.cancelPromotion();
+    _input.cancelPress();
 
     _engine.cancel();
     _moveTag      = 0;
@@ -1004,7 +1005,8 @@ void GameScene::undo() {
         } while (_game.position().sideToMove() != _human);
     }
 
-    _selected = _hintFrom = _hintTo = kNoSquare;
+    _input.reset();
+    _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
     _board->show(_game.position());
     eventlog::note("undo " + _game.position().fen());
@@ -1014,8 +1016,8 @@ void GameScene::undo() {
 }
 
 void GameScene::flip() {
-    cancelPromotion();
-    cancelPress();
+    _input.cancelPromotion();
+    _input.cancelPress();
     _board->setFlipped(!_board->flipped());
     _evalBar->setFlipped(_board->flipped());
     refresh();
@@ -1039,8 +1041,8 @@ void GameScene::askHint() {
 void GameScene::resign() {
     if (!_started || _game.status().over())
         return;
-    cancelPromotion();
-    cancelPress();
+    _input.cancelPromotion();
+    _input.cancelPress();
     _engine.cancel();
     _moveTag      = 0;
     _replyPending = false;
@@ -1050,60 +1052,11 @@ void GameScene::resign() {
     // move; at a shared board it is whoever's turn it is.
     _game.resign(againstComputer() ? _human : _game.position().sideToMove());
     eventlog::note("resign");
-    _selected = _hintFrom = _hintTo = kNoSquare;
+    _input.reset();
+    _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
     refresh();
     analyse();
-}
-
-void GameScene::select(Square square) {
-    if (_selected == square)
-        return;
-    _selected = square;
-    refreshMarks();
-}
-
-bool GameScene::tryMove(Square from, Square to, bool carried) {
-    const Position& position = _game.position();
-
-    if (position.isPromotion(from, to)) {
-        // Not a move yet: the player still has to say what the pawn becomes.
-        _promoteFrom    = from;
-        _promoteTo      = to;
-        _promoteCarried = carried;
-        _board->openPromotion(to, position.sideToMove());
-        return true;
-    }
-
-    const auto move = position.findMove(from, to);
-    if (!move)
-        return false;
-    play(*move, !carried);
-    return true;
-}
-
-void GameScene::finishPromotion(PieceType piece) {
-    const Square from = _promoteFrom, to = _promoteTo;
-    const bool carried = _promoteCarried;
-    _promoteFrom = _promoteTo = kNoSquare;
-    _board->closePromotion();
-
-    if (const auto move = _game.position().findMove(from, to, piece))
-        play(*move, !carried);
-}
-
-void GameScene::cancelPromotion() {
-    if (!_board->promotionOpen())
-        return;
-    _promoteFrom = _promoteTo = kNoSquare;
-    _board->closePromotion();
-    select(kNoSquare);
-}
-
-void GameScene::cancelPress() {
-    _pressed = _dragging = false;
-    _pressSquare = kNoSquare;
-    _board->endDrag();
 }
 
 // --- input -------------------------------------------------------------------------
@@ -1126,14 +1079,8 @@ void GameScene::onMouseDown(const Vec2& point) {
         return;
     }
 
-    if (_board->promotionOpen()) {
-        const PieceType piece = _board->promotionAt(point);
-        if (piece != PieceType::None)
-            finishPromotion(piece);
-        else
-            cancelPromotion();  // a click anywhere else means "not that move"
+    if (_input.promotionClick(point))
         return;
-    }
 
     if (_buttons.mouseDown(point))
         return;
@@ -1142,28 +1089,10 @@ void GameScene::onMouseDown(const Vec2& point) {
     if (_panel->mouseDown(point))
         return;
 
-    const Square square = _board->squareAt(point);
-    if (square == kNoSquare || !humanToMove()) {
-        if (!_panel->contains(point))
-            select(kNoSquare);
-        return;
-    }
-
-    // A second click, on a square the selected piece can go to: that is the move.
-    if (_selected != kNoSquare && _selected != square && tryMove(_selected, square, false))
-        return;
-
-    const Piece piece = _game.position().at(square);
-    if (!piece.empty() && piece.color == _game.position().sideToMove()) {
-        _wasSelected = _selected == square;
-        select(square);
-        _pressed     = true;
-        _dragging    = false;
-        _pressSquare = square;
-        _pressPoint  = point;
-    } else {
-        select(kNoSquare);
-    }
+    // Off the board, or not the player's turn: the selection goes, unless the
+    // click was on the panel (copying a move, say).
+    if (!_input.mouseDown(point) && !_panel->contains(point))
+        _input.select(kNoSquare);
 }
 
 void GameScene::onMouseMove(const Vec2& point) {
@@ -1175,20 +1104,12 @@ void GameScene::onMouseMove(const Vec2& point) {
         return;
     }
     _buttons.mouseMove(point);
-    if (_buttons.hoverChanged() || _pressed)
+    const bool carrying = _input.mouseMove(point);
+    if (_buttons.hoverChanged() || carrying)
         keepAwake();
     // The move list: a move lit up or let go, the thumb dragged along.
     if (_panel->mouseMove(point))
         keepAwake();
-
-    if (!_pressed)
-        return;
-    if (!_dragging && point.distance(_pressPoint) > kDragThreshold) {
-        _dragging = true;
-        _board->beginDrag(_pressSquare, point);
-    }
-    if (_dragging)
-        _board->dragTo(point);
 }
 
 void GameScene::onMouseUp(const Vec2& point) {
@@ -1198,35 +1119,14 @@ void GameScene::onMouseUp(const Vec2& point) {
         dialog->mouseUp(point);
         // A dialog that opened while the button was down (a key) took the
         // release: whatever was held under it is let go of, not acted on.
-        cancelPress();
+        _input.cancelPress();
         if (_panel->dragging())
             _panel->mouseUp(point);
         return;
     }
     _buttons.mouseUp(point);
     _panel->mouseUp(point);
-
-    if (!_pressed)
-        return;
-    _pressed = false;
-
-    if (_dragging) {
-        _dragging = false;
-        // The board was shown afresh under the hand (the window was resized,
-        // say): the piece was put back, and there is nothing to drop.
-        if (!_board->dragging())
-            return;
-        const Square target = _board->squareAt(point);
-        _board->endDrag();
-        // Dropped on a square it can go to: the move is made, and the piece is
-        // already there, so it does not slide. Dropped anywhere else: it is
-        // back where it was, still selected.
-        if (target != kNoSquare && target != _pressSquare && humanToMove())
-            tryMove(_pressSquare, target, true);
-    } else if (_wasSelected) {
-        // A plain click on the piece that was already selected puts it down.
-        select(kNoSquare);
-    }
+    _input.mouseUp(point);
 }
 
 void GameScene::onKeyPressed(EventKeyboard::KeyCode code) {
@@ -1241,9 +1141,9 @@ void GameScene::onKeyPressed(EventKeyboard::KeyCode code) {
     switch (code) {
     case Key::KEY_ESCAPE:
         if (_board->promotionOpen())
-            cancelPromotion();
+            _input.cancelPromotion();
         else
-            select(kNoSquare);
+            _input.select(kNoSquare);
         break;
     case Key::KEY_N:
         openNewGame();
@@ -1411,9 +1311,9 @@ void GameScene::refreshMarks() {
         break;
     }
 
-    if (_selected != kNoSquare && humanToMove()) {
-        marks.selected = _selected;
-        marks.targets  = position.legalMovesFrom(_selected);
+    if (const Square selected = _input.selected(); selected != kNoSquare && humanToMove()) {
+        marks.selected = selected;
+        marks.targets  = position.legalMovesFrom(selected);
     }
 
     marks.hintFrom = _hintFrom;

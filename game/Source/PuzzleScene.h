@@ -19,6 +19,7 @@
 // what it reports.
 #pragma once
 
+#include "BoardInput.h"
 #include "BoardNode.h"
 #include "Button.h"
 #include "ConfirmDialog.h"
@@ -114,9 +115,13 @@ private:
     void onMouseMove(const ax::Vec2& point);
     void onMouseUp(const ax::Vec2& point);
     void onKeyPressed(ax::EventKeyboard::KeyCode code);
-    void select(chess::Square square);
-    bool tryMove(chess::Square from, chess::Square to, bool carried);
-    void dropFromTray(const ax::Vec2& point);
+    // The editor's own gestures: a piece taken from a tray or a square and
+    // put somewhere, or a click with the brush. (Solving moves pieces the way
+    // a game does: _input.)
+    void editorDown(const ax::Vec2& point);
+    bool editorMove(const ax::Vec2& point);  // true while a press is under way
+    void editorUp(const ax::Vec2& point);
+    void dropFromTray(const ax::Vec2& point, const PieceTray::Item& item);
     // Forgets a press, and puts down whatever was being carried: the board
     // it belonged to has been shown afresh, or a dialog has taken the mouse.
     void cancelPress();
@@ -157,15 +162,17 @@ private:
     int           _tag = 0, _nextTag = -1;
     chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as update() last saw it
 
-    // Input.
-    chess::Square _selected = chess::kNoSquare;
-    bool          _pressed = false, _dragging = false, _wasSelected = false;
-    chess::Square _pressSquare = chess::kNoSquare;
-    PieceTray::Item _pressItem;   // a press that began on a tray
-    ax::Vec2      _pressPoint;
-    ax::Sprite*   _carried = nullptr;  // a piece being carried from a tray
-    chess::Square _promoteFrom = chess::kNoSquare, _promoteTo = chess::kNoSquare;
-    bool          _promoteCarried = false;
+    // Input. Solving: as in a game. The editor: a press on a tray or a
+    // square, a click or — once the pointer has moved — a drag.
+    BoardInput _input;
+    struct EditorPress {
+        bool            down = false, dragging = false;
+        ax::Vec2        point;
+        chess::Square   square = chess::kNoSquare;  // a press that began on the board
+        PieceTray::Item item;                       // or on a tray
+    };
+    EditorPress _press;
+    ax::Sprite* _carried = nullptr;  // a piece being carried from a tray
 
     float   _flashFor = 0.0f;
     std::function<void()> _unflash;

@@ -16,6 +16,7 @@
 // opponent plays.
 #pragma once
 
+#include "BoardInput.h"
 #include "BoardNode.h"
 #include "Button.h"
 #include "ConfirmDialog.h"
@@ -138,14 +139,6 @@ private:
     void flip();
     void askHint();
     void resign();
-    void select(chess::Square square);
-    bool tryMove(chess::Square from, chess::Square to, bool carried);
-    void finishPromotion(chess::PieceType piece);
-    void cancelPromotion();
-    // Forgets a press on the board, and puts down a piece being carried: the
-    // position it belonged to is no longer the one on the board, or a dialog
-    // has taken the mouse.
-    void cancelPress();
 
     // --- input ---
     // The dialog that is open, if one is. While it is, it gets everything.
@@ -212,19 +205,11 @@ private:
     std::map<std::string, std::string> _replies;
     std::string _moveKey;  // the position the search in progress was asked about
 
-    chess::Square _selected = chess::kNoSquare;
     chess::Square _hintFrom = chess::kNoSquare, _hintTo = chess::kNoSquare;
     std::string   _hintText;
 
-    // A press on a piece is either a click (select it) or the start of a drag
-    // (carry it); which one is only known once the pointer has moved.
-    bool          _pressed = false, _dragging = false, _wasSelected = false;
-    chess::Square _pressSquare = chess::kNoSquare;
-    ax::Vec2      _pressPoint;
-
-    // A pawn is on the last rank and the player is choosing what it becomes.
-    chess::Square _promoteFrom = chess::kNoSquare, _promoteTo = chess::kNoSquare;
-    bool          _promoteCarried = false;
+    // Selecting, clicking and dragging pieces, and choosing a promotion.
+    BoardInput _input;
 
     // "Copied" stays on the button for this long after something was.
     float _copiedFor = 0.0f;

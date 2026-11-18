@@ -24,7 +24,6 @@ namespace {
 
 // As in the game: after half a second with nothing to wait for, stop drawing.
 constexpr float kSleepAfter    = 0.5f;
-constexpr float kDragThreshold = 5.0f;
 
 constexpr float kMargin    = 26.0f;
 constexpr float kTrayShare = 0.82f;  // a tray's height, in squares
@@ -72,6 +71,14 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
 
     _backdrop = DrawNode::create();
     _board    = BoardNode::create();
+    _input.attach(_board);
+    _input.position = [this]() -> const Position& { return _session.game().position(); };
+    _input.mayMove  = [this] { return playerToMove(); };
+    _input.play     = [this](const Move& move, bool slide) {
+        if (_session.play(move, slide))
+            sessionChanged();
+    };
+    _input.selectionChanged = [this] { refreshMarks(); };
     _top      = PieceTray::create(Color::Black);
     _bottom   = PieceTray::create(Color::White);
     _caption  = typeset::label("", 15.0f, theme::kDim);
@@ -322,9 +329,8 @@ void PuzzleScene::openEditor(const Setup& setup) {
     _page     = Page::Editor;
     _setup    = setup;
     _brush    = {};
-    _selected = kNoSquare;
+    _input.reset();
     cancelPress();
-    _board->closePromotion();
     _top->setChosen({});
     _bottom->setChosen({});
     _top->setVisible(true);
@@ -564,10 +570,8 @@ void PuzzleScene::sessionChanged() {
             eventlog::note("puzzle open " + (_puzzle.id.empty() ? _puzzle.fen : _puzzle.id) + " mate " +
                            std::to_string(_session.mateIn()));
             // The solving side sits at the bottom, and nothing is in hand.
-            _selected    = kNoSquare;
-            _promoteFrom = _promoteTo = kNoSquare;
+            _input.reset();
             cancelPress();
-            _board->closePromotion();
             _board->setFlipped(_session.attacker() == Color::Black);
             layout();
             redraw = true;
@@ -575,10 +579,10 @@ void PuzzleScene::sessionChanged() {
             break;
         case Kind::Moved:
             eventlog::note("puzzle move " + event.move + (event.bySolution ? " solution" : " player"));
-            _selected = kNoSquare;
-            redraw    = true;
-            moving    = true;
-            slide     = event.slide;
+            _input.reset();
+            redraw = true;
+            moving = true;
+            slide  = event.slide;
             break;
         case Kind::Replied:
             eventlog::note("puzzle reply " + event.move);
@@ -591,8 +595,7 @@ void PuzzleScene::sessionChanged() {
             break;
         case Kind::TakenBack:
             eventlog::note(event.automatic ? "puzzle takeback wrong" : "puzzle takeback");
-            _selected = kNoSquare;
-            cancelPress();
+            _input.reset();
             redraw = true;
             moving = false;
             break;
@@ -715,29 +718,6 @@ Dialog* PuzzleScene::modal() const {
     return nullptr;
 }
 
-void PuzzleScene::select(Square square) {
-    if (_selected == square)
-        return;
-    _selected = square;
-    refreshMarks();
-}
-
-bool PuzzleScene::tryMove(Square from, Square to, bool carried) {
-    const Position& position = _session.game().position();
-    if (position.isPromotion(from, to)) {
-        _promoteFrom    = from;
-        _promoteTo      = to;
-        _promoteCarried = carried;
-        _board->openPromotion(to, position.sideToMove());
-        return true;
-    }
-    const auto move = position.findMove(from, to);
-    if (!move || !_session.play(*move, !carried))
-        return false;
-    sessionChanged();
-    return true;
-}
-
 void PuzzleScene::onMouseDown(const Vec2& point, bool right) {
     keepAwake();
 
@@ -747,20 +727,8 @@ void PuzzleScene::onMouseDown(const Vec2& point, bool right) {
         return;
     }
 
-    if (_board->promotionOpen()) {
-        const PieceType piece = _board->promotionAt(point);
-        const Square from = _promoteFrom, to = _promoteTo;
-        const bool carried = _promoteCarried;
-        _promoteFrom = _promoteTo = kNoSquare;
-        _board->closePromotion();
-        if (piece != PieceType::None)
-            if (const auto move = _session.game().position().findMove(from, to, piece)) {
-                _session.play(*move, !carried);
-                sessionChanged();
-            }
-        select(kNoSquare);
+    if (_input.promotionClick(point))
         return;
-    }
 
     if (right) {
         // The quick way to take a piece off in the editor.
@@ -777,45 +745,10 @@ void PuzzleScene::onMouseDown(const Vec2& point, bool right) {
     if (_panel->buttons().mouseDown(point))
         return;
 
-    _pressPoint = point;
-    _dragging   = false;
-
-    if (_page == Page::Editor) {
-        const PieceTray::Item item = !_top->at(point).none() ? _top->at(point) : _bottom->at(point);
-        if (!item.none()) {
-            _pressed     = true;
-            _pressItem   = item;
-            _pressSquare = kNoSquare;
-            return;
-        }
-        const Square square = _board->squareAt(point);
-        if (square != kNoSquare) {
-            _pressed     = true;
-            _pressItem   = {};
-            _pressSquare = square;
-        }
-        return;
-    }
-
-    // Solving: as in the game.
-    const Square square = _board->squareAt(point);
-    if (square == kNoSquare || !playerToMove()) {
-        select(kNoSquare);
-        return;
-    }
-    if (_selected != kNoSquare && _selected != square && tryMove(_selected, square, false))
-        return;
-    const Position& position = _session.game().position();
-    const Piece     piece    = position.at(square);
-    if (!piece.empty() && piece.color == position.sideToMove()) {
-        _wasSelected = _selected == square;
-        select(square);
-        _pressed     = true;
-        _pressItem   = {};
-        _pressSquare = square;
-    } else {
-        select(kNoSquare);
-    }
+    if (_page == Page::Editor)
+        editorDown(point);
+    else if (!_input.mouseDown(point))
+        _input.select(kNoSquare);  // off the board, or not the player's turn
 }
 
 void PuzzleScene::onMouseMove(const Vec2& point) {
@@ -825,36 +758,9 @@ void PuzzleScene::onMouseMove(const Vec2& point) {
         return;
     }
     _panel->buttons().mouseMove(point);
-    if (_panel->buttons().hoverChanged() || _pressed)
+    const bool held = _page == Page::Editor ? editorMove(point) : _input.mouseMove(point);
+    if (_panel->buttons().hoverChanged() || held)
         keepAwake();
-
-    if (!_pressed)
-        return;
-    if (!_dragging && point.distance(_pressPoint) > kDragThreshold) {
-        if (!_pressItem.none()) {
-            if (!_pressItem.eraser) {
-                // A piece lifted off the tray: a sprite of its own, over everything.
-                _carried = look::sprite(_pressItem.piece, _board->squareSize() * 1.12f);
-                if (_carried != nullptr) {
-                    addChild(_carried, 5);
-                    _dragging = true;
-                }
-            }
-        } else if (_pressSquare != kNoSquare) {
-            const bool hasPiece = _page == Page::Editor ? !_setup.at(_pressSquare).empty()
-                                                        : !_session.game().position().at(_pressSquare).empty();
-            if (hasPiece) {
-                _dragging = true;
-                _board->beginDrag(_pressSquare, point);
-            }
-        }
-    }
-    if (_dragging) {
-        if (_carried != nullptr)
-            _carried->setPosition(point);
-        else
-            _board->dragTo(point);
-    }
 }
 
 void PuzzleScene::onMouseUp(const Vec2& point) {
@@ -868,66 +774,100 @@ void PuzzleScene::onMouseUp(const Vec2& point) {
     }
     _panel->buttons().mouseUp(point);
 
-    if (!_pressed)
+    if (_page == Page::Editor)
+        editorUp(point);
+    else
+        _input.mouseUp(point);
+}
+
+void PuzzleScene::editorDown(const Vec2& point) {
+    _press = {};
+    _press.point = point;
+
+    const PieceTray::Item item = !_top->at(point).none() ? _top->at(point) : _bottom->at(point);
+    if (!item.none()) {
+        _press.down = true;
+        _press.item = item;
         return;
-    _pressed = false;
-    const bool dragged = _dragging;
-    _dragging          = false;
+    }
+    const Square square = _board->squareAt(point);
+    if (square != kNoSquare) {
+        _press.down   = true;
+        _press.square = square;
+    }
+}
 
-    if (_page == Page::Editor) {
-        if (!_pressItem.none()) {
-            if (dragged) {
-                dropFromTray(point);
-            } else {
-                // A click on the tray picks the brush, or puts it down again.
-                _brush = _brush == _pressItem ? PieceTray::Item{} : _pressItem;
-                _top->setChosen(_brush);
-                _bottom->setChosen(_brush);
+bool PuzzleScene::editorMove(const Vec2& point) {
+    if (!_press.down)
+        return false;
+    if (!_press.dragging && point.distance(_press.point) > BoardInput::kDragThreshold) {
+        if (!_press.item.none()) {
+            if (!_press.item.eraser) {
+                // A piece lifted off the tray: a sprite of its own, over everything.
+                _carried = look::sprite(_press.item.piece, _board->squareSize() * 1.12f);
+                if (_carried != nullptr) {
+                    addChild(_carried, 5);
+                    _press.dragging = true;
+                }
             }
-            _pressItem = {};
-            return;
+        } else if (!_setup.at(_press.square).empty()) {
+            _press.dragging = true;
+            _board->beginDrag(_press.square, point);
         }
-
-        const Square from = _pressSquare;
-        _pressSquare      = kNoSquare;
-        if (dragged) {
-            // The board was shown afresh under the hand (a right click took a
-            // piece off, say): the piece was put back, there is nothing to drop.
-            if (!_board->dragging())
-                return;
-            const Square target = _board->squareAt(point);
-            _board->endDrag();
-            const Piece piece = _setup.at(from);
-            if (target == from)
-                return;
-            // Off the board: gone. Onto another square: moved there.
-            _setup.remove(from);
-            if (target != kNoSquare)
-                place(target, piece);
-            edited();
-            return;
-        }
-        if (from == kNoSquare || _brush.none())
-            return;
-        // A click with a brush: put it there — or, if it is there already, take it off.
-        if (_brush.eraser || _setup.at(from) == _brush.piece)
-            _setup.remove(from);
+    }
+    if (_press.dragging) {
+        if (_carried != nullptr)
+            _carried->setPosition(point);
         else
-            place(from, _brush.piece);
+            _board->dragTo(point);
+    }
+    return true;
+}
+
+void PuzzleScene::editorUp(const Vec2& point) {
+    if (!_press.down)
+        return;
+    const EditorPress press = _press;
+    _press                  = {};
+
+    if (!press.item.none()) {
+        if (press.dragging) {
+            dropFromTray(point, press.item);
+        } else {
+            // A click on the tray picks the brush, or puts it down again.
+            _brush = _brush == press.item ? PieceTray::Item{} : press.item;
+            _top->setChosen(_brush);
+            _bottom->setChosen(_brush);
+        }
+        return;
+    }
+
+    const Square from = press.square;
+    if (press.dragging) {
+        // The board was shown afresh under the hand (a right click took a
+        // piece off, say): the piece was put back, there is nothing to drop.
+        if (!_board->dragging())
+            return;
+        const Square target = _board->squareAt(point);
+        _board->endDrag();
+        const Piece piece = _setup.at(from);
+        if (target == from)
+            return;
+        // Off the board: gone. Onto another square: moved there.
+        _setup.remove(from);
+        if (target != kNoSquare)
+            place(target, piece);
         edited();
         return;
     }
-
-    if (dragged) {
-        if (!_board->dragging())
-            return;  // shown afresh under the hand: nothing to drop
-        const Square target = _board->squareAt(point);
-        _board->endDrag();
-        if (target != kNoSquare && target != _pressSquare && playerToMove())
-            tryMove(_pressSquare, target, true);
-    } else if (_wasSelected) {
-        select(kNoSquare);
-    }
+    if (_brush.none())
+        return;
+    // A click with a brush: put it there — or, if it is there already, take it off.
+    if (_brush.eraser || _setup.at(from) == _brush.piece)
+        _setup.remove(from);
+    else
+        place(from, _brush.piece);
+    edited();
 }
 
 void PuzzleScene::cancelPress() {
@@ -935,21 +875,19 @@ void PuzzleScene::cancelPress() {
         _carried->removeFromParent();
         _carried = nullptr;
     }
-    _board->endDrag();
-    _pressed = _dragging = false;
-    _pressItem   = {};
-    _pressSquare = kNoSquare;
+    _press = {};
+    _input.cancelPress();
 }
 
-void PuzzleScene::dropFromTray(const Vec2& point) {
+void PuzzleScene::dropFromTray(const Vec2& point, const PieceTray::Item& item) {
     if (_carried != nullptr) {
         _carried->removeFromParent();
         _carried = nullptr;
     }
     const Square target = _board->squareAt(point);
-    if (target == kNoSquare || _pressItem.eraser)
+    if (target == kNoSquare || item.eraser)
         return;
-    place(target, _pressItem.piece);
+    place(target, item.piece);
     edited();
 }
 
@@ -963,14 +901,11 @@ void PuzzleScene::onKeyPressed(EventKeyboard::KeyCode code) {
 
     switch (code) {
     case Key::KEY_ESCAPE:
-        if (_board->promotionOpen()) {
-            _board->closePromotion();
-            _promoteFrom = _promoteTo = kNoSquare;
-        }
+        _input.cancelPromotion();
         _brush = {};
         _top->setChosen(_brush);
         _bottom->setChosen(_brush);
-        select(kNoSquare);
+        _input.select(kNoSquare);
         break;
     case Key::KEY_F:
         flip();
@@ -1116,9 +1051,9 @@ void PuzzleScene::refreshMarks() {
         marks.kings[0] = {position.kingSquare(position.sideToMove()), Sign::Check};
     }
 
-    if (_selected != kNoSquare && playerToMove()) {
-        marks.selected = _selected;
-        marks.targets  = position.legalMovesFrom(_selected);
+    if (const Square selected = _input.selected(); selected != kNoSquare && playerToMove()) {
+        marks.selected = selected;
+        marks.targets  = position.legalMovesFrom(selected);
     }
     marks.hintFrom = _session.hintFrom();
     marks.hintTo   = _session.hintTo();
@@ -1166,7 +1101,7 @@ void PuzzleScene::update(float delta) {
     }
 
     const bool waiting = _engine.thinking() || _probeIn >= 0.0f || _session.timerRunning() ||
-                         _board->animating() || _pressed ||
+                         _board->animating() || _input.pressed() || _press.down ||
                          _flashFor > 0.0f || _engine.state() == Engine::State::Starting ||
                          !_opening.screenshot.empty();
     _quiet = waiting ? 0.0f : _quiet + delta;

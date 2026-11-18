@@ -551,6 +551,7 @@ game/                         the axmol application
   Source/AppDelegate.*        the window, the command line, the main loop
   Source/GameScene.*          the game: brings the rules, the engine and the screen together
   Source/BoardNode.*          the board, the pieces, the marks, dragging
+  Source/BoardInput.*         moving with the mouse: select, click-click, drag, promote — for both modes
   Source/EvalBar.*            the evaluation bar
   Source/Panels.*             the players' strips and the panel on the right
   Source/Look.*               piece sets and boards: the tables, the current choice, drawing a board
