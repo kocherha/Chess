@@ -26,6 +26,7 @@
 #include "chess/Engine.h"
 #include "chess/Game.h"
 #include "chess/Judge.h"
+#include "chess/Pause.h"
 
 #include <map>
 #include <optional>
@@ -87,7 +88,6 @@ public:
     };
 
     // How long things take. Public for the tests and for anyone tuning them.
-    static constexpr float  kReplyPause   = 0.45f;  // seconds before the defence is played
     static constexpr float  kWrongSeconds = 1.8f;   // a wrong move stays on the board this long
     static constexpr int    kCheckMs      = 1500;   // does this move keep the mate?
     static constexpr int    kRecheckMs    = 1000;   // the same question, asked of the defence

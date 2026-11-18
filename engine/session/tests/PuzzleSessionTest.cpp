@@ -137,7 +137,7 @@ TEST(PuzzleSession, MateInTwoWithTheDefence) {
     EXPECT_TRUE(session.timerRunning());
     session.takeEvents();
 
-    session.tick(PuzzleSession::kReplyPause + 0.01f);
+    session.tick(kReplyPause + 0.01f);
     EXPECT_EQ(session.phase(), Phase::Ready);
     const auto events = session.takeEvents();
     ASSERT_EQ(kinds(events), (std::vector{Event::Kind::Replied}));

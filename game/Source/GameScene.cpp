@@ -10,6 +10,7 @@
 #include "Theme.h"
 
 #include "chess/Difficulty.h"
+#include "chess/Pause.h"
 
 #include <algorithm>
 #include <cassert>
@@ -38,8 +39,6 @@ constexpr int kAnalysisDepth = 22;
 // than this is shown unless it is all there will ever be.
 constexpr int kAnalysisMinDepth = 6;
 
-// The pause before a reply that needed no thinking.
-constexpr float kReplyPause = 0.45f;
 // The best move and the runner-up: how far apart they are is what tells an
 // only move from one of several good ones.
 constexpr int kAnalysisLines = 2;
