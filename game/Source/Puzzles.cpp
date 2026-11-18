@@ -170,9 +170,11 @@ bool solved(const std::string& id) {
 }
 
 void markSolved(const std::string& id) {
-    if (id.empty() || solved(id))
+    if (id.empty())
         return;
     auto done = load(kSolvedKey);
+    if (std::find(done.begin(), done.end(), id) != done.end())
+        return;
     done.push_back(id);
     store(kSolvedKey, done);
 }
@@ -192,9 +194,10 @@ Puzzle next(const std::string& id) {
     // From the one after this, round to the start: the first not yet solved;
     // if every one is, simply the next.
     const std::size_t start = at == list.end() ? 0 : static_cast<std::size_t>(at - list.begin()) + 1;
+    const auto        done  = load(kSolvedKey);
     for (std::size_t i = 0; i < list.size(); ++i) {
         const Puzzle& candidate = list[(start + i) % list.size()];
-        if (candidate.id != id && !solved(candidate.id))
+        if (candidate.id != id && std::find(done.begin(), done.end(), candidate.id) == done.end())
             return candidate;
     }
     return list[start % list.size()];
