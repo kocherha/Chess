@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <map>
 
 using namespace ax;
 using namespace chess;
@@ -35,6 +36,18 @@ constexpr int kShorterMs = 2000;   // then: is there a shorter one?
 // have found — and the verdict on the player's move is exactly that search.
 std::vector<std::pair<std::string, std::string>> puzzleOptions() {
     return {{"Threads", "1"}, {"MultiPV", "1"}, {"UCI_LimitStrength", "false"}, {"Skill Level", "20"}};
+}
+
+// What the engine said about positions set up in the editor, for as long as
+// the program runs: the shortest mate it found (negative: the side to move
+// is mated), or none, and its score. Coming back to a position — an edit
+// undone, the problems opened again — asks it nothing a second time.
+struct Verdict {
+    std::optional<int> mate, cp;
+};
+std::map<std::string, Verdict>& verdicts() {
+    static std::map<std::string, Verdict> known;
+    return known;
 }
 
 }  // namespace
@@ -248,25 +261,27 @@ void PuzzleScene::pollEngine() {
         case Question::Shorter: {
             if (_page != Page::Editor || _setup.fen() != _probeFen)
                 break;
+            bool found = false;  // a mate, or a shorter one than before
             if (question == Question::Probe) {
                 _probeDone = true;
                 _probeMate = result.mateIn && *result.mateIn != 0 ? result.mateIn : std::nullopt;
                 _probeCp   = result.scoreCp;
+                found      = true;
             } else if (result.mateIn && *result.mateIn > 0 && _probeMate && *result.mateIn < *_probeMate) {
                 _probeMate = result.mateIn;
-            } else {
-                refreshEditor();
-                break;  // nothing shorter
+                found      = true;
             }
             // A mate was found; the search stops at the first one it sees,
             // which need not be the quickest. Ask for one a move shorter
-            // until there is none.
-            if (_probeMate && *_probeMate > 1) {
+            // until there is none — and then the engine has said all it will.
+            if (found && _probeMate && *_probeMate > 1) {
                 SearchRequest shorter;
                 shorter.position   = "position fen " + _probeFen;
                 shorter.mate       = *_probeMate - 1;
                 shorter.moveTimeMs = kShorterMs;
                 ask(Question::Shorter, shorter);
+            } else {
+                verdicts()[_probeFen] = {_probeMate, _probeCp};
             }
             refreshEditor();
             break;
@@ -319,9 +334,17 @@ void PuzzleScene::edited() {
     _probeMate.reset();
     _probeCp.reset();
     _probeFen.clear();
+    _probeIn = -1.0f;
 
-    const auto position = setupPosition();
-    _probeIn = position && position->hasLegalMoves() && _engine.usable() ? kProbeDelay : -1.0f;
+    if (const auto known = verdicts().find(_setup.fen()); known != verdicts().end()) {
+        _probeFen  = known->first;
+        _probeDone = true;
+        _probeMate = known->second.mate;
+        _probeCp   = known->second.cp;
+    } else if (const auto position = setupPosition();
+               position && position->hasLegalMoves() && _engine.usable()) {
+        _probeIn = kProbeDelay;
+    }
     eventlog::note("setup " + _setup.fen());
     refreshEditor();
     keepAwake();
