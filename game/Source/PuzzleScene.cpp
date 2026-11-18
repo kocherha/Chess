@@ -1,5 +1,6 @@
 #include "PuzzleScene.h"
 
+#include "Desktop.h"
 #include "Look.h"
 #include "Shapes.h"
 #include "Strings.h"
@@ -52,22 +53,6 @@ constexpr double kBestTolerance = 0.03;
 // have found — and the verdict on the player's move is exactly that search.
 std::vector<std::pair<std::string, std::string>> puzzleOptions() {
     return {{"Threads", "1"}, {"MultiPV", "1"}, {"UCI_LimitStrength", "false"}, {"Skill Level", "20"}};
-}
-
-void toClipboard(const std::string& text) {
-#if defined(AX_PLATFORM_PC)
-    glfwSetClipboardString(nullptr, text.c_str());
-#else
-    (void)text;
-#endif
-}
-
-std::string fromClipboard() {
-#if defined(AX_PLATFORM_PC)
-    if (const char* text = glfwGetClipboardString(nullptr))
-        return text;
-#endif
-    return {};
 }
 
 }  // namespace
@@ -551,13 +536,13 @@ void PuzzleScene::refreshEditor() {
 }
 
 void PuzzleScene::copyFen() {
-    toClipboard(_setup.fen());
+    desktop::copy(_setup.fen());
     flash(_panel->copyFen, text::kCopied, [this] { _panel->copyFen->setText(text::kCopyFen); });
 }
 
 void PuzzleScene::pasteFen() {
     // Whatever is on the clipboard, with the spaces at either end taken off.
-    std::string clip = fromClipboard();
+    std::string clip = desktop::paste();
     const auto first = clip.find_first_not_of(" \t\r\n");
     clip = first == std::string::npos ? "" : clip.substr(first, clip.find_last_not_of(" \t\r\n") - first + 1);
     if (const auto setup = Setup::fromFen(clip)) {
@@ -1443,22 +1428,8 @@ void PuzzleScene::keepAwake() {
 }
 
 void PuzzleScene::captureAndQuit() {
-    schedule(
-        [this](float delta) {
-            static float waited = 0.0f, settled = 0.0f;
-            waited += delta;
-            const bool busy = _engine.thinking() || _probeIn >= 0.0f || !_replyMove.empty() || _board->animating() ||
-                              _engine.state() == Engine::State::Starting;
-            settled = busy ? 0.0f : settled + delta;
-            if (waited < 1.5f || (settled < 0.6f && waited < 120.0f))
-                return;
-            unschedule("screenshot");
-            utils::captureScreen(
-                [](bool ok, std::string_view path) {
-                    AXLOGI("screenshot {}: {}", ok ? "written" : "FAILED", path);
-                    Director::getInstance()->end();
-                },
-                _opening.screenshot);
-        },
-        0.25f, "screenshot");
+    desktop::screenshotWhenSettled(this, _opening.screenshot, [this] {
+        return _engine.thinking() || _probeIn >= 0.0f || !_replyMove.empty() || _board->animating() ||
+               _engine.state() == Engine::State::Starting;
+    });
 }

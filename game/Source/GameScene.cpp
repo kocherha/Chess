@@ -1,5 +1,6 @@
 #include "GameScene.h"
 
+#include "Desktop.h"
 #include "Look.h"
 #include "PuzzleScene.h"
 #include "Shapes.h"
@@ -1029,14 +1030,6 @@ std::string today() {
     return text;
 }
 
-void toClipboard(const std::string& text) {
-#if defined(AX_PLATFORM_PC)
-    glfwSetClipboardString(nullptr, text.c_str());
-#else
-    (void)text;
-#endif
-}
-
 }  // namespace
 
 void GameScene::copyGame() {
@@ -1064,7 +1057,7 @@ void GameScene::copyGame() {
     std::vector<std::string> marks;
     for (const Mark mark : _marks)
         marks.emplace_back(suffix(mark));
-    toClipboard(_game.pgn(tags, marks));
+    desktop::copy(_game.pgn(tags, marks));
     _panel->markMove(-1);
     showCopied();
 }
@@ -1079,7 +1072,7 @@ void GameScene::copyMove(int index) {
                                  (record.before.sideToMove() == Color::White ? ". " : "... ");
     const Mark mark = static_cast<std::size_t>(index) < _marks.size() ? _marks[static_cast<std::size_t>(index)]
                                                                       : Mark::None;
-    toClipboard(number + text::localSan(record.san) + suffix(mark));
+    desktop::copy(number + text::localSan(record.san) + suffix(mark));
     _panel->markMove(index);
     showCopied();
 }
@@ -1612,26 +1605,9 @@ void GameScene::refreshStatus() {
 void GameScene::captureAndQuit() {
     // The picture is taken once the screen has stopped changing: the engine
     // has answered, the piece has landed, the bar has settled and every move
-    // that is going to get a mark has it. Looked at four times a second, and
-    // taken regardless after two minutes.
-    schedule(
-        [this](float delta) {
-            static float waited = 0.0f, settled = 0.0f;
-            waited += delta;
-            const bool busy = _engine.thinking() || _analysis.thinking() || _replyPending ||
-                              _board->animating() || _engine.state() == Engine::State::Starting ||
-                              _analysis.state() == Engine::State::Starting;
-            settled = busy ? 0.0f : settled + delta;
-            if (waited < 1.5f || (settled < 0.6f && waited < 120.0f))
-                return;
-
-            unschedule("screenshot");
-            utils::captureScreen(
-                [](bool ok, std::string_view path) {
-                    AXLOGI("screenshot {}: {}", ok ? "written" : "FAILED", path);
-                    Director::getInstance()->end();
-                },
-                launch().screenshot);
-        },
-        0.25f, "screenshot");
+    // that is going to get a mark has it.
+    desktop::screenshotWhenSettled(this, launch().screenshot, [this] {
+        return _engine.thinking() || _analysis.thinking() || _replyPending || _board->animating() ||
+               _engine.state() == Engine::State::Starting || _analysis.state() == Engine::State::Starting;
+    });
 }
