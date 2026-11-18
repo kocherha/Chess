@@ -85,9 +85,9 @@ inline ax::Color4F toneBorder(Tone tone) {
     return kLine;
 }
 
-// The colour a move's mark is written in in the list of moves: the five other
-// chess programs have taught people to expect, green-blue for the finds,
-// yellow through red for what went wrong. On the board the same marks are
+// The colour a move's mark is written in in the list of moves: the five
+// colours other chess programs have taught people to expect, green-blue for
+// the finds, yellow through red for what went wrong. On the board the same marks are
 // printed in ink like every other badge; see kBadgePaper below.
 inline ax::Color4F markColour(chess::Mark mark) {
     switch (mark) {
@@ -98,7 +98,7 @@ inline ax::Color4F markColour(chess::Mark mark) {
     case chess::Mark::Blunder:    return rgb(232, 76, 66);
     case chess::Mark::None:       break;
     }
-    return rgb(150, 155, 168);
+    return rgb(kDim.r, kDim.g, kDim.b);
 }
 
 // A badge on the board — what a move was worth, how the game stands for a
