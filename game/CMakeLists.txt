@@ -124,6 +124,22 @@ if(APPLE)
     MACOSX_BUNDLE_BUNDLE_NAME    "Chess"
     MACOSX_BUNDLE_BUNDLE_VERSION "1.0"
   )
+
+  # The same for the oldest macOS the game runs on: the template writes
+  # $(MACOSX_DEPLOYMENT_TARGET), which outside Xcode stays in the bundle as
+  # those very characters. It is what the build was told to aim at; told
+  # nothing, the compiler aims at the system it runs on — at its major
+  # version, which is what is written here then.
+  set(CHESS_MACOS_MINIMUM "${CMAKE_OSX_DEPLOYMENT_TARGET}")
+  if(NOT CHESS_MACOS_MINIMUM)
+    execute_process(COMMAND sw_vers -productVersion
+                    OUTPUT_VARIABLE host_macos OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+    if(host_macos MATCHES "^([0-9]+)")
+      set(CHESS_MACOS_MINIMUM "${CMAKE_MATCH_1}.0")
+    else()
+      set(CHESS_MACOS_MINIMUM "11.0")  # the first with Apple silicon; not expected to be needed
+    endif()
+  endif()
 endif()
 
 include(AXGamePlatformSetup)

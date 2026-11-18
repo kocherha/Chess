@@ -25,7 +25,7 @@
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.games</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
+	<string>${CHESS_MACOS_MINIMUM}</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Oleksii Kocherha</string>
 	<key>NSMainNibFile</key>
