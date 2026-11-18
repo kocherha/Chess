@@ -176,6 +176,11 @@ private:
     enum class Question { None, Prepare, Check, Recheck, Reply, Hint };
 
     void ask(Question question, SearchRequest request);
+    // The two questions asked from more than one place: the attacker's move
+    // that mates in the moves that are left (a hint, or the solution going
+    // on), and the defence's reply to the move just played.
+    void askForTheMate();
+    void askForTheDefence();
     void dropQuestion();
     void moved(const Move& move, bool slide);
     void judgeMate(const SearchResult& result);

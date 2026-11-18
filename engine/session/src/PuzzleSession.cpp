@@ -126,11 +126,7 @@ void PuzzleSession::hint() {
         return;
     }
 
-    SearchRequest request;
-    request.position   = _game.uciPosition();
-    request.mate       = movesLeft();
-    request.moveTimeMs = kHintMs;
-    ask(Question::Hint, std::move(request));
+    askForTheMate();
     _note = makeNote(Note::Kind::LookingForHint);
 }
 
@@ -157,11 +153,7 @@ void PuzzleSession::showSolution() {
         _autoSolve = false;  // the engine never named a best move here: nothing to show
         return;
     }
-    SearchRequest request;
-    request.position   = _game.uciPosition();
-    request.mate       = movesLeft();
-    request.moveTimeMs = kHintMs;
-    ask(Question::Hint, std::move(request));
+    askForTheMate();
 }
 
 // --- the engine -------------------------------------------------------------------------
@@ -177,6 +169,23 @@ void PuzzleSession::ask(Question question, SearchRequest request) {
     request.tag = _tag = _nextTag++;
     _question       = question;
     _request        = std::move(request);  // replaces one not yet sent: the engine never hears of it
+}
+
+void PuzzleSession::askForTheMate() {
+    SearchRequest request;
+    request.position   = _game.uciPosition();
+    request.mate       = std::max(1, movesLeft());
+    request.moveTimeMs = kHintMs;
+    ask(Question::Hint, std::move(request));
+}
+
+void PuzzleSession::askForTheDefence() {
+    SearchRequest request;
+    request.position   = _game.uciPosition();
+    request.moveTimeMs = kReplyMs;
+    request.depth      = 2 * movesLeft() + 10;
+    ask(Question::Reply, std::move(request));
+    _phase = Phase::Replying;
 }
 
 void PuzzleSession::dropQuestion() {
@@ -274,11 +283,7 @@ void PuzzleSession::tick(float seconds) {
                 _marks.resize(_game.plies(), Mark::None);
                 _phase = Phase::Ready;
                 if (_autoSolve) {
-                    SearchRequest request;
-                    request.position   = _game.uciPosition();
-                    request.mate       = std::max(1, movesLeft());
-                    request.moveTimeMs = kHintMs;
-                    ask(Question::Hint, std::move(request));
+                    askForTheMate();
                 }
             }
         }
@@ -369,12 +374,7 @@ void PuzzleSession::moved(const Move& move, bool slide) {
         if (_autoSolve) {
             // The engine's own move: no need to ask whether it is right.
             _note = makeNote(Note::Kind::Right, said);
-            SearchRequest defence;
-            defence.position   = _game.uciPosition();
-            defence.moveTimeMs = kReplyMs;
-            defence.depth      = 2 * movesLeft() + 10;
-            ask(Question::Reply, std::move(defence));
-            _phase = Phase::Replying;
+            askForTheDefence();
             return;
         }
         // Is there still a mate in the moves that are left, by this move?
@@ -409,13 +409,8 @@ void PuzzleSession::moved(const Move& move, bool slide) {
 void PuzzleSession::judgeMate(const SearchResult& result) {
     const std::string said = lastSan();
     if (result.mateIn && *result.mateIn > 0 && *result.mateIn <= movesLeft() + 1) {
-        SearchRequest defence;
-        defence.position   = _game.uciPosition();
-        defence.moveTimeMs = kReplyMs;
-        defence.depth      = 2 * movesLeft() + 10;
-        ask(Question::Reply, std::move(defence));
-        _phase = Phase::Replying;
-        _note  = makeNote(Note::Kind::Right, said);
+        askForTheDefence();
+        _note = makeNote(Note::Kind::Right, said);
         if (attackerMoves() == 1)
             _marks.back() = Mark::Great;
         return;
