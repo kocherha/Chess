@@ -9,6 +9,8 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <optional>
 #include <sstream>
 #include <string_view>
@@ -71,46 +73,57 @@ void AppDelegate::parseArguments(int argc, char** argv) {
         return value;
     };
 
+    // The options that take a value, and what each does with it; then those
+    // that are a word by themselves. What they mean is said at
+    // GameScene::Launch.
+    using Value = std::string_view;
+    const std::map<std::string_view, std::function<void(Value)>> valued = {
+        {"--shot", [&](Value v) { launch.screenshot = v; }},
+        {"--fen", [&](Value v) { launch.fen = v; }},
+        {"--moves",
+         [&](Value v) {
+             std::istringstream words{std::string(v)};
+             for (std::string move; words >> move;)
+                 launch.moves.push_back(move);
+         }},
+        {"--pieces", [&](Value v) { launch.pieces = v; }},
+        {"--board", [&](Value v) { launch.board = v; }},
+        {"--level",
+         [&](Value v) {
+             if (const auto n = number("--level", v))
+                 launch.level = n;
+         }},
+        {"--elo",
+         [&](Value v) {
+             if (const auto n = number("--elo", v))
+                 launch.elo = n;
+         }},
+        {"--side",
+         [&](Value v) {
+             launch.side = v == "black"    ? GameSetup::Side::Black
+                           : v == "random" ? GameSetup::Side::Random
+                                           : GameSetup::Side::White;
+         }},
+        {"--autoplay", [&](Value v) { launch.autoplayGames = number("--autoplay", v).value_or(launch.autoplayGames); }},
+        {"--edit", [&](Value v) { launch.editFen = v; }},
+        {"--puzzle", [&](Value v) { launch.puzzle = v; }},
+    };
+    const std::map<std::string_view, std::function<void()>> switches = {
+        {"--two-players", [&] { launch.opponent = GameSetup::Opponent::Human; }},
+        {"--puzzles", [&] { launch.puzzles = true; }},
+        {"--play", [&] { launch.skipDialog = true; }},
+    };
+
     for (int i = 1; i < argc; ++i) {
         const std::string_view flag = argv[i];
-        const bool hasValue         = i + 1 < argc;
-
-        if (flag == "--shot" && hasValue) {
-            launch.screenshot = argv[++i];
-        } else if (flag == "--fen" && hasValue) {
-            launch.fen = argv[++i];
-        } else if (flag == "--moves" && hasValue) {
-            std::istringstream words(argv[++i]);
-            for (std::string move; words >> move;)
-                launch.moves.push_back(move);
-        } else if (flag == "--pieces" && hasValue) {
-            launch.pieces = argv[++i];
-        } else if (flag == "--board" && hasValue) {
-            launch.board = argv[++i];
-        } else if (flag == "--level" && hasValue) {
-            if (const auto n = number(flag, argv[++i]))
-                launch.level = n;
-        } else if (flag == "--elo" && hasValue) {
-            if (const auto n = number(flag, argv[++i]))
-                launch.elo = n;
-        } else if (flag == "--side" && hasValue) {
-            const std::string_view side = argv[++i];
-            launch.side = side == "black"    ? GameSetup::Side::Black
-                          : side == "random" ? GameSetup::Side::Random
-                                             : GameSetup::Side::White;
-        } else if (flag == "--two-players") {
-            launch.opponent = GameSetup::Opponent::Human;
-        } else if (flag == "--autoplay" && hasValue) {
-            launch.autoplayGames = number(flag, argv[++i]).value_or(launch.autoplayGames);
-        } else if (flag == "--puzzles") {
-            launch.puzzles = true;
-        } else if (flag == "--edit" && hasValue) {
-            launch.editFen = argv[++i];
-        } else if (flag == "--puzzle" && hasValue) {
-            launch.puzzle = argv[++i];
-        } else if (flag == "--play") {
-            launch.skipDialog = true;
+        if (const auto option = valued.find(flag); option != valued.end()) {
+            if (i + 1 < argc)
+                option->second(argv[++i]);
+        } else if (const auto option = switches.find(flag); option != switches.end()) {
+            option->second();
         }
+        // Anything else is left alone: the system adds arguments of its own
+        // (macOS: -psn_..., -NSDocumentRevisionsDebugMode).
     }
 
     GameScene::setLaunch(std::move(launch));
