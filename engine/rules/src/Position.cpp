@@ -50,20 +50,8 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
         return fail(error, "a FEN needs at least four fields");
 
     Position position;
-
-    // Placement: ranks from the eighth down to the first, files a to h.
-    const auto put = [&position](Square square, Piece piece) {
-        position._board[static_cast<std::size_t>(square)] = piece;
-    };
-    if (!readPlacement(fields[0], put))
-        return fail(error, "malformed piece placement");
-    for (int file = 0; file < 8; ++file)
-        if (position.at(makeSquare(file, 0)).type == PieceType::Pawn ||
-            position.at(makeSquare(file, 7)).type == PieceType::Pawn)
-            return fail(error, "a pawn cannot stand on the first or last rank");
-    for (const Color color : {Color::White, Color::Black})
-        if (std::count(position._board.begin(), position._board.end(), Piece{PieceType::King, color}) != 1)
-            return fail(error, "each side needs exactly one king");
+    if (const char* wrong = position.readBoard(fields[0]))
+        return fail(error, wrong);
 
     if (fields[1] == "w")
         position._turn = Color::White;
@@ -72,39 +60,10 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
     else
         return fail(error, "the side to move must be w or b");
 
-    if (fields[2] != "-") {
-        for (char c : fields[2]) {
-            switch (c) {
-            case 'K': position._castling |= kWhiteKing; break;
-            case 'Q': position._castling |= kWhiteQueen; break;
-            case 'k': position._castling |= kBlackKing; break;
-            case 'q': position._castling |= kBlackQueen; break;
-            default:
-                return fail(error, "malformed castling rights");
-            }
-        }
-    }
-    // A right is only worth keeping if the king and that rook are at home.
-    const auto keepIf = [&](std::uint8_t bit, Square king, Square rook, Color color) {
-        if (!position.at(king).is(PieceType::King, color) || !position.at(rook).is(PieceType::Rook, color))
-            position._castling &= static_cast<std::uint8_t>(~bit);
-    };
-    keepIf(kWhiteKing, kE1, kH1, Color::White);
-    keepIf(kWhiteQueen, kE1, kA1, Color::White);
-    keepIf(kBlackKing, kE8, kH8, Color::Black);
-    keepIf(kBlackQueen, kE8, kA8, Color::Black);
-
-    if (fields[3] != "-") {
-        const Square square = parseSquare(fields[3]);
-        // The square behind a pawn that has just advanced two: rank 6 with
-        // white to move, rank 3 with black to move.
-        const int expected = position._turn == Color::White ? 5 : 2;
-        if (square == kNoSquare || rankOf(square) != expected)
-            return fail(error, "malformed en passant square");
-        const Square pawn = makeSquare(fileOf(square), position._turn == Color::White ? 4 : 3);
-        if (position.at(pawn).is(PieceType::Pawn, opposite(position._turn)) && position.at(square).empty())
-            position._enPassant = square;
-    }
+    if (!position.readCastling(fields[2]))
+        return fail(error, "malformed castling rights");
+    if (!position.readEnPassant(fields[3]))
+        return fail(error, "malformed en passant square");
 
     if (fields.size() > 4 && !parseNumber(fields[4], position._halfmove))
         return fail(error, "malformed halfmove clock");
@@ -116,6 +75,62 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
         return fail(error, "the side not to move is in check");
 
     return position;
+}
+
+// The first field of a FEN: ranks from the eighth down to the first, files a
+// to h. What is wrong with it, or nullptr.
+const char* Position::readBoard(std::string_view field) {
+    const auto put = [this](Square square, Piece piece) { _board[static_cast<std::size_t>(square)] = piece; };
+    if (!readPlacement(field, put))
+        return "malformed piece placement";
+    for (int file = 0; file < 8; ++file)
+        if (at(makeSquare(file, 0)).type == PieceType::Pawn || at(makeSquare(file, 7)).type == PieceType::Pawn)
+            return "a pawn cannot stand on the first or last rank";
+    for (const Color color : {Color::White, Color::Black})
+        if (std::count(_board.begin(), _board.end(), Piece{PieceType::King, color}) != 1)
+            return "each side needs exactly one king";
+    return nullptr;
+}
+
+// The third field: "KQkq", any of them, or "-". False if it is anything else.
+bool Position::readCastling(std::string_view field) {
+    if (field != "-") {
+        for (char c : field) {
+            switch (c) {
+            case 'K': _castling |= kWhiteKing; break;
+            case 'Q': _castling |= kWhiteQueen; break;
+            case 'k': _castling |= kBlackKing; break;
+            case 'q': _castling |= kBlackQueen; break;
+            default:  return false;
+            }
+        }
+    }
+    // A right is only worth keeping if the king and that rook are at home.
+    const auto keepIf = [this](std::uint8_t bit, Square king, Square rook, Color color) {
+        if (!at(king).is(PieceType::King, color) || !at(rook).is(PieceType::Rook, color))
+            _castling &= static_cast<std::uint8_t>(~bit);
+    };
+    keepIf(kWhiteKing, kE1, kH1, Color::White);
+    keepIf(kWhiteQueen, kE1, kA1, Color::White);
+    keepIf(kBlackKing, kE8, kH8, Color::Black);
+    keepIf(kBlackQueen, kE8, kA8, Color::Black);
+    return true;
+}
+
+// The fourth field: the square behind a pawn that has just advanced two —
+// rank 6 with white to move, rank 3 with black — or "-". Kept only if such a
+// pawn stands in front of it. False if it is no such square. The side to
+// move has to be known already.
+bool Position::readEnPassant(std::string_view field) {
+    if (field == "-")
+        return true;
+    const Square square = parseSquare(field);
+    if (square == kNoSquare || rankOf(square) != (_turn == Color::White ? 5 : 2))
+        return false;
+    const Square pawn = makeSquare(fileOf(square), _turn == Color::White ? 4 : 3);
+    if (at(pawn).is(PieceType::Pawn, opposite(_turn)) && at(square).empty())
+        _enPassant = square;
+    return true;
 }
 
 void Position::placementTo(std::string& out) const {

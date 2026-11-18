@@ -109,6 +109,10 @@ private:
     void slideMoves(Square from, PieceType piece, std::vector<Move>& out) const;  // bishop, rook, queen
     void castlingMoves(Square from, std::vector<Move>& out) const;
     bool leavesKingSafe(const Move& move) const;
+    // The fields of a FEN, for fromFen().
+    const char* readBoard(std::string_view field);
+    bool        readCastling(std::string_view field);
+    bool        readEnPassant(std::string_view field);
     void placementTo(std::string& out) const;
 
     std::array<Piece, 64> _board{};
