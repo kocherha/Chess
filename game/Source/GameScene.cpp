@@ -5,6 +5,7 @@
 #include "Look.h"
 #include "PuzzleScene.h"
 #include "Shapes.h"
+#include "Stockfish.h"
 #include "Strings.h"
 #include "Theme.h"
 
@@ -12,19 +13,11 @@
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
 #include <ctime>
 #include <thread>
 
 using namespace ax;
 using namespace chess;
-
-// The path the build found Stockfish at, when it found one. See
-// chess::findEngine for where else it is looked for.
-#ifndef CHESS_ENGINE_FALLBACK
-#    define CHESS_ENGINE_FALLBACK ""
-#endif
 
 namespace {
 
@@ -279,22 +272,14 @@ void GameScene::offerGameFrom(const Position& position) {
 }
 
 void GameScene::startEngine() {
-    const std::string path = findEngine(CHESS_ENGINE_FALLBACK);
+    const std::string path = stockfish::path();
     if (path.empty()) {
         AXLOGW("no Stockfish found: only the two-player game is available");
         return;
     }
 
-    // CHESS_UCI_LOG=1 prints both conversations: "uci" is the opponent,
-    // "eval" the engine that watches.
-    if (std::getenv("CHESS_UCI_LOG") != nullptr) {
-        _engine.setTrace([](char direction, const std::string& line) {
-            std::fprintf(stderr, "uci  %c %s\n", direction, line.c_str());
-        });
-        _analysis.setTrace([](char direction, const std::string& line) {
-            std::fprintf(stderr, "eval %c %s\n", direction, line.c_str());
-        });
-    }
+    stockfish::traceIfAsked(_engine, "uci ");
+    stockfish::traceIfAsked(_analysis, "eval");
 
     // Two processes from one program: whichever of them is not running.
     if (!_engine.usable()) {

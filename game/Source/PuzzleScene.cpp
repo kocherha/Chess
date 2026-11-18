@@ -4,21 +4,17 @@
 #include "EventLog.h"
 #include "Look.h"
 #include "Shapes.h"
+#include "Stockfish.h"
 #include "Strings.h"
 #include "Text.h"
 #include "Theme.h"
 
 #include <algorithm>
 #include <cmath>
-#include <cstdio>
-#include <cstdlib>
 
 using namespace ax;
 using namespace chess;
 
-#ifndef CHESS_ENGINE_FALLBACK
-#    define CHESS_ENGINE_FALLBACK ""
-#endif
 
 namespace {
 
@@ -185,11 +181,8 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
 
     // The engine: the same Stockfish the game plays with, a process of this
     // scene's own.
-    if (const std::string path = findEngine(CHESS_ENGINE_FALLBACK); !path.empty()) {
-        if (std::getenv("CHESS_UCI_LOG") != nullptr)
-            _engine.setTrace([](char direction, const std::string& line) {
-                std::fprintf(stderr, "puzzle %c %s\n", direction, line.c_str());
-            });
+    if (const std::string path = stockfish::path(); !path.empty()) {
+        stockfish::traceIfAsked(_engine, "puzzle");
         if (!_engine.start(path))
             AXLOGW("puzzle engine did not start: {}", _engine.error());
     }
