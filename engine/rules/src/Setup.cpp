@@ -117,24 +117,7 @@ std::optional<Setup> Setup::fromFen(std::string_view fen) {
 
 std::string Setup::fen() const {
     std::string out;
-    for (int rank = 7; rank >= 0; --rank) {
-        int gap = 0;
-        for (int file = 0; file < 8; ++file) {
-            const Piece piece = at(makeSquare(file, rank));
-            if (piece.empty()) {
-                ++gap;
-                continue;
-            }
-            if (gap > 0)
-                out += static_cast<char>('0' + gap);
-            gap = 0;
-            out += pieceChar(piece);
-        }
-        if (gap > 0)
-            out += static_cast<char>('0' + gap);
-        if (rank > 0)
-            out += '/';
-    }
+    board::writePlacement(out, [this](Square square) { return at(square); });
 
     out += _turn == Color::White ? " w " : " b ";
 
@@ -233,42 +216,10 @@ Square Setup::kingSquare(Color color) const {
 
 std::vector<Square> Setup::attackers(Square target, Color by) const {
     std::vector<Square> found;
-    const int file = fileOf(target), rank = rankOf(target);
-
-    // A pawn attacks forwards, so the pawns that attack a square stand one
-    // rank behind it from their own side's point of view.
-    const int from = by == Color::White ? rank - 1 : rank + 1;
-    for (int df : {-1, 1})
-        if (onBoard(file + df, from) && at(makeSquare(file + df, from)).is(PieceType::Pawn, by))
-            found.push_back(makeSquare(file + df, from));
-
-    for (const Step& step : kKnightSteps)
-        if (onBoard(file + step.file, rank + step.rank) &&
-            at(makeSquare(file + step.file, rank + step.rank)).is(PieceType::Knight, by))
-            found.push_back(makeSquare(file + step.file, rank + step.rank));
-
-    for (const Step& step : kKingSteps)
-        if (onBoard(file + step.file, rank + step.rank) &&
-            at(makeSquare(file + step.file, rank + step.rank)).is(PieceType::King, by))
-            found.push_back(makeSquare(file + step.file, rank + step.rank));
-
-    const auto rays = [&](const Step (&steps)[4], PieceType kind) {
-        for (const Step& step : steps) {
-            int f = file + step.file, r = rank + step.rank;
-            while (onBoard(f, r)) {
-                const Piece piece = at(makeSquare(f, r));
-                if (!piece.empty()) {
-                    if (piece.color == by && (piece.type == kind || piece.type == PieceType::Queen))
-                        found.push_back(makeSquare(f, r));
-                    break;
-                }
-                f += step.file;
-                r += step.rank;
-            }
-        }
-    };
-    rays(kDiagonals, PieceType::Bishop);
-    rays(kStraights, PieceType::Rook);
+    board::findAttackers([this](Square square) { return at(square); }, target, by, [&](Square square) {
+        found.push_back(square);
+        return false;  // and go on looking
+    });
     return found;
 }
 

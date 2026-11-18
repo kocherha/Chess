@@ -210,25 +210,7 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
 }
 
 void Position::placementTo(std::string& out) const {
-    for (int rank = 7; rank >= 0; --rank) {
-        int gap = 0;
-        for (int file = 0; file < 8; ++file) {
-            const Piece piece = at(makeSquare(file, rank));
-            if (piece.empty()) {
-                ++gap;
-                continue;
-            }
-            if (gap > 0) {
-                out += static_cast<char>('0' + gap);
-                gap = 0;
-            }
-            out += pieceChar(piece);
-        }
-        if (gap > 0)
-            out += static_cast<char>('0' + gap);
-        if (rank > 0)
-            out += '/';
-    }
+    board::writePlacement(out, [this](Square square) { return at(square); });
 }
 
 std::string Position::fen() const {
@@ -287,49 +269,8 @@ Square Position::kingSquare(Color color) const {
 bool Position::isAttacked(Square square, Color by) const {
     if (square == kNoSquare)
         return false;
-    const int file = fileOf(square), rank = rankOf(square);
-
-    // A pawn attacks diagonally forward, so the attacker stands one rank
-    // *behind* the square from its own point of view.
-    const int pawnRank = rank + (by == Color::White ? -1 : 1);
-    for (int df : {-1, 1}) {
-        if (onBoard(file + df, pawnRank) && at(makeSquare(file + df, pawnRank)).is(PieceType::Pawn, by))
-            return true;
-    }
-
-    for (const Step& step : kKnightSteps) {
-        if (onBoard(file + step.file, rank + step.rank) &&
-            at(makeSquare(file + step.file, rank + step.rank)).is(PieceType::Knight, by))
-            return true;
-    }
-
-    for (const Step& step : kKingSteps) {
-        if (onBoard(file + step.file, rank + step.rank) &&
-            at(makeSquare(file + step.file, rank + step.rank)).is(PieceType::King, by))
-            return true;
-    }
-
-    const auto slider = [&](const Step& step, PieceType other) {
-        int f = file + step.file, r = rank + step.rank;
-        while (onBoard(f, r)) {
-            const Piece piece = at(makeSquare(f, r));
-            if (!piece.empty()) {
-                return piece.color == by && (piece.type == other || piece.type == PieceType::Queen);
-            }
-            f += step.file;
-            r += step.rank;
-        }
-        return false;
-    };
-    for (const Step& step : kDiagonals) {
-        if (slider(step, PieceType::Bishop))
-            return true;
-    }
-    for (const Step& step : kStraights) {
-        if (slider(step, PieceType::Rook))
-            return true;
-    }
-    return false;
+    const auto piece = [this](Square on) { return at(on); };
+    return board::findAttackers(piece, square, by, [](Square) { return true; });  // one is enough
 }
 
 bool Position::inCheck() const {
