@@ -34,7 +34,7 @@ if(CHESS_BUILD_TESTS)
     find_package(GTest 1.14 QUIET)
     if(NOT GTest_FOUND)
         chess_require_dependency(googletest "${CHESS_GOOGLETEST_URL}" "${CHESS_GOOGLETEST_TAG}"
-                                 CMakeLists.txt)
+                                 "${CHESS_GOOGLETEST_COMMIT}" CMakeLists.txt)
         set(BUILD_GMOCK OFF CACHE BOOL "" FORCE)
         set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
         set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)

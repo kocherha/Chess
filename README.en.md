@@ -53,14 +53,16 @@ system:
 |---|---|---|
 | `third-party/axmol` | `v2.9.1` | the UI engine |
 | `third-party/Stockfish` | `stockfish-dev-20260930-49ea5ded` | the opponent and the evaluation |
-| `third-party/googletest` | `v1.18.0` | the tests only |
+| `third-party/googletest` | `main` of 2026-10-02 (`988ea2c`) | the tests only |
 
 These are git submodules, and the commit each one is at is part of the
 repository's history. Cloning with `--recurse-submodules` is not required: the
 configure step fetches the submodule it needs when it needs it (the tests do
 not pull in a graphics engine). In a copy without git — an archive, a folder
-that is not under version control — it clones each dependency at the same tag
-instead: the tags are written down in `cmake/Chess.cmake` as well.
+that is not under version control — it fetches each dependency at the same
+commit instead: the commits are written down in `cmake/Chess.cmake` as well.
+Commits, not tags: Stockfish's development tags are deleted after a while, and
+a tag can be moved.
 
 That makes the first build long, and it needs the network:
 
@@ -76,8 +78,9 @@ That makes the first build long, and it needs the network:
   checkout stays clean, and the network survives `rm -rf build`.
 
 A dependency is moved to another version the way any submodule is: check out
-the tag you want, commit — and change the same tag in `cmake/Chess.cmake`, so
-that a copy without git gets the same thing. All the game needs from Stockfish
+the tag you want, commit — and write the same commit and its name into
+`cmake/Chess.cmake` (`git ls-files -s third-party` shows the commit), so that a
+copy without git gets the same thing. All the game needs from Stockfish
 is the UCI protocol and the `UCI_LimitStrength` and `UCI_Elo` options, so
 another recent release (`sf_19`, say) should do; only this tag has been tried.
 
@@ -592,7 +595,7 @@ cmake/Chess.cmake             the dependencies, preparing axmol, building Stockf
 docs/                         screenshots and the source of the icon
 third-party/axmol/            axmol v2.9.1 (MIT)
 third-party/Stockfish/        Stockfish, tag stockfish-dev-20260930-49ea5ded (GPLv3)
-third-party/googletest/       googletest v1.18.0 (BSD-3-Clause), tests only
+third-party/googletest/       googletest, main of 2026-10-02 (BSD-3-Clause), tests only
 ```
 
 The three parts do not know about each other. The rules have never heard of an

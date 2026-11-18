@@ -26,7 +26,7 @@ function(chess_sanitize target)
 endfunction()
 
 # --- third-party --------------------------------------------------------------
-# Everything this project depends on lives in third-party/, pinned to a tag:
+# Everything this project depends on lives in third-party/, pinned to a commit:
 # nothing is borrowed from whatever else happens to be checked out next door,
 # and nothing is installed into the system.
 #
@@ -37,30 +37,41 @@ endfunction()
 # In a git checkout these are submodules, and the commit each one is at is part
 # of this repository's history. The table below says the same thing for a copy
 # of the sources that is not a git checkout (an archive, a folder not yet under
-# version control): there the first configure clones each one at its tag. Keep
-# the two in step when a dependency is moved to a new version.
-set(CHESS_AXMOL_URL      "https://github.com/axmolengine/axmol.git")
-set(CHESS_AXMOL_TAG      "v2.9.1")
-set(CHESS_STOCKFISH_URL  "https://github.com/official-stockfish/Stockfish.git")
-set(CHESS_STOCKFISH_TAG  "stockfish-dev-20260930-49ea5ded")
-set(CHESS_GOOGLETEST_URL "https://github.com/google/googletest.git")
-set(CHESS_GOOGLETEST_TAG "v1.18.0")
+# version control): there the first configure fetches each one at that very
+# commit. By the commit and not by a tag: Stockfish's development tags are
+# deleted after a while, and a tag can be moved; a commit stays what it is.
+# The names next to them are for people. Keep the commits in step with the
+# submodules (`git ls-files -s third-party`) when a dependency is moved.
+set(CHESS_AXMOL_URL         "https://github.com/axmolengine/axmol.git")
+set(CHESS_AXMOL_TAG         "v2.9.1")
+set(CHESS_AXMOL_COMMIT      "b26c3f982a90142ff570843abe75aca93725ecf3")
+set(CHESS_STOCKFISH_URL     "https://github.com/official-stockfish/Stockfish.git")
+set(CHESS_STOCKFISH_TAG     "stockfish-dev-20260930-49ea5ded")
+set(CHESS_STOCKFISH_COMMIT  "49ea5ded38315cff8e67f4a677a9e7811612fbf6")
+set(CHESS_GOOGLETEST_URL    "https://github.com/google/googletest.git")
+set(CHESS_GOOGLETEST_TAG    "main, 2026-10-02")
+set(CHESS_GOOGLETEST_COMMIT "988ea2c1798de7779f656df2281dd36d6039a17a")
 
 # Makes sure third-party/<name> is there, fetching it if it is not — that one
 # only, the first time something needs it: building the rules and their tests
-# does not download a graphics engine. `sentinel` is a file that exists once
-# the dependency does.
-function(chess_require_dependency name url tag sentinel)
+# does not download a graphics engine. `tag` only names `commit` in messages.
+# `sentinel` is a file that exists once the dependency does.
+function(chess_require_dependency name url tag commit sentinel)
     set(path "third-party/${name}")
     if(EXISTS "${CHESS_ROOT}/${path}/${sentinel}")
         return()
     endif()
 
+    # The same three steps, for a person to run.
+    set(by_hand "git init ${path} && git -C ${path} fetch --depth 1 ${url} ${commit}"
+                " && git -C ${path} checkout FETCH_HEAD")
+    string(CONCAT by_hand ${by_hand})
+
     if(NOT CHESS_BOOTSTRAP)
         message(FATAL_ERROR
             "${path} is missing and CHESS_BOOTSTRAP is off.\n"
             "Run:  git submodule update --init --recursive\n"
-            "or:   git clone --depth 1 --branch ${tag} ${url} ${path}")
+            "or:   ${by_hand}")
     endif()
     find_package(Git QUIET)
     if(NOT GIT_FOUND)
@@ -79,15 +90,26 @@ function(chess_require_dependency name url tag sentinel)
         execute_process(COMMAND "${GIT_EXECUTABLE}" submodule update --init --recursive -- "${path}"
                         WORKING_DIRECTORY "${CHESS_ROOT}" RESULT_VARIABLE result)
     else()
-        message(STATUS "cloning ${name} ${tag} into ${path} (once)")
-        execute_process(COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false clone --depth 1
-                                --branch "${tag}" "${url}" "${CHESS_ROOT}/${path}"
-                        RESULT_VARIABLE result)
+        # The commit alone, not the history behind it: an empty repository,
+        # a shallow fetch of that one commit, and a checkout of it.
+        message(STATUS "fetching ${name} ${tag} (${commit}) into ${path} (once)")
+        set(where "${CHESS_ROOT}/${path}")
+        file(MAKE_DIRECTORY "${where}")
+        execute_process(COMMAND "${GIT_EXECUTABLE}" init -q "${where}" RESULT_VARIABLE result)
+        if(result EQUAL 0)
+            execute_process(COMMAND "${GIT_EXECUTABLE}" -C "${where}" fetch -q --depth 1 "${url}" "${commit}"
+                            RESULT_VARIABLE result)
+        endif()
+        if(result EQUAL 0)
+            execute_process(COMMAND "${GIT_EXECUTABLE}" -c advice.detachedHead=false -C "${where}"
+                                    checkout -q FETCH_HEAD
+                            RESULT_VARIABLE result)
+        endif()
     endif()
 
     if(NOT result EQUAL 0 OR NOT EXISTS "${CHESS_ROOT}/${path}/${sentinel}")
         message(FATAL_ERROR "fetching ${path} failed (${result}).\n"
-                            "By hand:  git clone --depth 1 --branch ${tag} ${url} ${path}")
+                            "By hand:  ${by_hand}")
     endif()
 endfunction()
 
@@ -122,7 +144,8 @@ function(chess_locate_axmol)
             message(FATAL_ERROR "AX_ROOT does not look like axmol: ${root}")
         endif()
     else()
-        chess_require_dependency(axmol "${CHESS_AXMOL_URL}" "${CHESS_AXMOL_TAG}" core/CMakeLists.txt)
+        chess_require_dependency(axmol "${CHESS_AXMOL_URL}" "${CHESS_AXMOL_TAG}" "${CHESS_AXMOL_COMMIT}"
+                                 core/CMakeLists.txt)
         set(root "${CHESS_ROOT}/third-party/axmol")
     endif()
     set(ENV{AX_ROOT} "${root}")
@@ -292,7 +315,8 @@ function(chess_add_stockfish)
         return()
     endif()
 
-    chess_require_dependency(Stockfish "${CHESS_STOCKFISH_URL}" "${CHESS_STOCKFISH_TAG}" src/Makefile)
+    chess_require_dependency(Stockfish "${CHESS_STOCKFISH_URL}" "${CHESS_STOCKFISH_TAG}"
+                             "${CHESS_STOCKFISH_COMMIT}" src/Makefile)
     set(source "${CHESS_ROOT}/third-party/Stockfish/src")
     chess_stockfish_path(output)
 
