@@ -149,7 +149,7 @@ std::string Game::pgn(const PgnTags& tags, const std::vector<std::string>& marks
     out += tag("White", tags.white);
     out += tag("Black", tags.black);
     out += tag("Result", outcome);
-    if (!(_start == Position::initial())) {
+    if (_start != Position::initial()) {
         out += tag("SetUp", "1");
         out += tag("FEN", _start.fen());
     }

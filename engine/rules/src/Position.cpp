@@ -40,7 +40,8 @@ bool parseNumber(std::string_view text, int& out) {
 // --- FEN -----------------------------------------------------------------------
 
 Position Position::initial() {
-    return *fromFen(kStartFen);
+    static const Position start = *fromFen(kStartFen);  // read once
+    return start;
 }
 
 std::optional<Position> Position::fromFen(std::string_view fen, std::string* error) {
