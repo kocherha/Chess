@@ -258,3 +258,18 @@ TEST(Repetition, EnPassantOnlyCountsWhenItCanBeUsed) {
     const Position without = at("rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR w KQkq - 0 3");
     EXPECT_NE(real.repetitionKey(), without.repetitionKey());
 }
+
+// san() reads the move's description; a move given only as where it goes is
+// described from the board first, so it is written the same.
+TEST(Position, SanOfABareMoveIsTheSame) {
+    const auto position =
+        Position::fromFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
+    ASSERT_TRUE(position.has_value());
+    for (const Move& move : position->legalMoves()) {
+        Move bare;
+        bare.from      = move.from;
+        bare.to        = move.to;
+        bare.promotion = move.promotion;
+        EXPECT_EQ(position->san(bare), position->san(move)) << move.uci();
+    }
+}

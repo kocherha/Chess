@@ -653,6 +653,13 @@ int Position::exchange(const Move& capture) const {
 // --- notation ------------------------------------------------------------------
 
 std::string Position::san(const Move& move) const {
+    // Bare - from a caller that only knows where it goes: as the generator
+    // would describe it, so that a capture gets its "x" and a castle its O-O.
+    if (move.piece == PieceType::None) {
+        if (const auto described = findMove(move.from, move.to, move.promotion))
+            return san(*described);
+    }
+
     std::string text;
 
     if (move.castleKingSide) {

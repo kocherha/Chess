@@ -61,7 +61,10 @@ public:
     std::optional<Move> parseUci(std::string_view text) const;
 
     // Standard algebraic notation, with the check or mate sign: "Nbd7", "exd6",
-    // "O-O", "e8=Q+", "Qh7#". The move must be legal here.
+    // "O-O", "e8=Q+", "Qh7#". The move must be legal here. The notation is
+    // written from the move's description (what moved, what it took, whether
+    // it castles), as legalMoves() and findMove() fill it in; a move that is
+    // only an origin, a destination and a promotion is looked up first.
     std::string san(const Move& move) const;
     std::optional<Move> parseSan(std::string_view text) const;
 
