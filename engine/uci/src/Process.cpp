@@ -85,11 +85,22 @@ bool Process::start(const std::string& path, std::string* error) {
     // simply fails with EPIPE and writeLine() reports it.
     std::signal(SIGPIPE, SIG_IGN);
 
+    // Close-on-exec from the start where the system allows it (Linux), so
+    // that there is no moment at which a process started from another thread
+    // could inherit them. The child still gets its two ends: dup2 onto 0 and
+    // 1 makes copies without the flag.
+    const auto makePipe = [](int (&ends)[2]) {
+#if defined(__linux__)
+        return ::pipe2(ends, O_CLOEXEC) == 0;
+#else
+        return ::pipe(ends) == 0;
+#endif
+    };
     int toChild[2]   = {-1, -1};
     int fromChild[2] = {-1, -1};
-    if (::pipe(toChild) != 0)
+    if (!makePipe(toChild))
         return fail(std::string("pipe: ") + std::strerror(errno));
-    if (::pipe(fromChild) != 0) {
+    if (!makePipe(fromChild)) {
         closeFd(toChild[0]);
         closeFd(toChild[1]);
         return fail(std::string("pipe: ") + std::strerror(errno));
@@ -110,10 +121,25 @@ bool Process::start(const std::string& path, std::string* error) {
     posix_spawn_file_actions_addclose(&actions, toChild[0]);
     posix_spawn_file_actions_addclose(&actions, fromChild[1]);
 
+    // And nothing else of ours: whatever the game has open — files, the
+    // display's descriptors, the pipes of the other engine — is none of the
+    // engine's business and would stay open for as long as it runs. The
+    // child keeps its standard streams, the error stream included (that is
+    // where an engine complains).
+    posix_spawnattr_t attributes;
+    posix_spawnattr_init(&attributes);
+#if defined(__APPLE__)
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    posix_spawn_file_actions_addinherit_np(&actions, STDERR_FILENO);
+#elif defined(__GLIBC__) && (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 34))
+    posix_spawn_file_actions_addclosefrom_np(&actions, STDERR_FILENO + 1);
+#endif
+
     char* const argv[] = {const_cast<char*>(path.c_str()), nullptr};
     pid_t pid          = -1;
-    const int result   = ::posix_spawn(&pid, path.c_str(), &actions, nullptr, argv, CHESS_ENVIRON);
+    const int result   = ::posix_spawn(&pid, path.c_str(), &actions, &attributes, argv, CHESS_ENVIRON);
     posix_spawn_file_actions_destroy(&actions);
+    posix_spawnattr_destroy(&attributes);
 
     closeFd(toChild[0]);
     closeFd(fromChild[1]);

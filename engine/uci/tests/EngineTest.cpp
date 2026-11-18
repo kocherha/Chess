@@ -1,14 +1,18 @@
 #include "chess/Difficulty.h"
 #include "chess/Engine.h"
 #include "chess/Game.h"
+#include "chess/Process.h"
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <chrono>
+#include <fstream>
 #include <mutex>
 #include <thread>
 
+#include <fcntl.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 using namespace chess;
@@ -349,6 +353,40 @@ TEST(FakeEngine, ShutdownWhileThinkingDoesNotHang) {
     engine.shutdown();
     EXPECT_LT(std::chrono::steady_clock::now() - before, 2s);
     EXPECT_EQ(engine.state(), Engine::State::Stopped);
+}
+
+// The engine gets its standard streams and nothing else of ours: not a file
+// the game happens to have open, nor any other process's pipe.
+TEST(Process, InheritsOnlyTheStandardStreams) {
+    // A descriptor this program has open, not marked close-on-exec, at a
+    // number the shell will not take for itself.
+    const int open = ::open("/dev/null", O_RDONLY);
+    ASSERT_GE(open, 0);
+    const int stray = ::fcntl(open, F_DUPFD, 77);
+    ::close(open);
+    ASSERT_GE(stray, 77);
+
+    const std::string script = testing::TempDir() + "chess_fd_probe.sh";
+    {
+        std::ofstream out(script);
+        out << "#!/bin/sh\n"
+            << "if [ -e /dev/fd/" << stray << " ]; then echo leaked; else echo closed; fi\n"
+            << "if [ -e /dev/fd/2 ]; then echo stderr; else echo no-stderr; fi\n";
+    }
+    ASSERT_EQ(::chmod(script.c_str(), 0755), 0);
+
+    Process process;
+    std::string error;
+    ASSERT_TRUE(process.start(script, &error)) << error;
+    std::string first, second;
+    ASSERT_TRUE(process.readLine(first));
+    ASSERT_TRUE(process.readLine(second));
+    process.stop();
+    ::close(stray);
+    ::unlink(script.c_str());
+
+    EXPECT_EQ(first, "closed");
+    EXPECT_EQ(second, "stderr");
 }
 
 TEST(FindEngine, EnvironmentWinsThenFallback) {
