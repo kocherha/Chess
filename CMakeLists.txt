@@ -63,6 +63,7 @@ if(CHESS_BUILD_TESTS)
 
     add_subdirectory(engine/rules/tests)
     add_subdirectory(engine/uci/tests)
+    add_subdirectory(engine/session/tests)
 endif()
 
 if(CHESS_BUILD_APP)

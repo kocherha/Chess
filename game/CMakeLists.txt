@@ -111,7 +111,7 @@ include(AXGameTargetSetup)
 
 ax_setup_app_config(${APP_NAME})
 
-target_link_libraries(${APP_NAME} chess_rules chess_uci)
+target_link_libraries(${APP_NAME} chess_rules chess_uci chess_session)
 target_compile_definitions(${APP_NAME} PRIVATE CHESS_BUNDLE_ID="${CHESS_BUNDLE_ID}")
 chess_sanitize(${APP_NAME})
 

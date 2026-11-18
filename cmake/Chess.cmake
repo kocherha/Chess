@@ -122,6 +122,7 @@ function(chess_add_engine)
     endif()
     add_subdirectory(${CHESS_ROOT}/engine/rules ${CMAKE_BINARY_DIR}/engine/rules)
     add_subdirectory(${CHESS_ROOT}/engine/uci ${CMAKE_BINARY_DIR}/engine/uci)
+    add_subdirectory(${CHESS_ROOT}/engine/session ${CMAKE_BINARY_DIR}/engine/session)
 endfunction()
 
 # --- axmol -------------------------------------------------------------------

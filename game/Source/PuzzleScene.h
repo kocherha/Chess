@@ -12,6 +12,11 @@
 // makes against it, answering the right ones with the stoutest defence. A
 // problem carries no solution of its own; the engine is the arbiter, so any
 // move that really does mate in time is accepted.
+//
+// What solving means — the phases, what the engine is asked and what its
+// answers mean — is chess::PuzzleSession, which knows nothing of the screen.
+// This scene passes it what the player does and the engine says, and shows
+// what it reports.
 #pragma once
 
 #include "BoardNode.h"
@@ -26,6 +31,7 @@
 #include "chess/Engine.h"
 #include "chess/Game.h"
 #include "chess/Judge.h"
+#include "chess/PuzzleSession.h"
 #include "chess/Setup.h"
 
 #include "axmol.h"
@@ -63,18 +69,9 @@ public:
 private:
     enum class Page { Editor, Solving };
 
-    // Where solving stands.
-    enum class Phase {
-        Preparing,  // the engine is finding the best move first (best-move problems)
-        Ready,      // the player's move
-        Checking,   // the engine is judging it
-        Replying,   // the engine is choosing the defence, or about to play it
-        Wrong,      // a wrong move is on the board, about to be taken back
-        Solved,
-    };
-
-    // What the one engine of this scene has been asked.
-    enum class Question { None, Probe, Shorter, Prepare, Check, Recheck, Reply, Hint };
+    // What the editor has asked the engine. (Solving asks through the
+    // session; see talkToEngine().)
+    enum class Question { None, Probe, Shorter };
 
     bool initWith(Hooks hooks, Opening opening);
 
@@ -94,22 +91,20 @@ private:
     // --- solving ---
     void openPuzzle(const Puzzle& puzzle);
     void restart();
-    void played(const chess::Move& move, bool slide);
-    void judged(bool right, const chess::SearchResult& result);
-    void reply(const std::string& move);
-    void wrong(const std::string& why);
     void takeBack();
     void askHint();
     void showSolution();
-    void finish(bool byPlayer);
+    // After anything that may have changed the session: tell the engine what
+    // it asks, show what happened on the board, log it, and refresh the page.
+    void sessionChanged();
     void refreshSolving();
-    int  attackerMoves() const;  // moves the side solving has made so far
-    int  movesLeft() const;
-    bool playerToMove() const;
+    std::string noteText(const chess::PuzzleSession::Note& note) const;
     std::string movesText() const;
+    bool playerToMove() const { return _page == Page::Solving && _session.playerToMove(); }
 
     // --- the engine ---
-    void ask(Question question, chess::SearchRequest request);
+    void ask(Question question, chess::SearchRequest request);  // the editor's questions
+    void talkToEngine();                                       // the session's
     void pollEngine();
     bool engineUsable() const;
 
@@ -149,29 +144,17 @@ private:
     bool              _probeDone = false;
     std::optional<int> _probeMate, _probeCp;
 
-    // Solving.
-    Puzzle       _puzzle;
-    chess::Game  _game;
-    chess::Color _attacker = chess::Color::White;
-    Phase        _phase    = Phase::Ready;
-    bool         _autoSolve = false;  // the engine plays the solving side too: "show the solution"
-    bool         _helped    = false;  // a hint or the solution was asked for
-    std::string  _bestMove;           // best-move problems: the engine's choice, and its worth
-    chess::Score _bestScore;
-    std::string  _replyMove;
-    float        _replyDelay = 0.0f;
-    float        _wrongFor   = 0.0f;  // seconds until a wrong move is taken back
-    std::string  _verdictHead, _verdictDetail;
-    PuzzlePanel::Tone _verdictTone = PuzzlePanel::Tone::Neutral;
-    std::vector<chess::Mark> _marks;  // per move: "!" for the solver's right ones, "?" for the wrong one
-    chess::Square _hintFrom = chess::kNoSquare, _hintTo = chess::kNoSquare;
+    // Solving: the problem as the collection has it (its id, name, whose it
+    // is), and the session that is solving it.
+    Puzzle               _puzzle;
+    chess::PuzzleSession _session;
 
-    // The engine.
+    // The engine. The editor's questions carry negative tags, the session's
+    // positive ones: one engine, two askers, and each answer goes back to
+    // the one that asked.
     chess::Engine _engine;
     Question      _question = Question::None;
-    int           _tag = 0, _nextTag = 1;
-    std::string   _checkKey;    // the `position` before the move being judged
-    std::string   _checkMove;   // that move, UCI
+    int           _tag = 0, _nextTag = -1;
     chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as update() last saw it
 
     // Input.

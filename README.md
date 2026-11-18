@@ -511,6 +511,9 @@ engine/uci/                   розмова з рушієм; про прави�
   include/chess/Engine.h      UCI: запит ходу, скасування, відповідь пізніше
   include/chess/Difficulty.h  рівні складності і шкала між ними
   tests/                      несправжній рушій (sh) і справжній Stockfish
+engine/session/               розв'язування задачі без екрана: правила + запитання до рушія
+  include/chess/PuzzleSession.h  хід, перевірка, відповідь захисту, підказка, розв'язок
+  tests/                      кожен перехід — без вікна й без справжнього рушія
 game/                         застосунок на axmol
   Source/AppDelegate.*        вікно, параметри командного рядка, головний цикл
   Source/GameScene.*          партія: зводить докупи правила, рушій і екран
@@ -522,7 +525,7 @@ game/                         застосунок на axmol
   Source/NewGameDialog.*      вікно «Нова гра»
   Source/LookDialog.*         вікно «Вигляд»
   Source/ConfirmDialog.*      «Партію не закінчено»: запитання перед її втратою
-  Source/PuzzleScene.*        режим «Задачі»: редактор позиції й розв'язування
+  Source/PuzzleScene.*        режим «Задачі»: редактор позиції; розв'язування малює з PuzzleSession
   Source/PuzzlePanel.*        його панель праворуч: дві сторінки
   Source/PieceTray.*          ряди фігур над дошкою й під нею
   Source/PuzzleDialog.*       вікно «Збірка задач»
@@ -642,7 +645,7 @@ cmake -S . -B build -DCHESS_BUILD_APP=OFF && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-117 тестів. Ті, що грають проти справжнього Stockfish, самі себе пропускають,
+135 тестів. Ті, що грають проти справжнього Stockfish, самі себе пропускають,
 якщо бінарника немає; серед них — партії на кожному рівні, де кожен хід рушія
 мусить бути дозволеним за нашими правилами.
 

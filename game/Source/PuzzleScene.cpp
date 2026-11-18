@@ -31,23 +31,13 @@ constexpr float kTrayShare = 0.82f;  // a tray's height, in squares
 constexpr float kTrayGap   = 10.0f;
 
 constexpr float kProbeDelay   = 0.3f;   // after the last edit, before the engine is asked
-constexpr float kReplyPause   = 0.45f;  // before the defence is played
-constexpr float kWrongSeconds = 1.8f;   // a wrong move stays on the board this long
 constexpr float kFlashSeconds = 1.6f;
 
-// What the engine is asked, and for how long.
+// What the editor asks the engine, and for how long. (What solving asks is
+// chess::PuzzleSession's.)
 constexpr int kProbeMate = 8;      // the longest mate the editor looks for
 constexpr int kProbeMs   = 3000;
 constexpr int kShorterMs = 2000;   // then: is there a shorter one?
-constexpr int kCheckMs   = 1500;   // does this move keep the mate?
-constexpr int kRecheckMs = 1000;   // the same question, asked of the defence
-constexpr int kReplyMs   = 700;
-constexpr int kHintMs    = 3000;
-constexpr int kBestMs    = 2500;   // best-move problems: the best move, and the player's
-constexpr int kBestDepth = 18;
-// A move is as good as the best if it gives away less than this much of the
-// chance to win (see chess::winChance).
-constexpr double kBestTolerance = 0.03;
 
 // One thread. With more, Stockfish sometimes ends a search restricted to a
 // single move ("searchmoves") after a few plies, without the mate it would
@@ -145,7 +135,7 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     _panel->solution->onClick = [this] { showSolution(); };
     _panel->undo->onClick     = [this] { takeBack(); };
     _panel->restart->onClick  = [this] { restart(); };
-    _panel->edit->onClick     = [this] { openEditor(Setup::from(_game.startPosition())); };
+    _panel->edit->onClick     = [this] { openEditor(Setup::from(_session.game().startPosition())); };
     _panel->removeMine->onClick = [this] {
         const std::string fen = _puzzle.fen;
         puzzles::remove(_puzzle.id);
@@ -253,14 +243,30 @@ bool PuzzleScene::engineUsable() const {
 
 void PuzzleScene::ask(Question question, SearchRequest request) {
     request.options = puzzleOptions();
-    request.tag = _tag = _nextTag++;
+    request.tag = _tag = _nextTag--;  // negative: the session's are positive
     _question       = question;
     _engine.search(std::move(request));
 }
 
+void PuzzleScene::talkToEngine() {
+    auto work = _session.toEngine();
+    if (work.cancel)
+        _engine.cancel();
+    if (work.search) {
+        work.search->options = puzzleOptions();
+        _engine.search(std::move(*work.search));
+    }
+}
+
 void PuzzleScene::pollEngine() {
     SearchResult result;
+    bool answered = false;
     while (_engine.poll(result)) {
+        if (result.tag > 0) {  // one of the session's
+            _session.answer(result);
+            answered = true;
+            continue;
+        }
         if (_tag == 0 || result.tag != _tag)
             continue;
         const Question question = _question;
@@ -296,126 +302,27 @@ void PuzzleScene::pollEngine() {
             break;
         }
 
-        case Question::Prepare:
-            if (_page != Page::Solving)
-                break;
-            _bestMove  = result.bestMove;
-            _bestScore = Score{result.scoreCp, result.mateIn};
-            _phase     = Phase::Ready;
-            // "Show the solution" was asked for while the engine was still
-            // looking: now it has the move, play it.
-            if (_autoSolve) {
-                if (const auto move = _game.position().parseUci(_bestMove)) {
-                    played(*move, true);
-                    break;
-                }
-                _autoSolve = false;  // nothing to show: the player's move again
-            }
-            refreshSolving();
-            break;
-
-        case Question::Check: {
-            if (_page != Page::Solving || _phase != Phase::Checking)
-                break;
-            const std::string move = _game.history().empty() ? "" : text::localSan(_game.history().back().san);
-            if (_puzzle.mateIn <= 0) {
-                // Best-move problems: as good as the best, or near enough.
-                const Score mine{result.scoreCp, result.mateIn};
-                const bool  same  = _checkMove == _bestMove;
-                const bool  right = same || !_bestScore.known() ||
-                                   (mine.known() && winChance(mine) >= winChance(_bestScore) - kBestTolerance);
-                const auto  best  = _game.history().empty() ? std::nullopt
-                                                            : _game.history().back().before.parseUci(_bestMove);
-                const std::string bestSan =
-                    best ? text::localSan(_game.history().back().before.san(*best)) : std::string();
-                if (right) {
-                    _marks.back()  = Mark::Great;
-                    _verdictDetail = text::bestMoveVerdict(move, true, bestSan);
-                    finish(true);
-                } else {
-                    wrong(text::bestMoveVerdict(move, false, bestSan));
-                }
-                break;
-            }
-            const int before = movesLeft() + 1;
-            if (result.mateIn && *result.mateIn > 0 && *result.mateIn <= before) {
-                SearchRequest defence;
-                defence.position   = _game.uciPosition();
-                defence.moveTimeMs = kReplyMs;
-                defence.depth      = 2 * movesLeft() + 10;
-                ask(Question::Reply, defence);
-                _phase         = Phase::Replying;
-                _verdictDetail = text::rightMove(move);
-                if (attackerMoves() == 1)
-                    _marks.back() = Mark::Great;
-            } else {
-                // Not found from the attacking side. Before calling it wrong,
-                // ask the defence: is it mated within the moves that are left?
-                SearchRequest recheck;
-                recheck.position   = _game.uciPosition();
-                recheck.moveTimeMs = kRecheckMs;
-                recheck.depth      = 2 * movesLeft() + 12;
-                ask(Question::Recheck, recheck);
-            }
-            refreshSolving();
-            break;
-        }
-
-        case Question::Recheck: {
-            if (_page != Page::Solving || _phase != Phase::Checking)
-                break;
-            const std::string move = text::localSan(_game.history().back().san);
-            if (result.mateIn && *result.mateIn < 0 && -*result.mateIn <= movesLeft()) {
-                _verdictDetail = text::rightMove(move);
-                if (attackerMoves() == 1)
-                    _marks.back() = Mark::Great;
-                reply(result.bestMove);
-            } else {
-                wrong(text::wrongMove(move, movesLeft() + 1));
-            }
-            break;
-        }
-
-        case Question::Reply:
-            if (_page == Page::Solving && _phase == Phase::Replying)
-                reply(result.bestMove);
-            break;
-
-        case Question::Hint: {
-            if (_page != Page::Solving || !(_phase == Phase::Ready && _game.position().sideToMove() == _attacker))
-                break;
-            const auto move = _game.position().parseUci(result.bestMove);
-            if (!move)
-                break;
-            if (_autoSolve) {
-                played(*move, true);
-                break;
-            }
-            _hintFrom      = move->from;
-            _hintTo        = move->to;
-            _verdictDetail = std::string(text::kHint) + ": " + text::localSan(_game.position().san(*move));
-            refreshSolving();
-            break;
-        }
-
         case Question::None:
             break;
         }
     }
+    if (answered && _page == Page::Solving)
+        sessionChanged();
 }
 
 // --- the editor --------------------------------------------------------------------
 
 void PuzzleScene::openEditor(const Setup& setup) {
+    // Whatever either page had asked is about something that is gone.
+    _session.close();
+    _session.toEngine();
     _engine.cancel();
     _question = Question::None;
     _tag      = 0;
     _page     = Page::Editor;
-    _phase    = Phase::Ready;
-    _autoSolve = false;
     _setup    = setup;
     _brush    = {};
-    _selected = _hintFrom = _hintTo = kNoSquare;
+    _selected = kNoSquare;
     cancelPress();
     _board->closePromotion();
     _top->setChosen({});
@@ -591,62 +498,31 @@ void PuzzleScene::playFromSetup() {
 // --- solving -----------------------------------------------------------------------
 
 void PuzzleScene::openPuzzle(const Puzzle& puzzle) {
+    // A question the editor had out is about the position being left.
+    if (_question != Question::None) {
+        _engine.cancel();
+        _question = Question::None;
+        _tag      = 0;
+    }
+
+    _session.setEngineUsable(engineUsable());
     std::string error;
-    const auto position = Position::fromFen(puzzle.fen, &error);
-    if (!position) {
+    if (!_session.open(puzzle.fen, puzzle.mateIn, &error)) {
         AXLOGW("puzzle {} is not a legal position: {}", puzzle.id, error);
         openEditor(Setup::fromFen(puzzle.fen).value_or(Setup::initial()));
         return;
     }
 
-    _engine.cancel();
-    _question = Question::None;
-    _tag      = 0;
-
-    _page      = Page::Solving;
-    _puzzle    = puzzle;
-    _game      = Game(*position);
-    _attacker  = position->sideToMove();
-    _marks.clear();
-    _helped    = false;
-    _autoSolve = false;
-    _bestMove.clear();
-    _bestScore = {};
-    _verdictDetail.clear();
-    _replyMove.clear();
-    _wrongFor   = 0.0f;
-    _replyDelay = 0.0f;
-    _selected = _hintFrom = _hintTo = kNoSquare;
-    _promoteFrom = _promoteTo = kNoSquare;
-    cancelPress();
-    _board->closePromotion();
-    _brush = {};
-
+    _page   = Page::Solving;
+    _puzzle = puzzle;
+    _brush  = {};
     _top->setVisible(false);
     _bottom->setVisible(false);
     _caption->setVisible(true);
     _panel->setPage(PuzzlePanel::Page::Solving);
     _panel->setMine(puzzle.mine);
-    _panel->setPuzzle(puzzle.title, puzzle.note, text::goal(_attacker, puzzle.mateIn));
-
-    // The side that solves sits at the bottom.
-    _board->setFlipped(_attacker == Color::Black);
-    layout();
-    _board->show(_game.position());
-
-    _phase = Phase::Ready;
-    if (puzzle.mateIn <= 0 && engineUsable()) {
-        _phase = Phase::Preparing;
-        SearchRequest request;
-        request.position   = _game.uciPosition();
-        request.depth      = kBestDepth;
-        request.moveTimeMs = kBestMs;
-        ask(Question::Prepare, request);
-    }
-    eventlog::note("puzzle open " + (puzzle.id.empty() ? puzzle.fen : puzzle.id) + " mate " +
-                   std::to_string(puzzle.mateIn));
-    refreshSolving();
-    keepAwake();
+    _panel->setPuzzle(puzzle.title, puzzle.note, text::goal(_session.attacker(), puzzle.mateIn));
+    sessionChanged();  // the board, set up by the Opened event
 }
 
 void PuzzleScene::restart() {
@@ -654,226 +530,116 @@ void PuzzleScene::restart() {
     openPuzzle(puzzle);
 }
 
-int PuzzleScene::attackerMoves() const {
-    int count = 0;
-    for (const Game::Record& record : _game.history())
-        count += record.before.sideToMove() == _attacker ? 1 : 0;
-    return count;
-}
-
-int PuzzleScene::movesLeft() const {
-    return _puzzle.mateIn - attackerMoves();
-}
-
-bool PuzzleScene::playerToMove() const {
-    return _page == Page::Solving && _phase == Phase::Ready && !_autoSolve &&
-           _game.position().sideToMove() == _attacker && !_game.status().over();
-}
-
-// A move by the side solving — the player's, or the engine's when it is
-// showing the solution — is on the board. Now: is it right?
-void PuzzleScene::played(const Move& move, bool slide) {
-    const std::string before = _game.uciPosition();
-    if (!_game.play(move))
-        return;
-    eventlog::note("puzzle move " + move.uci() + (_autoSolve ? " solution" : " player"));
-    _checkKey  = before;
-    _checkMove = move.uci();
-    _marks.resize(_game.plies() - 1, Mark::None);
-    _marks.push_back(Mark::None);
-    _selected = _hintFrom = _hintTo = kNoSquare;
-    _board->show(_game.position(), _game.lastMove(), slide);
-
-    const Status status    = _game.status();
-    const std::string said = text::localSan(_game.history().back().san);
-
-    if (_puzzle.mateIn > 0) {
-        if (status.outcome == Outcome::Checkmate) {
-            finish(!_autoSolve);
-            return;
-        }
-        if (status.over()) {
-            wrong(text::verdict(status, std::nullopt).headline + ".");
-            return;
-        }
-        if (movesLeft() <= 0) {
-            wrong(text::wrongMove(said, 1));
-            return;
-        }
-        if (!engineUsable()) {
-            wrong(text::kNoEngineHere);
-            return;
-        }
-        if (_autoSolve) {
-            // The engine's own move: no need to ask whether it is right.
-            _verdictDetail = text::rightMove(said);
-            SearchRequest defence;
-            defence.position   = _game.uciPosition();
-            defence.moveTimeMs = kReplyMs;
-            defence.depth      = 2 * movesLeft() + 10;
-            ask(Question::Reply, defence);
-            _phase = Phase::Replying;
-            refreshSolving();
-            return;
-        }
-        SearchRequest check;
-        check.position    = before;
-        check.mate        = movesLeft() + 1;
-        check.moveTimeMs  = kCheckMs;
-        check.searchMoves = {_checkMove};
-        ask(Question::Check, check);
-        _phase = Phase::Checking;
-        refreshSolving();
-        return;
-    }
-
-    // The best move: one move and done.
-    if (_autoSolve || !engineUsable()) {
-        _marks.back()  = Mark::Great;
-        _verdictDetail = text::bestMoveVerdict(said, true, "");
-        finish(false);
-        return;
-    }
-    SearchRequest check;
-    check.position    = before;
-    check.depth       = kBestDepth;
-    check.moveTimeMs  = kBestMs;
-    check.searchMoves = {_checkMove};
-    ask(Question::Check, check);
-    _phase = Phase::Checking;
-    refreshSolving();
-}
-
-void PuzzleScene::reply(const std::string& uci) {
-    const auto move = _game.position().parseUci(uci);
-    if (!move) {
-        _phase = Phase::Ready;
-        refreshSolving();
-        return;
-    }
-    _replyMove  = uci;
-    _replyDelay = kReplyPause;
-    _phase      = Phase::Replying;
-    refreshSolving();
-    keepAwake();
-}
-
-void PuzzleScene::wrong(const std::string& why) {
-    _engine.cancel();
-    _question = Question::None;
-    _tag      = 0;
-    if (!_marks.empty())
-        _marks.back() = Mark::Mistake;
-    eventlog::note("puzzle wrong");
-    _phase         = Phase::Wrong;
-    _wrongFor      = kWrongSeconds;
-    _verdictDetail = why;
-    refreshSolving();
-    keepAwake();
-}
-
-void PuzzleScene::finish(bool byPlayer) {
-    eventlog::note(std::string("puzzle finished ") + (byPlayer ? "player" : "solution") + (_helped ? " helped" : ""));
-    _phase = Phase::Solved;
-    if (byPlayer && !_helped && !_puzzle.id.empty())
-        puzzles::markSolved(_puzzle.id);
-    if (_puzzle.mateIn > 0)
-        _verdictDetail = !byPlayer ? text::kSolutionDone : _helped ? text::kSolvedHelped : text::kSolvedAlone;
-    _autoSolve = false;
-    refreshSolving();
-}
-
-// Back to the solver's previous turn: the reply and the move before it, or
-// just the move if it was the last one played.
 void PuzzleScene::takeBack() {
-    if (_page != Page::Solving || _game.plies() == 0 || _phase == Phase::Preparing)
+    if (_page != Page::Solving)
         return;
-    _engine.cancel();
-    _question  = Question::None;
-    _tag       = 0;
-    _autoSolve = false;
-    _replyMove.clear();
-    _wrongFor = 0.0f;
-    cancelPress();
-
-    do {
-        _game.undo();
-    } while (_game.plies() > 0 && _game.position().sideToMove() != _attacker);
-    _marks.resize(_game.plies());
-    _selected = _hintFrom = _hintTo = kNoSquare;
-    _verdictDetail.clear();
-    _phase = Phase::Ready;
-    _board->show(_game.position());
-    eventlog::note("puzzle takeback");
-    refreshSolving();
-    keepAwake();
+    _session.takeBack();
+    sessionChanged();
 }
 
 void PuzzleScene::askHint() {
-    if (!playerToMove() || !engineUsable())
+    if (_page != Page::Solving)
         return;
-    _helped = true;
-    if (_puzzle.mateIn <= 0) {
-        if (const auto move = _game.position().parseUci(_bestMove)) {
-            _hintFrom      = move->from;
-            _hintTo        = move->to;
-            _verdictDetail = std::string(text::kHint) + ": " + text::localSan(_game.position().san(*move));
-        }
-        refreshSolving();
-        return;
-    }
-    SearchRequest request;
-    request.position   = _game.uciPosition();
-    request.mate       = movesLeft();
-    request.moveTimeMs = kHintMs;
-    ask(Question::Hint, request);
-    _verdictDetail = text::kHintLooking;
-    refreshSolving();
+    _session.hint();
+    sessionChanged();
 }
 
 void PuzzleScene::showSolution() {
-    if (_page != Page::Solving || !engineUsable() || _phase == Phase::Preparing)
+    if (_page != Page::Solving)
         return;
-    if (_phase == Phase::Solved || _phase == Phase::Wrong) {
-        // From the start, so the whole solution is seen.
-        const Puzzle puzzle = _puzzle;
-        openPuzzle(puzzle);
-        if (_page != Page::Solving)
-            return;  // it could not be set up again and went to the editor
-    }
-    // After openPuzzle(), which clears both.
-    _autoSolve = true;
-    _helped    = true;
-    _hintFrom = _hintTo = kNoSquare;
-    if (_phase == Phase::Preparing) {
-        // A best-move problem started again: the engine is looking for the
-        // best move, and plays it as soon as it has it (Question::Prepare).
-        refreshSolving();
-        return;
-    }
-    if (_phase == Phase::Ready && _game.position().sideToMove() == _attacker) {
-        if (_puzzle.mateIn <= 0) {
-            if (const auto move = _game.position().parseUci(_bestMove)) {
-                played(*move, true);
-                return;
-            }
-            // The engine never named a best move here: nothing to show.
-            _autoSolve = false;
-            refreshSolving();
-            return;
+    _session.showSolution();
+    sessionChanged();
+}
+
+void PuzzleScene::sessionChanged() {
+    talkToEngine();
+
+    using Kind      = PuzzleSession::Event::Kind;
+    bool redraw     = false;  // the position on the board has changed
+    bool moving     = false;  // ...by the last move, which is to be seen happening
+    bool slide      = true;
+    for (const PuzzleSession::Event& event : _session.takeEvents()) {
+        switch (event.kind) {
+        case Kind::Opened:
+            eventlog::note("puzzle open " + (_puzzle.id.empty() ? _puzzle.fen : _puzzle.id) + " mate " +
+                           std::to_string(_session.mateIn()));
+            // The solving side sits at the bottom, and nothing is in hand.
+            _selected    = kNoSquare;
+            _promoteFrom = _promoteTo = kNoSquare;
+            cancelPress();
+            _board->closePromotion();
+            _board->setFlipped(_session.attacker() == Color::Black);
+            layout();
+            redraw = true;
+            moving = false;
+            break;
+        case Kind::Moved:
+            eventlog::note("puzzle move " + event.move + (event.bySolution ? " solution" : " player"));
+            _selected = kNoSquare;
+            redraw    = true;
+            moving    = true;
+            slide     = event.slide;
+            break;
+        case Kind::Replied:
+            eventlog::note("puzzle reply " + event.move);
+            redraw = true;
+            moving = true;
+            slide  = true;
+            break;
+        case Kind::Wrong:
+            eventlog::note("puzzle wrong");
+            break;
+        case Kind::TakenBack:
+            eventlog::note(event.automatic ? "puzzle takeback wrong" : "puzzle takeback");
+            _selected = kNoSquare;
+            cancelPress();
+            redraw = true;
+            moving = false;
+            break;
+        case Kind::Finished:
+            eventlog::note(std::string("puzzle finished ") + (event.byPlayer ? "player" : "solution") +
+                           (event.helped ? " helped" : ""));
+            if (event.byPlayer && !event.helped && !_puzzle.id.empty())
+                puzzles::markSolved(_puzzle.id);
+            break;
         }
-        SearchRequest request;
-        request.position   = _game.uciPosition();
-        request.mate       = movesLeft();
-        request.moveTimeMs = kHintMs;
-        ask(Question::Hint, request);
+    }
+
+    if (redraw) {
+        const Game& game = _session.game();
+        if (moving)
+            _board->show(game.position(), game.lastMove(), slide);
+        else
+            _board->show(game.position());
     }
     refreshSolving();
+    keepAwake();
+}
+
+std::string PuzzleScene::noteText(const PuzzleSession::Note& note) const {
+    using Kind = PuzzleSession::Note::Kind;
+    const std::string move = text::localSan(note.move);
+    switch (note.kind) {
+    case Kind::None:           return {};
+    case Kind::Right:          return text::rightMove(move);
+    case Kind::NoMate:         return text::wrongMove(move, note.movesLeft);
+    case Kind::BestRight:      return text::bestMoveVerdict(move, true, text::localSan(note.best));
+    case Kind::BestWrong:      return text::bestMoveVerdict(move, false, text::localSan(note.best));
+    case Kind::GameOver:       return text::verdict(Status{note.outcome, std::nullopt}, std::nullopt).headline + ".";
+    case Kind::NoEngine:       return text::kNoEngineHere;
+    case Kind::Hint:           return std::string(text::kHint) + ": " + move;
+    case Kind::LookingForHint: return text::kHintLooking;
+    case Kind::SolvedAlone:    return text::kSolvedAlone;
+    case Kind::SolvedHelped:   return text::kSolvedHelped;
+    case Kind::SolutionShown:  return text::kSolutionDone;
+    }
+    return {};
 }
 
 std::string PuzzleScene::movesText() const {
     std::string out;
-    const auto& history = _game.history();
+    const auto& history = _session.game().history();
+    const auto& marks   = _session.marks();
     for (std::size_t i = 0; i < history.size(); ++i) {
         const Position& before = history[i].before;
         if (before.sideToMove() == Color::White)
@@ -883,8 +649,8 @@ std::string PuzzleScene::movesText() const {
         else
             out += ' ';
         out += text::localSan(history[i].san);
-        if (i < _marks.size())
-            out += suffix(_marks[i]);
+        if (i < marks.size())
+            out += suffix(marks[i]);
     }
     return out;
 }
@@ -892,44 +658,48 @@ std::string PuzzleScene::movesText() const {
 void PuzzleScene::refreshSolving() {
     if (_page != Page::Solving)
         return;
-    using Tone = PuzzlePanel::Tone;
+    using Tone  = PuzzlePanel::Tone;
+    using Phase = PuzzleSession::Phase;
 
+    const bool        showing = _session.showingSolution();
+    const std::string detail  = noteText(_session.note());
     _panel->setMoves(movesText());
-    switch (_phase) {
+    switch (_session.phase()) {
     case Phase::Preparing:
         _panel->setStatus(text::kFindingBest, "", Tone::Neutral);
         break;
     case Phase::Ready:
-        if (_autoSolve)
-            _panel->setStatus(text::kShowingSolution, _verdictDetail, Tone::Neutral);
+        if (showing)
+            _panel->setStatus(text::kShowingSolution, detail, Tone::Neutral);
         else if (!engineUsable())
             _panel->setStatus(text::kYourMove, text::kNoEngineHere, Tone::Warning);
         else
-            _panel->setStatus(text::kYourMove, _verdictDetail, Tone::Neutral);
+            _panel->setStatus(text::kYourMove, detail, Tone::Neutral);
         break;
     case Phase::Checking:
         _panel->setStatus(text::kChecking, "", Tone::Neutral);
         break;
     case Phase::Replying:
-        _panel->setStatus(_autoSolve ? text::kShowingSolution : text::kRight, _verdictDetail,
-                          _autoSolve ? Tone::Neutral : Tone::Good);
+        _panel->setStatus(showing ? text::kShowingSolution : text::kRight, detail,
+                          showing ? Tone::Neutral : Tone::Good);
         break;
     case Phase::Wrong:
-        _panel->setStatus(text::kWrong, _verdictDetail + " " + text::kTryAgain, Tone::Bad);
+        _panel->setStatus(text::kWrong, detail + " " + text::kTryAgain, Tone::Bad);
         break;
     case Phase::Solved:
-        _panel->setStatus(_helped ? text::kSolution : text::kSolved, _verdictDetail, _helped ? Tone::Neutral : Tone::Good);
+        _panel->setStatus(_session.helped() ? text::kSolution : text::kSolved, detail,
+                          _session.helped() ? Tone::Neutral : Tone::Good);
         break;
     }
 
-    const bool busy = _phase == Phase::Checking || _phase == Phase::Replying || _phase == Phase::Preparing;
+    const Game& game = _session.game();
+    const bool  busy = _session.busy();
     _panel->hint->setEnabled(playerToMove() && engineUsable());
-    _panel->solution->setEnabled(engineUsable() && !busy && !_autoSolve);
-    _panel->undo->setEnabled(_game.plies() > 0 && !busy && !_autoSolve);
-    _panel->restart->setEnabled(_game.plies() > 0 || _helped);
+    _panel->solution->setEnabled(engineUsable() && !busy && !showing);
+    _panel->undo->setEnabled(game.plies() > 0 && !busy && !showing);
+    _panel->restart->setEnabled(game.plies() > 0 || _session.helped());
 
-    const Status status = _game.status();
-    _caption->setString(status.over() ? "" : text::toMoveCaption(_game.position().sideToMove()));
+    _caption->setString(game.status().over() ? "" : text::toMoveCaption(game.position().sideToMove()));
     refreshMarks();
 }
 
@@ -953,7 +723,7 @@ void PuzzleScene::select(Square square) {
 }
 
 bool PuzzleScene::tryMove(Square from, Square to, bool carried) {
-    const Position& position = _game.position();
+    const Position& position = _session.game().position();
     if (position.isPromotion(from, to)) {
         _promoteFrom    = from;
         _promoteTo      = to;
@@ -962,9 +732,9 @@ bool PuzzleScene::tryMove(Square from, Square to, bool carried) {
         return true;
     }
     const auto move = position.findMove(from, to);
-    if (!move)
+    if (!move || !_session.play(*move, !carried))
         return false;
-    played(*move, !carried);
+    sessionChanged();
     return true;
 }
 
@@ -984,8 +754,10 @@ void PuzzleScene::onMouseDown(const Vec2& point, bool right) {
         _promoteFrom = _promoteTo = kNoSquare;
         _board->closePromotion();
         if (piece != PieceType::None)
-            if (const auto move = _game.position().findMove(from, to, piece))
-                played(*move, !carried);
+            if (const auto move = _session.game().position().findMove(from, to, piece)) {
+                _session.play(*move, !carried);
+                sessionChanged();
+            }
         select(kNoSquare);
         return;
     }
@@ -1033,8 +805,9 @@ void PuzzleScene::onMouseDown(const Vec2& point, bool right) {
     }
     if (_selected != kNoSquare && _selected != square && tryMove(_selected, square, false))
         return;
-    const Piece piece = _game.position().at(square);
-    if (!piece.empty() && piece.color == _game.position().sideToMove()) {
+    const Position& position = _session.game().position();
+    const Piece     piece    = position.at(square);
+    if (!piece.empty() && piece.color == position.sideToMove()) {
         _wasSelected = _selected == square;
         select(square);
         _pressed     = true;
@@ -1069,7 +842,7 @@ void PuzzleScene::onMouseMove(const Vec2& point) {
             }
         } else if (_pressSquare != kNoSquare) {
             const bool hasPiece = _page == Page::Editor ? !_setup.at(_pressSquare).empty()
-                                                        : !_game.position().at(_pressSquare).empty();
+                                                        : !_session.game().position().at(_pressSquare).empty();
             if (hasPiece) {
                 _dragging = true;
                 _board->beginDrag(_pressSquare, point);
@@ -1322,16 +1095,17 @@ void PuzzleScene::refreshMarks() {
         return;
     }
 
-    if (const Move* last = _game.lastMove()) {
+    const Game& game = _session.game();
+    if (const Move* last = game.lastMove()) {
         marks.lastFrom = last->from;
         marks.lastTo   = last->to;
     }
-    const Position& position = _game.position();
+    const Position& position = game.position();
     if (position.inCheck())
         marks.check = position.kingSquare(position.sideToMove());
 
     using Sign = BoardNode::Sign;
-    const Status status = _game.status();
+    const Status status = game.status();
     if (status.outcome == Outcome::Checkmate && status.winner) {
         marks.kings[0] = {position.kingSquare(*status.winner), Sign::Won};
         marks.kings[1] = {position.kingSquare(opposite(*status.winner)), Sign::Mate};
@@ -1346,10 +1120,10 @@ void PuzzleScene::refreshMarks() {
         marks.selected = _selected;
         marks.targets  = position.legalMovesFrom(_selected);
     }
-    marks.hintFrom = _hintFrom;
-    marks.hintTo   = _hintTo;
-    if (!_marks.empty() && _marks.size() == _game.plies())
-        marks.verdict = _marks.back();
+    marks.hintFrom = _session.hintFrom();
+    marks.hintTo   = _session.hintTo();
+    if (const auto& verdicts = _session.marks(); !verdicts.empty() && verdicts.size() == game.plies())
+        marks.verdict = verdicts.back();
     _board->setMarks(marks);
 }
 
@@ -1364,41 +1138,13 @@ void PuzzleScene::update(float delta) {
             probe();
     }
 
-    if (!_replyMove.empty()) {
-        _replyDelay -= delta;
-        if (_replyDelay <= 0.0f) {
-            const std::string uci = std::move(_replyMove);
-            _replyMove.clear();
-            if (const auto move = _game.position().parseUci(uci); move && _phase == Phase::Replying) {
-                _game.play(*move);
-                eventlog::note("puzzle reply " + uci);
-                _marks.resize(_game.plies(), Mark::None);
-                _board->show(_game.position(), _game.lastMove(), true);
-                _phase = Phase::Ready;
-                if (_autoSolve) {
-                    SearchRequest request;
-                    request.position   = _game.uciPosition();
-                    request.mate       = std::max(1, movesLeft());
-                    request.moveTimeMs = kHintMs;
-                    ask(Question::Hint, request);
-                }
-                refreshSolving();
-            }
-        }
-    }
-
-    if (_phase == Phase::Wrong && _wrongFor > 0.0f) {
-        _wrongFor -= delta;
-        if (_wrongFor <= 0.0f) {
-            _wrongFor = 0.0f;
-            eventlog::note("puzzle takeback wrong");
-            cancelPress();
-            _game.undo();
-            _marks.resize(_game.plies());
-            _board->show(_game.position());
-            _phase = Phase::Ready;
-            refreshSolving();
-        }
+    // The session's own time: a defence about to be played, a wrong move
+    // about to be taken back.
+    _session.setEngineUsable(engineUsable());
+    if (_page == Page::Solving) {
+        _session.tick(delta);
+        if (_session.hasEvents())
+            sessionChanged();
     }
 
     if (_flashFor > 0.0f) {
@@ -1419,8 +1165,8 @@ void PuzzleScene::update(float delta) {
             refreshSolving();
     }
 
-    const bool waiting = _engine.thinking() || _probeIn >= 0.0f || !_replyMove.empty() ||
-                         (_phase == Phase::Wrong && _wrongFor > 0.0f) || _board->animating() || _pressed ||
+    const bool waiting = _engine.thinking() || _probeIn >= 0.0f || _session.timerRunning() ||
+                         _board->animating() || _pressed ||
                          _flashFor > 0.0f || _engine.state() == Engine::State::Starting ||
                          !_opening.screenshot.empty();
     _quiet = waiting ? 0.0f : _quiet + delta;
@@ -1439,7 +1185,7 @@ void PuzzleScene::keepAwake() {
 
 void PuzzleScene::captureAndQuit() {
     desktop::screenshotWhenSettled(this, _opening.screenshot, [this] {
-        return _engine.thinking() || _probeIn >= 0.0f || !_replyMove.empty() || _board->animating() ||
+        return _engine.thinking() || _probeIn >= 0.0f || _session.timerRunning() || _board->animating() ||
                _engine.state() == Engine::State::Starting;
     });
 }
