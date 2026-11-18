@@ -225,6 +225,5 @@ private:
     NewGameDialog* _dialog  = nullptr;
     LookDialog*    _looks   = nullptr;
     ConfirmDialog* _confirm = nullptr;
-    bool           _quitAsked = false;  // the question on screen is "really close?"
     ButtonSet      _buttons;
 };

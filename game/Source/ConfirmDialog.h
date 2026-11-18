@@ -25,6 +25,11 @@ public:
     void open(const std::string& title, const std::string& message, const std::string& proceed,
               std::function<void()> onProceed, std::function<void()> onStay = {});
 
+    // The window is being closed with a game at stake: ask instead (closing
+    // is turned off). Closed again while this very question is still up, it
+    // is "yes", and the window closes.
+    void askBeforeQuitting(bool& closing);
+
     // The two answers, for whoever needs to give one without a click.
     void proceed();
     void stay();
@@ -38,6 +43,7 @@ private:
     ax::Vec2    _screen;
     std::string _text;  // the message as given; it is wrapped again whenever the width changes
     std::function<void()> _onProceed, _onStay;
+    bool _quitting = false;  // the question asked last was "really close?"
 
     ax::DrawNode* _back    = nullptr;
     ax::Label*    _title   = nullptr;

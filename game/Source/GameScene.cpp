@@ -291,7 +291,6 @@ void GameScene::offerGameFrom(const Position& position) {
         showNewGameDialog();
         return;
     }
-    _quitAsked = false;
     _confirm->open(text::kUnfinishedTitle, text::kLoseByNewGame, text::kNewGame, [this] { showNewGameDialog(); },
                    [this] { _startFrom.reset(); });
     keepAwake();
@@ -806,21 +805,16 @@ void GameScene::openNewGame() {
         return;
     }
     _input.cancelPromotion();
-    _quitAsked = false;
     _confirm->open(text::kUnfinishedTitle, text::kLoseByNewGame, text::kNewGame, [this] { showNewGameDialog(); });
     keepAwake();
 }
 
 // The window has been asked to close. With a game in progress the answer is a
-// question; asked a second time while that question is still up, it is yes.
+// question (see ConfirmDialog::askBeforeQuitting).
 void GameScene::askBeforeQuitting(bool& closing) {
-    if (!gameAtStake() || (_quitAsked && _confirm->isOpen()))
+    if (!gameAtStake())
         return;
-    closing    = false;
-    _quitAsked = true;
-    _confirm->open(
-        text::kUnfinishedTitle, text::kLoseByQuit, text::kQuit, [] { Director::getInstance()->end(); },
-        [this] { _quitAsked = false; });
+    _confirm->askBeforeQuitting(closing);
     keepAwake();
 }
 

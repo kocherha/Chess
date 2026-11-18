@@ -967,13 +967,9 @@ void PuzzleScene::flash(Button* button, const char* text, std::function<void()> 
 }
 
 void PuzzleScene::askBeforeQuitting(bool& closing) {
-    if (!_hooks.gameAtStake || !_hooks.gameAtStake() || (_quitAsked && _confirm->isOpen()))
+    if (!_hooks.gameAtStake || !_hooks.gameAtStake())
         return;
-    closing    = false;
-    _quitAsked = true;
-    _confirm->open(
-        text::kUnfinishedTitle, text::kLoseByQuit, text::kQuit, [] { Director::getInstance()->end(); },
-        [this] { _quitAsked = false; });
+    _confirm->askBeforeQuitting(closing);
     keepAwake();
 }
 

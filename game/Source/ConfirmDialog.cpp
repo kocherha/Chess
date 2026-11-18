@@ -59,6 +59,7 @@ bool ConfirmDialog::init() {
 
 void ConfirmDialog::open(const std::string& title, const std::string& message, const std::string& proceed,
                          std::function<void()> onProceed, std::function<void()> onStay) {
+    _quitting = false;
     if (isOpen()) {
         const auto then = std::move(_onStay);
         _onProceed = _onStay = nullptr;
@@ -78,6 +79,14 @@ void ConfirmDialog::open(const std::string& title, const std::string& message, c
 
 // The callback is taken out before it is called: it may well open this very
 // dialog again with a different question.
+void ConfirmDialog::askBeforeQuitting(bool& closing) {
+    if (_quitting && isOpen())
+        return;
+    closing = false;
+    open(text::kUnfinishedTitle, text::kLoseByQuit, text::kQuit, [] { ax::Director::getInstance()->end(); });
+    _quitting = true;
+}
+
 void ConfirmDialog::proceed() {
     const auto then = std::move(_onProceed);
     _onProceed = _onStay = nullptr;

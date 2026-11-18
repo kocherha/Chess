@@ -177,7 +177,6 @@ private:
     float   _flashFor = 0.0f;
     std::function<void()> _unflash;
     Wakefulness _awake;
-    bool    _quitAsked = false;
 
     // Nodes.
     ax::DrawNode*  _backdrop = nullptr;
