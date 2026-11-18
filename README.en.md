@@ -556,7 +556,7 @@ game/                         the axmol application
   Source/EvalBar.*            the evaluation bar
   Source/Panels.*             the players' strips and the panel on the right (the move list drawn from MoveList)
   Source/Look.*               piece sets and boards: the tables, the current choice, drawing a board
-  Source/Dialog.h             what the two dialogs share
+  Source/Dialog.h             what every dialog shares: the card, the scrim, laying out only when open
   Source/NewGameDialog.*      the new-game dialog
   Source/LookDialog.*         the appearance dialog
   Source/ConfirmDialog.*      “the game is not finished”: asked before it is lost
@@ -569,11 +569,12 @@ game/                         the axmol application
   Source/Slider.*             a slider with marks on it (the difficulty)
   Source/Shapes.*             antialiased shapes on top of DrawNode
   Source/Text.*               labels and line wrapping
-  Source/Desktop.*            the clipboard and a picture of the window (--shot)
+  Source/Desktop.*            the clipboard, the window's events (resized, closed) and a picture of it (--shot)
+  Source/Stockfish.*          where to find the engine, and the log of talking to it (CHESS_UCI_LOG=1)
   Source/EventLog.h           the event log the checks read (CHESS_EVENT_LOG=1)
   Source/Wakefulness.*        going to sleep: no reason to stay awake, no frames (CHESS_IDLE_LOG=1)
   Source/Strings.*            every word the game says
-  Source/Theme.h              the colours of the interface around the board
+  Source/Theme.h              the colours of the interface around the board, the status card's tone
   Content/pieces/classic/     the classic pieces (PNG)
   Content/pieces/diagram/     the diagram pieces (PNG)
   Content/pieces/gothic/      the Gothic pieces (PNG)

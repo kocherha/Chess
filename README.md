@@ -524,7 +524,7 @@ game/                         застосунок на axmol
   Source/EvalBar.*            шкала оцінки
   Source/Panels.*             смужки гравців і панель праворуч (список ходів малює з MoveList)
   Source/Look.*               набори фігур і дошки: таблиці, поточний вибір, малювання дошки
-  Source/Dialog.h             спільне для двох вікон
+  Source/Dialog.h             спільне для всіх діалогів: картка, затемнення, розкладка лише відкритого
   Source/NewGameDialog.*      вікно «Нова гра»
   Source/LookDialog.*         вікно «Вигляд»
   Source/ConfirmDialog.*      «Партію не закінчено»: запитання перед її втратою
@@ -537,11 +537,12 @@ game/                         застосунок на axmol
   Source/Slider.*             повзунок із позначками (складність)
   Source/Shapes.*             згладжені фігури поверх DrawNode
   Source/Text.*               написи й перенесення рядків
-  Source/Desktop.*            буфер обміну і знімок вікна (--shot)
+  Source/Desktop.*            буфер обміну, події вікна (розмір, закриття) і знімок вікна (--shot)
+  Source/Stockfish.*          де шукати рушій і журнал розмови з ним (CHESS_UCI_LOG=1)
   Source/EventLog.h           журнал подій для перевірок (CHESS_EVENT_LOG=1)
   Source/Wakefulness.*        засинання: без причини не спати — жодного кадру (CHESS_IDLE_LOG=1)
   Source/Strings.*            увесь текст гри
-  Source/Theme.h              кольори інтерфейсу навколо дошки
+  Source/Theme.h              кольори інтерфейсу навколо дошки, тон картки статусу
   Content/pieces/classic/     класичні фігури (PNG)
   Content/pieces/diagram/     діаграмні фігури (PNG)
   Content/pieces/gothic/      ґотичні фігури (PNG)
