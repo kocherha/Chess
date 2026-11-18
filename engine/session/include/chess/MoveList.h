@@ -65,8 +65,8 @@ public:
     void press(int index) { _pressed = index; }
     // The button came up over `index`: a click, if it is where it went down.
     std::optional<int> release(int index);
-    int  marked() const { return _marked; }
-    bool setMarked(int index);   // true if that changed anything
+    int  ringed() const { return _ringed; }
+    bool setRinged(int index);   // true if that changed anything
 
 private:
     // Puts the first row where it belongs: at the end if following it, and
@@ -82,7 +82,7 @@ private:
     int   _firstRow    = 0;
     bool  _following   = true;
     float _scrollCarry = 0.0f;  // the part of a row scroll() has not used yet
-    int   _hovered = -1, _pressed = -1, _marked = -1;
+    int   _hovered = -1, _pressed = -1, _ringed = -1;
 };
 
 }  // namespace chess

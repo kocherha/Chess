@@ -17,7 +17,7 @@ bool MoveList::setMoves(const std::vector<std::string>& moves, bool whiteFirst, 
     _following   = true;
     _scrollCarry = 0.0f;
     // What the pointer was over, or had hold of, is not there any more.
-    _hovered = _pressed = _marked = -1;
+    _hovered = _pressed = _ringed = -1;
     settle();
     return true;
 }
@@ -114,10 +114,10 @@ std::optional<int> MoveList::release(int index) {
     return std::nullopt;
 }
 
-bool MoveList::setMarked(int index) {
-    if (index == _marked)
+bool MoveList::setRinged(int index) {
+    if (index == _ringed)
         return false;
-    _marked = index;
+    _ringed = index;
     return true;
 }
 

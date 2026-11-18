@@ -443,7 +443,7 @@ void SidePanel::mouseUp(const Vec2& worldPoint) {
 }
 
 void SidePanel::markMove(int index) {
-    if (_list.setMarked(index))
+    if (_list.setRinged(index))
         redrawHighlights();
 }
 
@@ -529,7 +529,7 @@ void SidePanel::redrawHighlights() {
             // The move just played is the one the eye is looking for; the one
             // under the pointer says it can be clicked; the one just copied
             // wears a ring until the notice goes away.
-            if (index == _list.marked())
+            if (index == _list.ringed())
                 shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCardHover, 1.5f, theme::kAccent);
             else if (index == _list.newest())
                 shapes::roundedRect(_highlights, cellOrigin, cellSize, 6.0f, theme::kCardHover);

@@ -159,11 +159,11 @@ TEST(MoveList, NewMovesForgetWhatThePointerWasOn) {
     list.setMoves(moves(4));
     EXPECT_TRUE(list.setHovered(1));
     EXPECT_FALSE(list.setHovered(1));
-    EXPECT_TRUE(list.setMarked(2));
+    EXPECT_TRUE(list.setRinged(2));
     list.press(3);
 
     list.setMoves(moves(5));
     EXPECT_EQ(list.hovered(), -1);
-    EXPECT_EQ(list.marked(), -1);
+    EXPECT_EQ(list.ringed(), -1);
     EXPECT_EQ(list.release(3), std::nullopt);
 }
