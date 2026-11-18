@@ -1,6 +1,7 @@
 #include "GameScene.h"
 
 #include "Desktop.h"
+#include "EventLog.h"
 #include "Look.h"
 #include "PuzzleScene.h"
 #include "Shapes.h"
@@ -463,6 +464,7 @@ void GameScene::startGame(const GameSetup& setup) {
     _board->setFlipped(againstComputer() && _human == Color::Black);
     _evalBar->setFlipped(_board->flipped());
     _board->show(_game.position());
+    eventlog::note("game " + _game.position().fen());
 
     refresh();
     analyse();
@@ -479,6 +481,7 @@ bool GameScene::humanToMove() const {
 void GameScene::play(const Move& move, bool slide) {
     if (!_game.play(move))
         return;
+    eventlog::note("move " + move.uci());
 
     _selected = _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
@@ -1110,6 +1113,7 @@ void GameScene::undo() {
     _selected = _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
     _board->show(_game.position());
+    eventlog::note("undo " + _game.position().fen());
     refresh();
     analyse();
     askEngineIfItsTurn();
@@ -1151,6 +1155,7 @@ void GameScene::resign() {
     // Against the computer it is always the person who resigns, whoever is to
     // move; at a shared board it is whoever's turn it is.
     _game.resign(againstComputer() ? _human : _game.position().sideToMove());
+    eventlog::note("resign");
     _selected = _hintFrom = _hintTo = kNoSquare;
     _hintText.clear();
     refresh();

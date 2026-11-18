@@ -1,6 +1,7 @@
 #include "PuzzleScene.h"
 
 #include "Desktop.h"
+#include "EventLog.h"
 #include "Look.h"
 #include "Shapes.h"
 #include "Strings.h"
@@ -445,6 +446,7 @@ void PuzzleScene::edited() {
 
     const auto position = setupPosition();
     _probeIn = position && position->hasLegalMoves() && engineUsable() ? kProbeDelay : -1.0f;
+    eventlog::note("setup " + _setup.fen());
     refreshEditor();
     keepAwake();
 }
@@ -641,6 +643,8 @@ void PuzzleScene::openPuzzle(const Puzzle& puzzle) {
         request.moveTimeMs = kBestMs;
         ask(Question::Prepare, request);
     }
+    eventlog::note("puzzle open " + (puzzle.id.empty() ? puzzle.fen : puzzle.id) + " mate " +
+                   std::to_string(puzzle.mateIn));
     refreshSolving();
     keepAwake();
 }
@@ -672,6 +676,7 @@ void PuzzleScene::played(const Move& move, bool slide) {
     const std::string before = _game.uciPosition();
     if (!_game.play(move))
         return;
+    eventlog::note("puzzle move " + move.uci() + (_autoSolve ? " solution" : " player"));
     _checkKey  = before;
     _checkMove = move.uci();
     _marks.resize(_game.plies() - 1, Mark::None);
@@ -759,6 +764,7 @@ void PuzzleScene::wrong(const std::string& why) {
     _tag      = 0;
     if (!_marks.empty())
         _marks.back() = Mark::Mistake;
+    eventlog::note("puzzle wrong");
     _phase         = Phase::Wrong;
     _wrongFor      = kWrongSeconds;
     _verdictDetail = why;
@@ -767,6 +773,7 @@ void PuzzleScene::wrong(const std::string& why) {
 }
 
 void PuzzleScene::finish(bool byPlayer) {
+    eventlog::note(std::string("puzzle finished ") + (byPlayer ? "player" : "solution") + (_helped ? " helped" : ""));
     _phase = Phase::Solved;
     if (byPlayer && !_helped && !_puzzle.id.empty())
         puzzles::markSolved(_puzzle.id);
@@ -797,6 +804,7 @@ void PuzzleScene::takeBack() {
     _verdictDetail.clear();
     _phase = Phase::Ready;
     _board->show(_game.position());
+    eventlog::note("puzzle takeback");
     refreshSolving();
     keepAwake();
 }
@@ -1363,6 +1371,7 @@ void PuzzleScene::update(float delta) {
             _replyMove.clear();
             if (const auto move = _game.position().parseUci(uci); move && _phase == Phase::Replying) {
                 _game.play(*move);
+                eventlog::note("puzzle reply " + uci);
                 _marks.resize(_game.plies(), Mark::None);
                 _board->show(_game.position(), _game.lastMove(), true);
                 _phase = Phase::Ready;
@@ -1382,6 +1391,7 @@ void PuzzleScene::update(float delta) {
         _wrongFor -= delta;
         if (_wrongFor <= 0.0f) {
             _wrongFor = 0.0f;
+            eventlog::note("puzzle takeback wrong");
             cancelPress();
             _game.undo();
             _marks.resize(_game.plies());

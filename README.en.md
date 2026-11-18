@@ -536,6 +536,7 @@ engine/rules/                 the rules of chess; nothing but the standard libra
   include/chess/Game.h        a game: history, taking back, how it ended, PGN
   include/chess/Judge.h       marking a move (!!, !, ?!, ?, ??) from two evaluations
   include/chess/Setup.h       a position from the editor: any at all, and why it is (not) possible
+  src/Board.h                 what Position and Setup share: how pieces step, reading a FEN
   tests/                      perft, FEN, notation, draws, known games, possible positions
 engine/uci/                   talking to the engine; knows nothing of the rules
   include/chess/Process.h     a child process with two pipes
@@ -562,6 +563,8 @@ game/                         the axmol application
   Source/Slider.*             a slider with marks on it (the difficulty)
   Source/Shapes.*             antialiased shapes on top of DrawNode
   Source/Text.*               labels and line wrapping
+  Source/Desktop.*            the clipboard and a picture of the window (--shot)
+  Source/EventLog.h           the event log the checks read (CHESS_EVENT_LOG=1)
   Source/Strings.*            every word the game says
   Source/Theme.h              the colours of the interface around the board
   Content/pieces/classic/     the classic pieces (PNG)
@@ -592,6 +595,7 @@ art/kit.py                    what they share: outlines, rendering, the contact 
 art/plate.py                  the plate docs/looks.png
 art/DESIGN.md                 seven looks, seven schools: what it was all drawn from
 cmake/Chess.cmake             the dependencies, preparing axmol, building Stockfish
+tools/ui-checks/run.sh        the game under a pretend mouse: checks of behaviour (Linux)
 docs/                         screenshots and the source of the icon
 third-party/axmol/            axmol v2.9.1 (MIT)
 third-party/Stockfish/        Stockfish, tag stockfish-dev-20260930-49ea5ded (GPLv3)
@@ -678,9 +682,24 @@ cmake -S . -B build -DCHESS_BUILD_APP=OFF && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-114 tests. Those that play against the real Stockfish skip themselves if the
+117 tests. Those that play against the real Stockfish skip themselves if the
 binary is not there; among them are games at every level in which each move the
 engine makes has to be legal by this project's own rules.
+
+What a player does with the mouse is checked by `tools/ui-checks/run.sh`
+(Linux only: Xvfb, xdotool, ImageMagick). It starts the built game in a virtual
+display, clicks and drags pieces, and reads what came of it from the game's
+event log (`CHESS_EVENT_LOG=1`): whether the engine answered, whether a move
+was made after a take-back in the middle of a drag, whether the game goes to
+sleep, whether "Розв'язок" shows the solution, and so on.
+
+```bash
+tools/ui-checks/run.sh build/bin/Chess/Chess            # all the checks
+tools/ui-checks/run.sh build/bin/Chess/Chess mate_in_one
+```
+
+It finds the squares and the buttons where they are in a window of the size
+the game opens at (1180 × 780).
 
 The game itself has a few command-line options for looking at it without a
 mouse:

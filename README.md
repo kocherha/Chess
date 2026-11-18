@@ -504,6 +504,7 @@ engine/rules/                 правила шахів; нічого, крім 
   include/chess/Game.h        партія: історія, хід назад, чим скінчилося, запис у PGN
   include/chess/Judge.h       оцінка ходу (!!, !, ?!, ?, ??) за двома оцінками позиції
   include/chess/Setup.h       розстановка з редактора: будь-яка, і чому вона (не)можлива
+  src/Board.h                 спільне для Position і Setup: кроки фігур, розбір FEN
   tests/                      perft, FEN, нотація, нічиї, відомі партії, можливість позицій
 engine/uci/                   розмова з рушієм; про правила не знає
   include/chess/Process.h     дочірній процес із двома каналами
@@ -530,6 +531,8 @@ game/                         застосунок на axmol
   Source/Slider.*             повзунок із позначками (складність)
   Source/Shapes.*             згладжені фігури поверх DrawNode
   Source/Text.*               написи й перенесення рядків
+  Source/Desktop.*            буфер обміну і знімок вікна (--shot)
+  Source/EventLog.h           журнал подій для перевірок (CHESS_EVENT_LOG=1)
   Source/Strings.*            увесь текст гри
   Source/Theme.h              кольори інтерфейсу навколо дошки
   Content/pieces/classic/     класичні фігури (PNG)
@@ -560,6 +563,7 @@ art/kit.py                    спільне для них: контури, ре
 art/plate.py                  аркуш docs/looks.png
 art/DESIGN.md                 сім виглядів — сім шкіл: з чого все намальовано
 cmake/Chess.cmake             залежності, підготовка axmol, збірка Stockfish
+tools/ui-checks/run.sh        гра під уявною мишею: перевірки поведінки (Linux)
 docs/                         знімки екрана й джерело значка
 third-party/axmol/            axmol v2.9.1 (MIT)
 third-party/Stockfish/        Stockfish, тег stockfish-dev-20260930-49ea5ded (GPLv3)
@@ -638,9 +642,22 @@ cmake -S . -B build -DCHESS_BUILD_APP=OFF && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-114 тестів. Ті, що грають проти справжнього Stockfish, самі себе пропускають,
+117 тестів. Ті, що грають проти справжнього Stockfish, самі себе пропускають,
 якщо бінарника немає; серед них — партії на кожному рівні, де кожен хід рушія
 мусить бути дозволеним за нашими правилами.
+
+Те, що робить гравець мишею, перевіряє `tools/ui-checks/run.sh` (лише Linux:
+Xvfb, xdotool, ImageMagick). Він запускає зібрану гру у віртуальному дисплеї,
+клацає й тягне фігури, а що з того вийшло, читає з журналу подій гри
+(`CHESS_EVENT_LOG=1`): чи відповів рушій, чи не зробився хід після «ходу назад»
+посеред перетягування, чи засинає гра, чи показує «Розв'язок» розв'язок тощо.
+
+```bash
+tools/ui-checks/run.sh build/bin/Chess/Chess            # усі перевірки
+tools/ui-checks/run.sh build/bin/Chess/Chess mate_in_one
+```
+
+Поля й кнопки він шукає там, де вони у вікні типового розміру (1180 × 780).
 
 Сама гра має кілька параметрів командного рядка, щоб дивитися на неї без миші:
 
