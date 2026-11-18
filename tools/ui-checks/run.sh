@@ -259,6 +259,89 @@ check_wrong_move_is_taken_back() {
     finish $name
 }
 
+# --- what the game asks of its engines (ADR-002: the opponent and the watcher) ---
+
+# A hint asked for at once, before the watching engine has finished with the
+# position, comes when it has.
+check_hint_before_the_analysis() {
+    local name=hint_before_the_analysis
+    launch $name --play --level 1 --side white
+    wait_for '^event: game ' 20 || { fail $name "the game did not start"; finish $name; return; }
+    xdotool key h
+    if wait_for '^event: hint [a-h][1-8][a-h][1-8]' 30; then
+        pass $name
+    else
+        fail $name "no hint came"
+    fi
+    finish $name
+}
+
+# A move taken back while the opponent is still thinking about it: its
+# answer, when it comes, is to a position that is gone, and is not played.
+check_undo_while_the_opponent_thinks() {
+    local name=undo_while_the_opponent_thinks
+    launch $name --play --level 8 --side white
+    wait_for '^event: game ' 20 || { fail $name "the game did not start"; finish $name; return; }
+    sleep 1
+    click_square game e2
+    click_square game e4
+    wait_for '^event: move e2e4' 5 || { fail $name "the click did not make the move"; finish $name; return; }
+    sleep 0.3
+    xdotool key u
+    if ! wait_for '^event: undo ' 5; then
+        fail $name "the move was not taken back"
+    else
+        sleep 4  # longer than level 8 thinks
+        if [ "$(grep -c '^event: move ' "$LOG")" -ne 1 ]; then
+            fail $name "the opponent played into the position that was taken back"
+        else
+            pass $name
+        fi
+    fi
+    finish $name
+}
+
+# The same move played again after taking it back gets the same answer: a
+# weakened engine rolls dice, and "take back" must not double as "roll again".
+check_same_answer_after_undo() {
+    local name=same_answer_after_undo
+    launch $name --play --level 1 --side white
+    wait_for '^event: game ' 20 || { fail $name "the game did not start"; finish $name; return; }
+    sleep 1
+    click_square game e2
+    click_square game e4
+    wait_for_count '^event: move ' 2 15 || { fail $name "the opponent did not answer"; finish $name; return; }
+    xdotool key u
+    wait_for '^event: undo ' 5 || { fail $name "the move was not taken back"; finish $name; return; }
+    sleep 1
+    click_square game e2
+    click_square game e4
+    wait_for_count '^event: move ' 4 15 || { fail $name "the opponent did not answer again"; finish $name; return; }
+    local first second
+    first=$(grep '^event: move ' "$LOG" | sed -n 2p)
+    second=$(grep '^event: move ' "$LOG" | sed -n 4p)
+    if [ "$first" = "$second" ]; then
+        pass $name
+    else
+        fail $name "first $first, then $second"
+    fi
+    finish $name
+}
+
+# A whole game against level 1, the person's moves made at random: every kind
+# of move and ending, the random replies below the engine's floor, and the
+# game ends on its own (--autoplay exits when it is done).
+check_a_whole_game_at_level_one() {
+    local name=a_whole_game_at_level_one
+    launch $name --play --level 1 --side white --autoplay 1
+    if wait_for 'autoplay: ' 300; then
+        pass $name
+    else
+        fail $name "the game did not come to an end"
+    fi
+    finish $name
+}
+
 # For a person to look at: a game set up at move 23 numbers its moves from 23.
 check_numbering_picture() {
     launch numbering_picture --play --two-players \
@@ -270,7 +353,9 @@ check_numbering_picture() {
 }
 
 ALL="engine_replies undo_while_dragging sleep_after_dialog editor_right_click_while_dragging
-     solution_of_a_best_move_problem mate_in_one wrong_move_is_taken_back numbering_picture"
+     solution_of_a_best_move_problem mate_in_one wrong_move_is_taken_back
+     hint_before_the_analysis undo_while_the_opponent_thinks same_answer_after_undo a_whole_game_at_level_one
+     numbering_picture"
 for check in ${@:-$ALL}; do
     if ! declare -F "check_$check" >/dev/null; then
         echo "  no check called $check" >&2

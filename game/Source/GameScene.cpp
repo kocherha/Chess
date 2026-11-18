@@ -737,6 +737,7 @@ void GameScene::showHint() {
         _hintFrom = move->from;
         _hintTo   = move->to;
         _hintText = text::localSan(_game.position().san(*move));
+        eventlog::note("hint " + _analysisBest);
     }
 }
 
