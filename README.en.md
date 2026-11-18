@@ -545,12 +545,14 @@ engine/uci/                   talking to the engine; knows nothing of the rules
   tests/                      a fake engine (sh) and the real Stockfish
 engine/session/               the modes of the game without a screen: the rules + questions to the engine
   include/chess/PuzzleSession.h  a problem: a move, checking it, the defence, the hint, the solution
-  include/chess/GameReview.h  what the engine found about a game's positions, and the marks from it
+  include/chess/Opponent.h    the opponent in a game: when and how to answer — from memory, at random or by the engine
+  include/chess/Watcher.h     the engine that watches the game: the bar, the move marks, the hint
+  include/chess/GameReview.h  what the engine found about a game's positions, and the marks from it (for Watcher)
   include/chess/MoveList.h    the move list without the drawing: rows, numbers, scrolling, what the pointer is on
   tests/                      every step of it, with no window and no real engine
 game/                         the axmol application
   Source/AppDelegate.*        the window, the command line, the main loop
-  Source/GameScene.*          the game: brings the rules, the engine and the screen together
+  Source/GameScene.*          the game: brings Opponent, Watcher, their engines and the screen together
   Source/BoardNode.*          the board, the pieces, the marks, dragging
   Source/BoardInput.*         moving with the mouse: select, click-click, drag, promote — for both modes
   Source/EvalBar.*            the evaluation bar
@@ -613,8 +615,10 @@ third-party/googletest/       googletest, main of 2026-10-02 (BSD-3-Clause), tes
 The rules have never heard of an engine or a window. The engine client does not
 know the rules: moves cross its boundary as UCI text (`e2e4`). The modes of the
 game (`engine/session`) know the rules and what to ask the engine, but have no
-window and no engine process: solving a problem, marking moves and the move
-list are tested like the rules are. The nodes on screen show what they are told.
+window and no engine process: solving a problem, the opponent in a game, the
+engine watching it, the move marks and the move list are tested like the rules
+are. So `engine/` is not only the engine but everything that lives and is
+tested without axmol; `game/` keeps what draws and listens to the mouse. The nodes on screen show what they are told.
 The scenes (`GameScene`, `PuzzleScene`) only bring it together: an event → the
 model → what to draw and what to ask the engine. The rule that keeps the line:
 no axmol in the models, no decisions about chess in the scenes.
