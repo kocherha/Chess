@@ -120,6 +120,9 @@ public:
 private:
     // The pieces of `by` that attack `square`.
     std::vector<Square> attackers(Square square, Color by) const;
+    // What issues() finds wrong with how the two kings are attacked: kings
+    // touching, the side not to move in check, checks no move could give.
+    void checkIssues(Square mine, Square theirs, std::vector<Issue>& found) const;
 
     std::array<Piece, 64> _board{};
     Color        _turn      = Color::White;

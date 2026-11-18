@@ -278,64 +278,74 @@ PawnOrigins pawnOrigins(const std::vector<Square>& pawns, Color color) {
     return result;
 }
 
-}  // namespace
+std::size_t side(Color color) { return static_cast<std::size_t>(color); }
 
-std::vector<Issue> Setup::issues() const {
-    std::vector<Issue> found;
-    const auto add = [&found](Flaw flaw, Color color, std::vector<Square> squares = {}, int need = 0,
-                              int have = 0) {
-        found.push_back(Issue{flaw, color, std::move(squares), need, have});
-    };
+void add(std::vector<Issue>& found, Flaw flaw, Color color, std::vector<Square> squares = {}, int need = 0,
+         int have = 0) {
+    found.push_back(Issue{flaw, color, std::move(squares), need, have});
+}
 
-    const Color colours[2] = {Color::White, Color::Black};
-    std::array<std::vector<Square>, 2> kings, pawns, edgePawns;
-    std::array<int, 2> pieces{};
+constexpr Color kColours[2] = {Color::White, Color::Black};
+
+// Where each side's kings and pawns stand, and how many pieces it has.
+struct Census {
+    std::array<std::vector<Square>, 2> kings, pawns, edgePawns;  // pawns: not on an edge rank
+    std::array<int, 2>                 pieces{};
+
+    int pawnCount(Color color) const {
+        return static_cast<int>(pawns[side(color)].size() + edgePawns[side(color)].size());
+    }
+};
+
+Census takeCensus(const Setup& setup) {
+    Census census;
     for (Square square = 0; square < 64; ++square) {
-        const Piece piece = at(square);
+        const Piece piece = setup.at(square);
         if (piece.empty())
             continue;
-        const auto side = static_cast<std::size_t>(piece.color);
-        ++pieces[side];
+        ++census.pieces[side(piece.color)];
         if (piece.type == PieceType::King)
-            kings[side].push_back(square);
+            census.kings[side(piece.color)].push_back(square);
         if (piece.type == PieceType::Pawn) {
             if (rankOf(square) == 0 || rankOf(square) == 7)
-                edgePawns[side].push_back(square);
+                census.edgePawns[side(piece.color)].push_back(square);
             else
-                pawns[side].push_back(square);
+                census.pawns[side(piece.color)].push_back(square);
         }
     }
+    return census;
+}
 
-    // The kings, before anything else: without them it is not a position yet.
-    for (Color color : colours) {
-        const auto side = static_cast<std::size_t>(color);
-        if (kings[side].empty())
-            add(Flaw::MissingKing, color);
-        else if (kings[side].size() > 1)
-            add(Flaw::ExtraKing, color, kings[side]);
+void kingIssues(const Census& census, std::vector<Issue>& found) {
+    for (Color color : kColours) {
+        if (census.kings[side(color)].empty())
+            add(found, Flaw::MissingKing, color);
+        else if (census.kings[side(color)].size() > 1)
+            add(found, Flaw::ExtraKing, color, census.kings[side(color)]);
     }
+}
 
-    for (Color color : colours) {
-        const auto side = static_cast<std::size_t>(color);
-        if (!edgePawns[side].empty())
-            add(Flaw::PawnOnEdge, color, edgePawns[side]);
-    }
+void edgePawnIssues(const Census& census, std::vector<Issue>& found) {
+    for (Color color : kColours)
+        if (!census.edgePawns[side(color)].empty())
+            add(found, Flaw::PawnOnEdge, color, census.edgePawns[side(color)]);
+}
 
-    // Material. Every piece beyond the starting set is a pawn that was
-    // promoted, and a pawn that was promoted is no longer on the board.
-    for (Color color : colours) {
-        const auto side     = static_cast<std::size_t>(color);
-        const int pawnCount = static_cast<int>(pawns[side].size() + edgePawns[side].size());
+// Every piece beyond the starting set is a pawn that was promoted, and a pawn
+// that was promoted is no longer on the board.
+void materialIssues(const Setup& setup, const Census& census, std::vector<Issue>& found) {
+    for (Color color : kColours) {
+        const int pawnCount = census.pawnCount(color);
         if (pawnCount > 8) {
-            std::vector<Square> all = pawns[side];
-            all.insert(all.end(), edgePawns[side].begin(), edgePawns[side].end());
+            std::vector<Square> all = census.pawns[side(color)];
+            all.insert(all.end(), census.edgePawns[side(color)].begin(), census.edgePawns[side(color)].end());
             std::sort(all.begin(), all.end());
-            add(Flaw::TooManyPawns, color, all, pawnCount, 8);
+            add(found, Flaw::TooManyPawns, color, all, pawnCount, 8);
             continue;
         }
 
         const auto beyond = [&](PieceType type, int original) {
-            return std::max(0, count(Piece{type, color}) - original);
+            return std::max(0, setup.count(Piece{type, color}) - original);
         };
         int promoted = beyond(PieceType::Queen, 1) + beyond(PieceType::Rook, 2) + beyond(PieceType::Knight, 2);
 
@@ -350,39 +360,54 @@ std::vector<Issue> Setup::issues() const {
             const bool   light = lightSquare(start);
             int onColour       = 0;
             for (Square square = 0; square < 64; ++square)
-                if (at(square) == bishop && lightSquare(square) == light)
+                if (setup.at(square) == bishop && lightSquare(square) == light)
                     ++onColour;
-            const bool shut = at(makeSquare(file - 1, front)) == pawn && at(makeSquare(file + 1, front)) == pawn;
-            promoted += shut ? onColour - (at(start) == bishop ? 1 : 0) : std::max(0, onColour - 1);
+            const bool shut =
+                setup.at(makeSquare(file - 1, front)) == pawn && setup.at(makeSquare(file + 1, front)) == pawn;
+            promoted += shut ? onColour - (setup.at(start) == bishop ? 1 : 0) : std::max(0, onColour - 1);
         }
 
         if (promoted > 8 - pawnCount)
-            add(Flaw::TooManyPieces, color, {}, promoted, 8 - pawnCount);
+            add(found, Flaw::TooManyPieces, color, {}, promoted, 8 - pawnCount);
     }
+}
 
-    // Pawns change file only by capturing, so where they stand says how many
-    // of the other side's pieces they must have taken at the very least.
-    for (Color color : colours) {
-        const auto side = static_cast<std::size_t>(color);
-        if (pawns[side].size() + edgePawns[side].size() > 8)
-            continue;
-        const PawnOrigins origins = pawnOrigins(pawns[side], color);
-        const int missing         = std::max(0, 16 - pieces[static_cast<std::size_t>(opposite(color))]);
+// Pawns change file only by capturing, so where they stand says how many of
+// the other side's pieces they must have taken at the very least.
+void pawnCaptureIssues(const Census& census, std::vector<Issue>& found) {
+    for (Color color : kColours) {
+        if (census.pawnCount(color) > 8)
+            continue;  // already said: too many pawns
+        const PawnOrigins origins = pawnOrigins(census.pawns[side(color)], color);
+        const int missing         = std::max(0, 16 - census.pieces[side(opposite(color))]);
         if (origins.captures < 0)
-            add(Flaw::PawnCaptures, color, origins.moved, -1, missing);
+            add(found, Flaw::PawnCaptures, color, origins.moved, -1, missing);
         else if (origins.captures > missing)
-            add(Flaw::PawnCaptures, color, origins.moved, origins.captures, missing);
+            add(found, Flaw::PawnCaptures, color, origins.moved, origins.captures, missing);
     }
+}
+
+}  // namespace
+
+std::vector<Issue> Setup::issues() const {
+    const Census census = takeCensus(*this);
+    std::vector<Issue> found;
+    kingIssues(census, found);  // first: without the kings it is not a position yet
+    edgePawnIssues(census, found);
+    materialIssues(*this, census, found);
+    pawnCaptureIssues(census, found);
 
     // The rest is about the two kings and needs exactly one of each.
-    if (kings[0].size() != 1 || kings[1].size() != 1)
-        return found;
+    if (census.kings[0].size() == 1 && census.kings[1].size() == 1)
+        checkIssues(census.kings[side(_turn)].front(), census.kings[side(opposite(_turn))].front(), found);
+    return found;
+}
 
-    const Square mine   = kings[static_cast<std::size_t>(_turn)].front();
-    const Square theirs = kings[static_cast<std::size_t>(opposite(_turn))].front();
+// `mine`: the king of the side to move.
+void Setup::checkIssues(Square mine, Square theirs, std::vector<Issue>& found) const {
     const bool touching = std::max(std::abs(fileOf(mine) - fileOf(theirs)), std::abs(rankOf(mine) - rankOf(theirs))) <= 1;
     if (touching)
-        add(Flaw::KingsTouching, _turn, {std::min(mine, theirs), std::max(mine, theirs)});
+        add(found, Flaw::KingsTouching, _turn, {std::min(mine, theirs), std::max(mine, theirs)});
 
     const auto notKing = [this](std::vector<Square> squares) {
         squares.erase(std::remove_if(squares.begin(), squares.end(),
@@ -395,7 +420,7 @@ std::vector<Issue> Setup::issues() const {
     if (const auto attacking = notKing(attackers(theirs, _turn)); !attacking.empty()) {
         std::vector<Square> squares{theirs};
         squares.insert(squares.end(), attacking.begin(), attacking.end());
-        add(Flaw::WaitingSideInCheck, opposite(_turn), squares);
+        add(found, Flaw::WaitingSideInCheck, opposite(_turn), squares);
     }
 
     // A check on the side to move was given by the move just played: by the
@@ -407,7 +432,7 @@ std::vector<Issue> Setup::issues() const {
     if (checkers.size() > 2) {
         std::vector<Square> squares{mine};
         squares.insert(squares.end(), checkers.begin(), checkers.end());
-        add(Flaw::TooManyCheckers, _turn, squares);
+        add(found, Flaw::TooManyCheckers, _turn, squares);
     } else if (!checkers.empty()) {
         std::vector<Square> direct;
         bool unmoved = false;
@@ -420,7 +445,7 @@ std::vector<Issue> Setup::issues() const {
         if (direct.size() > 1 || unmoved) {
             std::vector<Square> squares{mine};
             squares.insert(squares.end(), checkers.begin(), checkers.end());
-            add(Flaw::ImpossibleCheck, _turn, squares);
+            add(found, Flaw::ImpossibleCheck, _turn, squares);
         }
 
         // And if the move just played was a pawn's two-square advance — which
@@ -433,13 +458,11 @@ std::vector<Issue> Setup::issues() const {
             for (Square square : checkers) {
                 if (square == pawn || (slider(at(square).type) && strictlyBetween(square, mine, start)))
                     continue;
-                add(Flaw::BadEnPassant, _turn, {passed, square});
+                add(found, Flaw::BadEnPassant, _turn, {passed, square});
                 break;
             }
         }
     }
-
-    return found;
 }
 
 std::optional<Position> Setup::position() const {
