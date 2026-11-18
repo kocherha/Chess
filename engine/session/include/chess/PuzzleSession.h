@@ -154,7 +154,9 @@ public:
 
     void tick(float seconds);
     // Will something happen by itself before long (a reply, a take-back)?
-    bool timerRunning() const { return !_replyMove.empty() || (_phase == Phase::Wrong && _wrongFor > 0.0f); }
+    bool timerRunning() const {
+        return !_attempt.replyMove.empty() || (_attempt.phase == Phase::Wrong && _attempt.wrongFor > 0.0f);
+    }
 
     // --- what there is to show --------------------------------------------------------------
 
@@ -165,21 +167,24 @@ public:
     int           mateIn() const { return _mateIn; }
     const Game&   game() const { return _game; }
     Color         attacker() const { return _attacker; }
-    Phase         phase() const { return _phase; }
-    const Note&   note() const { return _note; }
-    bool          showingSolution() const { return _autoSolve; }
-    bool          helped() const { return _helped; }
+    Phase         phase() const { return _attempt.phase; }
+    const Note&   note() const { return _attempt.note; }
+    bool          showingSolution() const { return _attempt.autoSolve; }
+    bool          helped() const { return _attempt.helped; }
     // One per move: "!" for the solver's good ones, "?" for the wrong one.
-    const std::vector<Mark>& marks() const { return _marks; }
+    const std::vector<Mark>& marks() const { return _attempt.marks; }
     // The hint, as squares; kNoSquare when there is none.
-    Square hintFrom() const { return _hintFrom; }
-    Square hintTo() const { return _hintTo; }
+    Square hintFrom() const { return _attempt.hintFrom; }
+    Square hintTo() const { return _attempt.hintTo; }
 
     int  attackerMoves() const;  // moves the solving side has made so far
     int  movesLeft() const;      // of the mate
     bool playerToMove() const;
     // Busy with the engine or the defence: nothing to take back or show yet.
-    bool busy() const { return _phase == Phase::Checking || _phase == Phase::Replying || _phase == Phase::Preparing; }
+    bool busy() const {
+        const Phase now = _attempt.phase;
+        return now == Phase::Checking || now == Phase::Replying || now == Phase::Preparing;
+    }
 
 private:
     enum class Question { None, Prepare, Check, Recheck, Reply, Hint };
@@ -207,22 +212,28 @@ private:
 
     Game  _game;
     Color _attacker = Color::White;
-    Phase _phase    = Phase::Ready;
-    Note  _note;
-    bool  _autoSolve = false;  // the engine plays the solving side too: "show the solution"
-    bool  _helped    = false;  // a hint or the solution was asked for
-    std::vector<Mark> _marks;
-    Square _hintFrom = kNoSquare, _hintTo = kNoSquare;
+    // One try at the problem, from opening it (or starting over) to now.
+    // Starting over is `_attempt = {}`: nothing of the last try can be left
+    // behind by a field someone forgot to reset.
+    struct Attempt {
+        Phase phase     = Phase::Ready;
+        Note  note;
+        bool  autoSolve = false;  // the engine plays the solving side too: "show the solution"
+        bool  helped    = false;  // a hint or the solution was asked for
+        std::vector<Mark> marks;
+        Square hintFrom = kNoSquare, hintTo = kNoSquare;
 
-    // Best-move problems: the engine's choice and its worth.
-    std::string _bestMove;
-    Score       _bestScore;
-    std::string _checkMove;  // the move being judged, UCI
+        // Best-move problems: the engine's choice and its worth.
+        std::string bestMove;
+        Score       bestScore;
+        std::string checkMove;  // the move being judged, UCI
 
-    // The defence, waiting to be played; and the wrong move's time on the board.
-    std::string _replyMove;
-    float       _replyDelay = 0.0f;
-    float       _wrongFor   = 0.0f;
+        // The defence, waiting to be played; and the wrong move's time on the board.
+        std::string replyMove;
+        float       replyDelay = 0.0f;
+        float       wrongFor   = 0.0f;
+    };
+    Attempt _attempt;
 
     // The engine.
     Question                     _question = Question::None;
