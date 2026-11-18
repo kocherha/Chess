@@ -1,8 +1,9 @@
 // The second mode of the game: setting up positions, and solving problems.
 //
 // It is a scene of its own, pushed over the game and popped to go back, so a
-// game in progress waits where it was left — its engines idle, its board as it
-// was — while the player is here.
+// game in progress waits where it was left — its board as it was, its
+// opponent perhaps still thinking — while the player is here. The game's
+// watching engine is lent to this scene meanwhile (see GameScene).
 //
 // Two pages share the board. The editor puts any pieces anywhere and says, as
 // each one goes down, whether a game could ever arrive at the position (see
@@ -192,7 +193,7 @@ private:
     PieceTray*     _bottom = nullptr;
     ax::Label*     _caption = nullptr;  // under the board while solving: whose move
     PuzzlePanel*   _panel  = nullptr;
-    PuzzleDialog*  _list   = nullptr;
+    PuzzleDialog*  _collection = nullptr;  // the problems to choose from
     LookDialog*    _looks  = nullptr;
     ConfirmDialog* _confirm = nullptr;
 };

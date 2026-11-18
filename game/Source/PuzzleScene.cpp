@@ -85,7 +85,7 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     _bottom   = PieceTray::create(Color::White);
     _caption  = typeset::label("", 15.0f, theme::kDim);
     _panel    = PuzzlePanel::create();
-    _list     = PuzzleDialog::create();
+    _collection = PuzzleDialog::create();
     _looks    = LookDialog::create();
     _confirm  = ConfirmDialog::create();
     addChild(_backdrop, -1);
@@ -94,7 +94,7 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     addChild(_bottom, 1);
     addChild(_caption, 1);
     addChild(_panel, 2);
-    addChild(_list, 10);
+    addChild(_collection, 10);
     addChild(_looks, 10);
     addChild(_confirm, 11);
 
@@ -155,11 +155,11 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
 
     _looks->onChange = [this] { restyle(); };
     _looks->onDone   = [this] { _looks->close(); };
-    _list->onChoose  = [this](const Puzzle& puzzle) {
-        _list->close();
+    _collection->onChoose = [this](const Puzzle& puzzle) {
+        _collection->close();
         openPuzzle(puzzle);
     };
-    _list->onCancel = [this] { _list->close(); };
+    _collection->onCancel = [this] { _collection->close(); };
 
     // Input: one listener each, as in the game.
     auto* mouse        = EventListenerMouse::create();
@@ -702,8 +702,8 @@ void PuzzleScene::refreshSolving() {
 Dialog* PuzzleScene::modal() const {
     if (_confirm->isOpen())
         return _confirm;
-    if (_list->isOpen())
-        return _list;
+    if (_collection->isOpen())
+        return _collection;
     if (_looks->isOpen())
         return _looks;
     return nullptr;
@@ -937,7 +937,7 @@ void PuzzleScene::onKeyPressed(EventKeyboard::KeyCode code) {
 // --- the screen --------------------------------------------------------------------
 
 void PuzzleScene::openCollection() {
-    _list->open();
+    _collection->open();
     keepAwake();
 }
 
@@ -1001,7 +1001,7 @@ void PuzzleScene::layout() {
     _caption->setPosition(Vec2(corner.x + side * 0.5f, corner.y - frame - kTrayGap - tray * 0.5f));
 
     _panel->setFrame(Vec2(areaWidth, 0.0f), Vec2(panelWidth, screen.y));
-    _list->layout(screen);
+    _collection->layout(screen);
     _looks->layout(screen);
     _confirm->layout(screen);
 }
