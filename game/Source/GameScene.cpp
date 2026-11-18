@@ -83,15 +83,51 @@ bool GameScene::init() {
     if (!Scene::init())
         return false;
 
-    // What the pieces and the board look like has to be known before either
-    // is drawn: what was chosen last time, unless the command line says
-    // otherwise for this run.
+    chooseLook();
+    makeNodes();
+    wirePanel();
+    wireDialogs();
+    listen();
+    startAnalysis();
+
+    _board->show(_game.position());
+    layout();
+    refresh();
+
+    // What the first game is: as chosen last time, unless the command line
+    // says otherwise. And whether to begin it at once or ask.
+    const Launch& options = launch();
+    _setup                = firstSetup();
+    _autoplayLeft         = options.autoplayGames;
+    if (options.skipDialog || !options.fen.empty() || !options.moves.empty() || _autoplayLeft > 0)
+        startGame(_setup);
+    else
+        openNewGame();
+
+    scheduleUpdate();
+    keepAwake();
+
+    if (options.puzzlesFirst()) {
+        // Once this scene is running: a scene can only be pushed over one.
+        scheduleOnce([this](float) { openPuzzles(); }, 0.0f, "puzzles");
+    } else if (!options.screenshot.empty()) {
+        captureAndQuit();
+    }
+    return true;
+}
+
+// What the pieces and the board look like has to be known before either is
+// drawn: what was chosen last time, unless the command line says otherwise
+// for this run.
+void GameScene::chooseLook() {
     look::restore();
     if (const std::string& id = launch().pieces; !id.empty() && !look::choosePieces(id, false))
         AXLOGW("--pieces ignored: there is no set called {}", id);
     if (const std::string& id = launch().board; !id.empty() && !look::chooseBoard(id, false))
         AXLOGW("--board ignored: there is no board called {}", id);
+}
 
+void GameScene::makeNodes() {
     _backdrop = DrawNode::create();
     addChild(_backdrop, -1);
 
@@ -116,7 +152,10 @@ bool GameScene::init() {
     addChild(_dialog, 10);
     addChild(_looks, 10);
     addChild(_confirm, 11);  // it can be asked over either of the others
+}
 
+// What each button of the panel does.
+void GameScene::wirePanel() {
     _panel->looks->onClick   = [this] { openLooks(); };
     _panel->copy->onClick    = [this] { copyGame(); };
     _panel->onMoveClicked    = [this](int index) { copyMove(index); };
@@ -129,7 +168,9 @@ bool GameScene::init() {
     for (Button* button : {_panel->modeGame, _panel->modePuzzles, _panel->looks, _panel->copy, _panel->newGame,
                            _panel->undo, _panel->hint, _panel->flip, _panel->resign})
         _buttons.add(button);
+}
 
+void GameScene::wireDialogs() {
     _looks->onChange = [this] { restyle(); };
     _looks->onDone   = [this] { _looks->close(); };
 
@@ -149,7 +190,10 @@ bool GameScene::init() {
             _startFrom.reset();  // that position was only for the game not begun
         }
     };
+}
 
+// The mouse, the keyboard and the window.
+void GameScene::listen() {
     // One mouse listener for the whole scene. Who a click belongs to — an
     // open dialog, a button, the promotion column, the board — is decided
     // here, in that order, instead of by whichever node happened to hear it
@@ -175,41 +219,21 @@ bool GameScene::init() {
     desktop::followWindow(this, {.wake    = [this] { keepAwake(); },
                                  .resized = [this] { layout(); },
                                  .closing = [this](bool& closing) { askBeforeQuitting(closing); }});
+}
 
-    startAnalysis();
-
-    _board->show(_game.position());
-    layout();
-    refresh();
-
-    // Start from what was chosen last time; the command line has the last word.
+// Start from what was chosen last time; the command line has the last word.
+GameSetup GameScene::firstSetup() const {
     const Launch& options = launch();
-    _setup                = rememberedSetup();
+    GameSetup     setup   = rememberedSetup();
     if (options.level)
-        _setup.strength = strengthOfLevel(*options.level);
+        setup.strength = strengthOfLevel(*options.level);
     if (options.elo)
-        _setup.strength = strengthForElo(*options.elo);
+        setup.strength = strengthForElo(*options.elo);
     if (options.side)
-        _setup.side = *options.side;
+        setup.side = *options.side;
     if (options.opponent)
-        _setup.opponent = *options.opponent;
-
-    _autoplayLeft = options.autoplayGames;
-    if (options.skipDialog || !options.fen.empty() || !options.moves.empty() || _autoplayLeft > 0)
-        startGame(_setup);
-    else
-        openNewGame();
-
-    scheduleUpdate();
-    keepAwake();
-
-    if (options.puzzlesFirst()) {
-        // Once this scene is running: a scene can only be pushed over one.
-        scheduleOnce([this](float) { openPuzzles(); }, 0.0f, "puzzles");
-    } else if (!options.screenshot.empty()) {
-        captureAndQuit();
-    }
-    return true;
+        setup.opponent = *options.opponent;
+    return setup;
 }
 
 void GameScene::onEnter() {

@@ -83,6 +83,13 @@ public:
     ~GameScene() override;
 
     bool init() override;
+    // The parts of init(), in the order it goes through them.
+    void      chooseLook();
+    void      makeNodes();
+    void      wirePanel();
+    void      wireDialogs();
+    void      listen();
+    GameSetup firstSetup() const;
     void update(float delta) override;
     // Back from the problems mode: the window may have changed size and the
     // pieces their look while this scene was not on screen.
