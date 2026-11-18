@@ -108,7 +108,6 @@ private:
     void ask(Question question, chess::SearchRequest request);  // the editor's questions
     void talkToEngine();                                       // the session's
     void pollEngine();
-    bool engineUsable() const;
 
     // --- input ---
     Dialog* modal() const;

@@ -22,7 +22,6 @@ using namespace chess;
 
 namespace {
 
-
 constexpr float kMargin    = 26.0f;
 constexpr float kTrayShare = 0.82f;  // a tray's height, in squares
 constexpr float kTrayGap   = 10.0f;
@@ -239,11 +238,6 @@ void PuzzleScene::onEnter() {
     keepAwake();
 }
 
-bool PuzzleScene::engineUsable() const {
-    const Engine::State state = _engine.state();
-    return state == Engine::State::Starting || state == Engine::State::Ready;
-}
-
 // --- the engine --------------------------------------------------------------------
 
 void PuzzleScene::ask(Question question, SearchRequest request) {
@@ -356,7 +350,7 @@ void PuzzleScene::edited() {
     _probeFen.clear();
 
     const auto position = setupPosition();
-    _probeIn = position && position->hasLegalMoves() && engineUsable() ? kProbeDelay : -1.0f;
+    _probeIn = position && position->hasLegalMoves() && _engine.usable() ? kProbeDelay : -1.0f;
     eventlog::note("setup " + _setup.fen());
     refreshEditor();
     keepAwake();
@@ -365,7 +359,7 @@ void PuzzleScene::edited() {
 void PuzzleScene::probe() {
     _probeIn = -1.0f;
     const auto position = setupPosition();
-    if (_page != Page::Editor || !position || !position->hasLegalMoves() || !engineUsable())
+    if (_page != Page::Editor || !position || !position->hasLegalMoves() || !_engine.usable())
         return;
     _probeFen = _setup.fen();
     SearchRequest request;
@@ -429,7 +423,7 @@ void PuzzleScene::refreshEditor() {
     } else if (!playable) {
         _panel->setStatus(text::kPossible, text::alreadyOver(position->sideToMove(), position->inCheck()),
                           Tone::Neutral);
-    } else if (!engineUsable()) {
+    } else if (!_engine.usable()) {
         _panel->setStatus(text::kPossible, text::kNoEngineHere, Tone::Good);
     } else if (!_probeDone) {
         _panel->setStatus(text::kPossible, text::kStudying, Tone::Good);
@@ -440,8 +434,8 @@ void PuzzleScene::refreshEditor() {
         _panel->setStatus(text::kPossible, detail, Tone::Good);
     }
 
-    const bool studied = playable && (_probeDone || !engineUsable());
-    _panel->solve->setEnabled(studied && engineUsable());
+    const bool studied = playable && (_probeDone || !_engine.usable());
+    _panel->solve->setEnabled(studied && _engine.usable());
     _panel->saveMine->setEnabled(studied);
     _panel->playFrom->setEnabled(playable);
 
@@ -509,7 +503,7 @@ void PuzzleScene::openPuzzle(const Puzzle& puzzle) {
         _tag      = 0;
     }
 
-    _session.setEngineUsable(engineUsable());
+    _session.setEngineUsable(_engine.usable());
     std::string error;
     if (!_session.open(puzzle.fen, puzzle.mateIn, &error)) {
         AXLOGW("puzzle {} is not a legal position: {}", puzzle.id, error);
@@ -672,7 +666,7 @@ void PuzzleScene::refreshSolving() {
     case Phase::Ready:
         if (showing)
             _panel->setStatus(text::kShowingSolution, detail, Tone::Neutral);
-        else if (!engineUsable())
+        else if (!_engine.usable())
             _panel->setStatus(text::kYourMove, text::kNoEngineHere, Tone::Warning);
         else
             _panel->setStatus(text::kYourMove, detail, Tone::Neutral);
@@ -695,8 +689,8 @@ void PuzzleScene::refreshSolving() {
 
     const Game& game = _session.game();
     const bool  busy = _session.busy();
-    _panel->hint->setEnabled(playerToMove() && engineUsable());
-    _panel->solution->setEnabled(engineUsable() && !busy && !showing);
+    _panel->hint->setEnabled(playerToMove() && _engine.usable());
+    _panel->solution->setEnabled(_engine.usable() && !busy && !showing);
     _panel->undo->setEnabled(game.plies() > 0 && !busy && !showing);
     _panel->restart->setEnabled(game.plies() > 0 || _session.helped());
 
@@ -1073,7 +1067,7 @@ void PuzzleScene::update(float delta) {
 
     // The session's own time: a defence about to be played, a wrong move
     // about to be taken back.
-    _session.setEngineUsable(engineUsable());
+    _session.setEngineUsable(_engine.usable());
     if (_page == Page::Solving) {
         _session.tick(delta);
         if (_session.hasEvents())

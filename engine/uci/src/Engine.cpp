@@ -113,6 +113,11 @@ std::string Engine::name() const {
     return _name;
 }
 
+bool Engine::usable() const {
+    const State now = state();
+    return now == State::Starting || now == State::Ready;
+}
+
 std::string Engine::error() const {
     std::lock_guard lock(_mutex);
     return _error;

@@ -320,6 +320,7 @@ TEST(FakeEngine, AnEngineThatDiesIsReportedNotWaitedFor) {
     engine.search(fatal);
 
     ASSERT_TRUE(waitFor([&] { return engine.state() == Engine::State::Failed; }));
+    EXPECT_FALSE(engine.usable());
     EXPECT_FALSE(engine.thinking());
     EXPECT_FALSE(engine.error().empty());
 
@@ -329,6 +330,7 @@ TEST(FakeEngine, AnEngineThatDiesIsReportedNotWaitedFor) {
 
     // ...and it can be started again.
     ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
+    EXPECT_TRUE(engine.usable());  // starting already counts
     engine.search(quick(7));
     SearchResult result;
     ASSERT_TRUE(waitForResult(engine, result));
@@ -353,6 +355,7 @@ TEST(FakeEngine, ShutdownWhileThinkingDoesNotHang) {
     engine.shutdown();
     EXPECT_LT(std::chrono::steady_clock::now() - before, 2s);
     EXPECT_EQ(engine.state(), Engine::State::Stopped);
+    EXPECT_FALSE(engine.usable());
 }
 
 // The engine gets its standard streams and nothing else of ours: not a file

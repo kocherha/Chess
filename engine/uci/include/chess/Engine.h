@@ -103,6 +103,8 @@ public:
     void shutdown();
 
     State       state() const;
+    // Starting or Ready: there is an engine to ask, now or in a moment.
+    bool        usable() const;
     std::string name() const;   // "Stockfish 17", once known
     std::string error() const;
     std::string path() const;

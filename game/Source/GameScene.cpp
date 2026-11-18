@@ -316,13 +316,13 @@ void GameScene::startEngine() {
     }
 
     // Two processes from one program: whichever of them is not running.
-    if (!engineUsable()) {
+    if (!_engine.usable()) {
         if (_engine.start(path))
             AXLOGI("engine: {}", path);
         else
             AXLOGW("engine {} did not start: {}", path, _engine.error());
     }
-    if (!analysisUsable() && !_analysis.start(path))
+    if (!_analysis.usable() && !_analysis.start(path))
         AXLOGW("analysis engine did not start: {}", _analysis.error());
 }
 
@@ -364,16 +364,6 @@ void GameScene::remember(const GameSetup& setup) {
     store->flush();
 }
 
-bool GameScene::engineUsable() const {
-    const Engine::State state = _engine.state();
-    return state == Engine::State::Starting || state == Engine::State::Ready;
-}
-
-bool GameScene::analysisUsable() const {
-    const Engine::State state = _analysis.state();
-    return state == Engine::State::Starting || state == Engine::State::Ready;
-}
-
 // --- the flow of a game ------------------------------------------------------------
 
 void GameScene::startGame(const GameSetup& setup) {
@@ -382,9 +372,9 @@ void GameScene::startGame(const GameSetup& setup) {
 
     // A game against the computer needs the computer. If the engine has died
     // since the last game, this is the moment to bring it back.
-    if (againstComputer() && !engineUsable())
+    if (againstComputer() && !_engine.usable())
         startEngine();
-    if (againstComputer() && !engineUsable())
+    if (againstComputer() && !_engine.usable())
         _setup.opponent = GameSetup::Opponent::Human;
 
     switch (_setup.side) {
@@ -393,7 +383,7 @@ void GameScene::startGame(const GameSetup& setup) {
     case GameSetup::Side::Random: _human = (_rng() & 1u) != 0 ? Color::White : Color::Black; break;
     }
 
-    if (!analysisUsable())
+    if (!_analysis.usable())
         startEngine();
 
     _engine.cancel();
@@ -477,7 +467,7 @@ void GameScene::askEngineIfItsTurn() {
         return;
     }
 
-    if (!engineUsable()) {
+    if (!_engine.usable()) {
         _engineLost = true;
         refreshStatus();
         return;
@@ -639,7 +629,7 @@ void GameScene::analyse() {
         return;
     }
 
-    if (!analysisUsable())
+    if (!_analysis.usable())
         return;
 
     // Been here before — a move was taken back? Then it is already known.
@@ -670,7 +660,7 @@ void GameScene::analyse() {
 // the most recent position it did not get a proper look at, then the one
 // before. A move is marked as soon as the positions either side of it are in.
 void GameScene::reviewNext() {
-    if (!analysisUsable() || _analysisTag != 0 || !_started)
+    if (!_analysis.usable() || _analysisTag != 0 || !_started)
         return;
     auto request = _review.nextToReview();
     if (!request)
@@ -735,7 +725,7 @@ void GameScene::pollAnalysis() {
     // The bar is only on screen while there is an engine behind it. If that
     // changes — it has just come up, or it has died — the board gets the
     // space back or gives it up.
-    if (analysisUsable() != _barShown) {
+    if (_analysis.usable() != _barShown) {
         layout();
         if (_barShown && _analysisTag == 0 && !_analysisDone)
             analyse();
@@ -837,7 +827,7 @@ void GameScene::askBeforeQuitting(bool& closing) {
 void GameScene::showNewGameDialog() {
     _input.cancelPromotion();
     // The dialog is also the place to find out that Stockfish is back.
-    if (!engineUsable() || !analysisUsable())
+    if (!_engine.usable() || !_analysis.usable())
         startEngine();
     const auto elo = _engine.spin("UCI_Elo");
     // A game from a position set up in the editor: the side to move there is
@@ -845,7 +835,7 @@ void GameScene::showNewGameDialog() {
     GameSetup offered = _setup;
     if (_startFrom)
         offered.side = _startFrom->sideToMove() == Color::White ? GameSetup::Side::White : GameSetup::Side::Black;
-    _dialog->open(offered, _started, engineUsable(), elo ? elo->min : 0, elo ? elo->max : 0);
+    _dialog->open(offered, _started, _engine.usable(), elo ? elo->min : 0, elo ? elo->max : 0);
     keepAwake();
 }
 
@@ -977,7 +967,7 @@ void GameScene::flip() {
 }
 
 void GameScene::askHint() {
-    if (!humanToMove() || !analysisUsable() || _hintWanted)
+    if (!humanToMove() || !_analysis.usable() || _hintWanted)
         return;
 
     // The hint is the watching engine's own choice. It has usually finished
@@ -1162,7 +1152,7 @@ void GameScene::layout() {
 
     // The evaluation bar stands to the left of the board, and only while
     // there is an engine to fill it; without one the board has the room.
-    _barShown             = analysisUsable();
+    _barShown             = _analysis.usable();
     const float evalSpace = _barShown ? kEvalWidth + kEvalGap : 0.0f;
 
     float side = std::min(areaWidth - 2.0f * kMargin - evalSpace, screen.y - 2.0f * (kMargin + kBarHeight));
@@ -1205,7 +1195,7 @@ void GameScene::refresh() {
         canUndo |= !againstComputer() || record.before.sideToMove() == _human;
 
     _panel->undo->setEnabled(_started && canUndo);
-    _panel->hint->setEnabled(humanToMove() && analysisUsable() && !_hintWanted);
+    _panel->hint->setEnabled(humanToMove() && _analysis.usable() && !_hintWanted);
     _panel->resign->setEnabled(_started && !status.over());
 }
 

@@ -96,7 +96,6 @@ private:
     void pollAnalysis();
     void showScore(const chess::Score& score);
     void showHint();
-    bool analysisUsable() const;
 
     // What it has said about the game's positions, and the marks that follow,
     // are _review's (see chess/GameReview.h). The scene runs the searches:
@@ -109,7 +108,6 @@ private:
 
     bool againstComputer() const { return _setup.opponent == GameSetup::Opponent::Computer; }
     bool humanToMove() const;
-    bool engineUsable() const;
     void startEngine();
 
     // The choices in the new-game dialog are remembered between runs.
