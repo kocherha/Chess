@@ -570,6 +570,7 @@ game/                         the axmol application
   Source/Text.*               labels and line wrapping
   Source/Desktop.*            the clipboard and a picture of the window (--shot)
   Source/EventLog.h           the event log the checks read (CHESS_EVENT_LOG=1)
+  Source/Wakefulness.*        going to sleep: no reason to stay awake, no frames (CHESS_IDLE_LOG=1)
   Source/Strings.*            every word the game says
   Source/Theme.h              the colours of the interface around the board
   Content/pieces/classic/     the classic pieces (PNG)
@@ -678,7 +679,9 @@ it turns up on another thread and is collected in `update()`, which only runs
 while frames do. So the game never goes to sleep while it is owed something —
 the opponent's move, the analysis of a position (and of the ones it is going
 back over), the bar or a piece still moving. `CHESS_IDLE_LOG=1` prints to stderr what is keeping it awake at the
-moment, and when it fell asleep.
+moment, and when it fell asleep. The timer and the log are `Wakefulness`,
+shared by both modes; each scene gives its own list of reasons (in the problems
+mode also the editor looking at a position, and the pause before the defence).
 
 ## Checking it
 

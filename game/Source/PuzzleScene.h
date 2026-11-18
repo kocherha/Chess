@@ -28,6 +28,7 @@
 #include "PuzzleDialog.h"
 #include "PuzzlePanel.h"
 #include "Puzzles.h"
+#include "Wakefulness.h"
 
 #include "chess/Engine.h"
 #include "chess/Game.h"
@@ -134,7 +135,7 @@ private:
     void flip();
     void openCollection();
     void askBeforeQuitting(bool& closing);
-    void keepAwake();
+    void keepAwake() { _awake.keepAwake(); }
     void captureAndQuit();
 
     Hooks   _hooks;
@@ -176,7 +177,7 @@ private:
 
     float   _flashFor = 0.0f;
     std::function<void()> _unflash;
-    float   _quiet = 0.0f;
+    Wakefulness _awake;
     bool    _quitAsked = false;
 
     // Nodes.

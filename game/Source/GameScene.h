@@ -24,6 +24,7 @@
 #include "LookDialog.h"
 #include "NewGameDialog.h"
 #include "Panels.h"
+#include "Wakefulness.h"
 
 #include "chess/Engine.h"
 #include "chess/Game.h"
@@ -157,7 +158,7 @@ private:
     void onWindowResized();
 
     // Draws for a moment, then stops the render loop until something happens.
-    void keepAwake();
+    void keepAwake() { _awake.keepAwake(); }
     void captureAndQuit();
 
     // --- state ---
@@ -214,8 +215,7 @@ private:
     // "Copied" stays on the button for this long after something was.
     float _copiedFor = 0.0f;
 
-    float       _quiet        = 0.0f;     // seconds since anything last happened
-    const char* _awakeBecause = nullptr;  // what update() last found to wait for, if anything
+    Wakefulness _awake;
 
     // --- nodes ---
     ax::DrawNode*  _backdrop = nullptr;

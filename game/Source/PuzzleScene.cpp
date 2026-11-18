@@ -22,8 +22,6 @@ using namespace chess;
 
 namespace {
 
-// As in the game: after half a second with nothing to wait for, stop drawing.
-constexpr float kSleepAfter    = 0.5f;
 
 constexpr float kMargin    = 26.0f;
 constexpr float kTrayShare = 0.82f;  // a tray's height, in squares
@@ -1100,22 +1098,18 @@ void PuzzleScene::update(float delta) {
             refreshSolving();
     }
 
-    const bool waiting = _engine.thinking() || _probeIn >= 0.0f || _session.timerRunning() ||
-                         _board->animating() || _input.pressed() || _press.down ||
-                         _flashFor > 0.0f || _engine.state() == Engine::State::Starting ||
-                         !_opening.screenshot.empty();
-    _quiet = waiting ? 0.0f : _quiet + delta;
-    if (_quiet > kSleepAfter) {
-        _quiet = 0.0f;
-        Director::getInstance()->stopAnimation();
-    }
-}
-
-void PuzzleScene::keepAwake() {
-    _quiet = 0.0f;
-    auto* director = Director::getInstance();
-    if (!director->isValid())
-        director->startAnimation();
+    // Everything that changes the screen with nobody touching anything; the
+    // list has to be complete (see Wakefulness.h).
+    _awake.update(delta, {
+        {_engine.thinking(), "the engine is thinking"},
+        {_probeIn >= 0.0f, "the position is about to be looked at"},
+        {_session.timerRunning(), "a reply or a take-back is due"},
+        {_board->animating(), "a piece is moving"},
+        {_input.pressed() || _press.down, "the mouse button is down"},
+        {_flashFor > 0.0f, "a notice is up"},
+        {_engine.state() == Engine::State::Starting, "the engine is starting"},
+        {!_opening.screenshot.empty(), "a screenshot is being taken"},
+    });
 }
 
 void PuzzleScene::captureAndQuit() {

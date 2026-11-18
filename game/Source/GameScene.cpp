@@ -28,22 +28,6 @@ using namespace chess;
 
 namespace {
 
-// Nothing on this screen moves on its own. Between a click and the next one —
-// which, in chess, can be minutes — every frame would draw exactly the same
-// pixels as the last. So after half a second of quiet the game stops:
-// Director::stopAnimation() makes mainLoop() skip the frame, and the main loop
-// (AppDelegate::runUntilClosed) then blocks until the system has an event for
-// the window. Asleep, the program uses no CPU at all.
-//
-// Input still arrives, because mouse, keyboard and window events are
-// dispatched straight from the GLFW callbacks, not from inside a frame; the
-// ones that change something on screen call keepAwake(). The one thing that
-// does not arrive that way is the engine's answer — it comes from another
-// thread and is collected in update(), which only runs while frames do. That
-// is why the game never goes to sleep while the engine owes it a move: nothing
-// would wake it.
-constexpr float kSleepAfter = 0.5f;
-
 constexpr float kMargin    = 26.0f;
 constexpr float kBarHeight = 38.0f;
 
@@ -803,11 +787,8 @@ void GameScene::update(float delta) {
 
     // Is anything going to change without the player touching anything? Each
     // of these is a reason to keep drawing, and the list has to be complete:
-    // once the game is asleep only the window can wake it.
-    const struct {
-        bool        holds;
-        const char* why;
-    } reasons[] = {
+    // once the game is asleep only the window can wake it (see Wakefulness.h).
+    _awake.update(delta, {
         {_engine.thinking(), "the opponent is thinking"},
         {_analysis.thinking(), "the position is being analysed"},
         {_replyPending, "a reply is about to be played"},
@@ -820,35 +801,7 @@ void GameScene::update(float delta) {
         {_analysis.state() == Engine::State::Starting, "the analysis engine is starting"},
         {!options.screenshot.empty(), "a screenshot is being taken"},
         {options.autoplayGames > 0, "autoplay"},
-    };
-    const char* waiting = nullptr;
-    for (const auto& reason : reasons)
-        if (reason.holds && waiting == nullptr)
-            waiting = reason.why;
-
-    // CHESS_IDLE_LOG=1 says what is keeping the game awake, whenever that
-    // changes: the way to find out why it is using the processor when it
-    // looks as if it should not be.
-    static const bool logging = std::getenv("CHESS_IDLE_LOG") != nullptr;
-    if (logging && waiting != _awakeBecause) {
-        std::fprintf(stderr, "idle: %s\n", waiting != nullptr ? waiting : "nothing left to wait for");
-        _awakeBecause = waiting;
-    }
-
-    _quiet = waiting != nullptr ? 0.0f : _quiet + delta;
-    if (_quiet > kSleepAfter) {
-        _quiet = 0.0f;
-        Director::getInstance()->stopAnimation();
-    }
-}
-
-void GameScene::keepAwake() {
-    _quiet = 0.0f;
-    // The director is asked rather than remembered: it is also stopped and
-    // started when the app goes to the background and comes back.
-    auto* director = Director::getInstance();
-    if (!director->isValid())
-        director->startAnimation();
+    });
 }
 
 // --- what the player can do --------------------------------------------------------
