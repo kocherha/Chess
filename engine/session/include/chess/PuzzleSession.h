@@ -11,10 +11,11 @@
 //
 //   - passes on what the player does: play(), takeBack(), hint(), showSolution();
 //   - does with the engine what toEngine() says — cancel the search in
-//     progress, start a new one, or both, in that order — and passes every
-//     answer to answer(): the session recognises its own by the tag, and its
-//     tags are positive, so a caller with questions of its own can tell them
-//     apart by giving those negative ones;
+//     progress, start a new one, or both, in that order; or, for a question
+//     answered before, hand the `known` answer straight back — and passes
+//     every answer to answer(): the session recognises its own by the tag,
+//     and its tags are positive, so a caller with questions of its own can
+//     tell them apart by giving those negative ones;
 //   - calls tick() with the time that has passed, and after any of these
 //     draws what takeEvents() reports and what phase() and note() say.
 //

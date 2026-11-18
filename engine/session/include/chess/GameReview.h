@@ -19,7 +19,9 @@ namespace chess {
 // after — and deeply enough. The position on the board is looked at as it
 // comes; one the game moved on from too quickly gets its turn later, once the
 // engine has nothing more urgent (nextToReview). What has been found is kept
-// by position, so a move taken back and played again needs no second look.
+// by the moves that led to the position (its `position` command), so a move
+// taken back and played again needs no second look; the same position
+// reached by another order of moves does.
 //
 // This class asks nothing itself: the scene runs the searches and tells it
 // what they found (note).

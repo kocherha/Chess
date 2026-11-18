@@ -467,6 +467,10 @@ void PuzzleSession::judgeBest(const SearchResult& result) {
 }
 
 void PuzzleSession::reply(const std::string& uci) {
+    // No move, or none that can be played here: the engine is only asked for
+    // a defence while the defending side has one (mate and stalemate end the
+    // problem first, in moved()), so this does not happen — and if it ever
+    // did, the board is left to the player rather than waiting for ever.
     if (!_game.position().parseUci(uci)) {
         _phase = Phase::Ready;
         return;
