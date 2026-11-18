@@ -139,6 +139,14 @@ private:
     void  dragThumbTo(float y);
     // The move drawn under this point, or -1.
     int   moveAt(const ax::Vec2& local) const;
+    // Where the list's rows and cells are, in this node's coordinates: for
+    // the labels, for what is drawn under them, and — the other way round —
+    // for moveAt(). A cell starts a little left of its text and stops a
+    // little short of the next column.
+    float columnWidth() const;
+    float rowMiddle(int row) const;  // a row on screen
+    float cellLeft(int side) const;  // 0: white's, 1: black's
+    float textLeft(int side) const { return cellLeft(side) + 8.0f; }
 
     ax::Vec2 _size;
     chess::MoveList _list;

@@ -357,6 +357,18 @@ void SidePanel::dragThumbTo(float y) {
         rebuildMoves();
 }
 
+float SidePanel::columnWidth() const {
+    return (_size.x - 2.0f * kPadding - kNumberWidth) * 0.5f;
+}
+
+float SidePanel::rowMiddle(int row) const {
+    return _listTop - 4.0f - (static_cast<float>(row - _list.firstRow()) + 0.5f) * kRowHeight;
+}
+
+float SidePanel::cellLeft(int side) const {
+    return kPadding + kNumberWidth - 8.0f + static_cast<float>(side) * columnWidth();
+}
+
 int SidePanel::moveAt(const Vec2& local) const {
     if (_list.moveCount() == 0 || local.y > _listTop - 4.0f)
         return -1;
@@ -364,9 +376,8 @@ int SidePanel::moveAt(const Vec2& local) const {
     if (line < 0 || line >= _list.visibleRows())
         return -1;
 
-    const float width  = _size.x - 2.0f * kPadding;
-    const float column = (width - kNumberWidth) * 0.5f;
-    const float x      = local.x - (kPadding + kNumberWidth - 8.0f);  // from the left edge of white's cell
+    const float column = columnWidth();
+    const float x      = local.x - cellLeft(0);
     if (x < 0.0f || x >= 2.0f * column)
         return -1;
     const int side = x < column ? 0 : 1;
@@ -442,8 +453,6 @@ void SidePanel::rebuildMoves() {
     if (_size.x <= 0.0f)
         return;
 
-    const float width = _size.x - 2.0f * kPadding;
-
     if (_list.empty()) {
         auto* empty = typeset::leftLabel(text::kNoMoves, 14.0f, theme::kFaint);
         empty->setPosition(Vec2(kPadding, _listTop - kRowHeight * 0.5f - 4.0f));
@@ -453,33 +462,31 @@ void SidePanel::rebuildMoves() {
 
     // Only the rows on screen are built. A long game has hundreds of moves,
     // and a label is a texture.
-    const float numberWidth = kNumberWidth;
-    const float column      = (width - numberWidth) * 0.5f;
-    const int   first       = _list.firstRow();
-    const int   end         = std::min(_list.rowCount(), first + _list.visibleRows());
+    const int first = _list.firstRow();
+    const int end   = std::min(_list.rowCount(), first + _list.visibleRows());
 
     for (int row = first; row < end; ++row) {
-        const float y = _listTop - 4.0f - (static_cast<float>(row - first) + 0.5f) * kRowHeight;
+        const float y = rowMiddle(row);
 
         if (_list.isResultRow(row)) {
             // Under the middle of the two columns of moves.
             auto* result = typeset::label(_list.result(), 15.0f, theme::kInk);
             typeset::embolden(result);
-            result->setPosition(Vec2(kPadding + numberWidth - 8.0f + column, y));
+            result->setPosition(Vec2(cellLeft(1), y));
             _moveRows->addChild(result);
             continue;
         }
 
         auto* number = typeset::label(std::to_string(_list.number(row)) + ".", 14.0f, theme::kFaint);
         number->setAnchorPoint(Vec2(1.0f, 0.5f));
-        number->setPosition(Vec2(kPadding + numberWidth - 10.0f, y));
+        number->setPosition(Vec2(textLeft(0) - 10.0f, y));
         _moveRows->addChild(number);
 
         for (int side = 0; side < 2; ++side) {
             const int index = _list.moveIn(row, side);
             if (index < 0)
                 continue;
-            const float x = kPadding + numberWidth + static_cast<float>(side) * column;
+            const float x = textLeft(side);
 
             auto* move = typeset::leftLabel(_list.move(index), 15.0f, index == _list.newest() ? theme::kInk : theme::kDim);
             move->setPosition(Vec2(x, y));
@@ -508,20 +515,16 @@ void SidePanel::redrawHighlights() {
         return;
 
     // The same rows and cells rebuildMoves() put the labels in.
-    const float width  = _size.x - 2.0f * kPadding;
-    const float column = (width - kNumberWidth) * 0.5f;
-    const int   first  = _list.firstRow();
-    const int   end    = std::min(_list.rowCount(), first + _list.visibleRows());
+    const int first = _list.firstRow();
+    const int end   = std::min(_list.rowCount(), first + _list.visibleRows());
+    const Vec2 cellSize(columnWidth() - 6.0f, kRowHeight - 4.0f);
 
     for (int row = first; row < end; ++row) {
-        const float y = _listTop - 4.0f - (static_cast<float>(row - first) + 0.5f) * kRowHeight;
         for (int side = 0; side < 2; ++side) {
             const int index = _list.moveIn(row, side);
             if (index < 0)
                 continue;
-            const float x = kPadding + kNumberWidth + static_cast<float>(side) * column;
-            const Vec2 cellOrigin(x - 8.0f, y - kRowHeight * 0.5f + 2.0f);
-            const Vec2 cellSize(column - 6.0f, kRowHeight - 4.0f);
+            const Vec2 cellOrigin(cellLeft(side), rowMiddle(row) - kRowHeight * 0.5f + 2.0f);
 
             // The move just played is the one the eye is looking for; the one
             // under the pointer says it can be clicked; the one just copied
@@ -538,7 +541,7 @@ void SidePanel::redrawHighlights() {
     // The scroll bar, when there is more than fits: a faint track and a thumb
     // that lights up under the pointer and while it is held.
     if (const Thumb t = thumb(); t.shown) {
-        const float x = kPadding + width - kBarWidth;
+        const float x = _size.x - kPadding - kBarWidth;
         shapes::roundedRect(_highlights, Vec2(x, t.top - t.travel - t.length), Vec2(kBarWidth, t.travel + t.length),
                             kBarWidth * 0.5f, theme::kCard);
         shapes::roundedRect(_highlights, Vec2(x, t.at - t.length), Vec2(kBarWidth, t.length), kBarWidth * 0.5f,
