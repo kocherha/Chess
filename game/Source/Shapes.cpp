@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <numbers>
 #include <vector>
 
 using namespace ax;
@@ -10,7 +11,7 @@ namespace shapes {
 
 namespace {
 
-constexpr float kPi = 3.14159265358979f;
+constexpr float kPi = std::numbers::pi_v<float>;
 
 Color4F clear(const Color4F& colour) {
     return Color4F(colour.r, colour.g, colour.b, 0.0f);
