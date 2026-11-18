@@ -130,6 +130,20 @@ std::vector<Puzzle> mine() {
     return out;
 }
 
+namespace {
+
+// The position a FEN describes, without its two move counters: the pieces,
+// who is to move, the castling rights and the en passant square.
+std::string withoutCounters(const std::string& fen) {
+    std::istringstream fields(fen);
+    std::string out, field;
+    for (int i = 0; i < 4 && fields >> field; ++i)
+        out += (i > 0 ? " " : "") + field;
+    return out;
+}
+
+}  // namespace
+
 Puzzle save(const std::string& fen, int mateIn) {
     std::vector<std::string> list = load(kMineKey);
     int highest = 0;
@@ -137,7 +151,7 @@ Puzzle save(const std::string& fen, int mateIn) {
         Puzzle puzzle;
         if (!parse(line, puzzle))
             continue;
-        if (puzzle.fen == fen)
+        if (withoutCounters(puzzle.fen) == withoutCounters(fen))
             return puzzle;
         highest = std::max(highest, std::atoi(line.c_str()));
     }

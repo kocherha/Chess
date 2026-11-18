@@ -30,7 +30,7 @@ const std::vector<Puzzle>& collection();
 // The player's own, in the order they were saved. Kept in the game's settings.
 std::vector<Puzzle> mine();
 // Saves a position and returns it as a puzzle. The same position saved twice
-// is one puzzle.
+// is one puzzle, even when the move counters of its FEN differ.
 Puzzle save(const std::string& fen, int mateIn);
 void   remove(const std::string& id);
 
