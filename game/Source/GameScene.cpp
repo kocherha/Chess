@@ -55,9 +55,19 @@ unsigned hardwareThreads() {
 
 }  // namespace
 
-GameScene::Launch& GameScene::launch() {
-    static Launch options;
+namespace {
+GameScene::Launch& storedLaunch() {
+    static GameScene::Launch options;
     return options;
+}
+}  // namespace
+
+void GameScene::setLaunch(Launch launch) {
+    storedLaunch() = std::move(launch);
+}
+
+const GameScene::Launch& GameScene::launch() {
+    return storedLaunch();
 }
 
 GameScene::~GameScene() {
@@ -184,8 +194,8 @@ bool GameScene::init() {
     if (options.opponent)
         _setup.opponent = *options.opponent;
 
-    const bool puzzlesFirst = options.puzzles || !options.editFen.empty() || !options.puzzle.empty();
-    if (options.skipDialog || !options.fen.empty() || !options.moves.empty() || options.autoplayGames > 0)
+    _autoplayLeft = options.autoplayGames;
+    if (options.skipDialog || !options.fen.empty() || !options.moves.empty() || _autoplayLeft > 0)
         startGame(_setup);
     else
         openNewGame();
@@ -193,7 +203,7 @@ bool GameScene::init() {
     scheduleUpdate();
     keepAwake();
 
-    if (puzzlesFirst) {
+    if (options.puzzlesFirst()) {
         // Once this scene is running: a scene can only be pushed over one.
         scheduleOnce([this](float) { openPuzzles(); }, 0.0f, "puzzles");
     } else if (!options.screenshot.empty()) {
@@ -229,15 +239,15 @@ void GameScene::openPuzzles() {
     hooks.gameAtStake = [this] { return gameAtStake(); };
 
     // What the command line asked for is for the first visit only.
-    Launch& options = launch();
     PuzzleScene::Opening opening;
-    opening.fen    = options.editFen;
-    opening.puzzle = options.puzzle;
-    if (options.puzzles || !options.editFen.empty() || !options.puzzle.empty())
-        opening.screenshot = options.screenshot;
-    options.puzzles = false;
-    options.editFen.clear();
-    options.puzzle.clear();
+    if (!_launchPuzzlesUsed) {
+        _launchPuzzlesUsed  = true;
+        const Launch& options = launch();
+        opening.fen    = options.editFen;
+        opening.puzzle = options.puzzle;
+        if (options.puzzlesFirst())
+            opening.screenshot = options.screenshot;
+    }
 
     // The watching engine goes with them: whatever it was looking at is kept
     // as far as it got, and looked at again on the way back (onEnter).
@@ -360,27 +370,28 @@ void GameScene::startGame(const GameSetup& setup) {
 
     // The command line may have asked for a particular start. That is honoured
     // once, for the first game; "new game" after it means a new game.
-    Launch& options = launch();
-    _game           = Game();
+    _game = Game();
     if (_startFrom) {
         _game = Game(*_startFrom);
         _startFrom.reset();
     }
-    if (!options.fen.empty()) {
-        std::string error;
-        if (const auto position = Position::fromFen(options.fen, &error))
-            _game = Game(*position);
-        else
-            AXLOGW("--fen ignored: {}", error);
-        options.fen.clear();
-    }
-    for (const std::string& move : options.moves) {
-        if (!_game.playUci(move) && !_game.playSan(move)) {
-            AXLOGW("--moves stopped at {}: not legal here", move);
-            break;
+    if (!_launchStartUsed) {
+        _launchStartUsed      = true;
+        const Launch& options = launch();
+        if (!options.fen.empty()) {
+            std::string error;
+            if (const auto position = Position::fromFen(options.fen, &error))
+                _game = Game(*position);
+            else
+                AXLOGW("--fen ignored: {}", error);
+        }
+        for (const std::string& move : options.moves) {
+            if (!_game.playUci(move) && !_game.playSan(move)) {
+                AXLOGW("--moves stopped at {}: not legal here", move);
+                break;
+            }
         }
     }
-    options.moves.clear();
 
     forgetPositionMarks();
     _board->closePromotion();
@@ -565,12 +576,11 @@ void GameScene::update(float delta) {
     if (const auto move = _opponent.takeMove())
         play(*move, true);
 
-    Launch& options = launch();
-    if (options.autoplayGames > 0 && _started && modal() == nullptr) {
+    if (_autoplayLeft > 0 && _started && modal() == nullptr) {
         if (_game.status().over()) {
             AXLOGI("autoplay: {} after {} plies", text::verdict(_game.status(), std::nullopt).headline,
                    _game.plies());
-            if (--options.autoplayGames == 0)
+            if (--_autoplayLeft == 0)
                 Director::getInstance()->end();
             else
                 startGame(_setup);
@@ -603,15 +613,15 @@ void GameScene::update(float delta) {
         {_copiedFor > 0.0f, "the \"copied\" notice is up", Wakefulness::Kind::Stay},
         {_opponentEngine.state() == Engine::State::Starting, "the opponent is starting"},
         {_watcherEngine.state() == Engine::State::Starting, "the analysis engine is starting"},
-        {!options.screenshot.empty(), "a screenshot is being taken", Wakefulness::Kind::Stay},
-        {options.autoplayGames > 0, "autoplay", Wakefulness::Kind::Stay},
+        {!launch().screenshot.empty(), "a screenshot is being taken", Wakefulness::Kind::Stay},
+        {_autoplayLeft > 0, "autoplay", Wakefulness::Kind::Stay},
     });
 }
 
 // --- what the player can do --------------------------------------------------------
 
 bool GameScene::gameAtStake() const {
-    return _started && _game.plies() > 0 && !_game.status().over() && launch().autoplayGames == 0;
+    return _started && _game.plies() > 0 && !_game.status().over() && _autoplayLeft == 0;
 }
 
 void GameScene::openNewGame() {

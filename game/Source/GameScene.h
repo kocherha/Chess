@@ -71,8 +71,14 @@ public:
         bool        puzzles = false;
         std::string editFen;
         std::string puzzle;
+
+        bool puzzlesFirst() const { return puzzles || !editFen.empty() || !puzzle.empty(); }
     };
-    static Launch& launch();
+    // Set once, from the command line, before the scene is made; read-only
+    // after that. What is meant for the first game or the first visit to the
+    // problems only, the scene keeps track of itself (_launch* below).
+    static void          setLaunch(Launch launch);
+    static const Launch& launch();
 
     ~GameScene() override;
 
@@ -183,6 +189,13 @@ private:
     bool          _started = false;              // has the first game been set up?
     std::optional<chess::Position> _startFrom;   // the next new game begins here, not at the start
     bool _lentAnalysis = false;  // the watching engine is the problems mode's for now
+
+    // What of the command line has been used up: --fen and --moves are for
+    // the first game, --puzzles, --edit and --puzzle for the first visit to
+    // the problems; --autoplay counts down.
+    bool _launchStartUsed   = false;
+    bool _launchPuzzlesUsed = false;
+    int  _autoplayLeft      = 0;
 
     // The engine that watches the game — the bar, the marks, the hint (see
     // chess::Watcher) — and the Stockfish it asks, which the problems borrow.

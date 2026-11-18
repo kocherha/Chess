@@ -8,11 +8,12 @@
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
-#include <optional>
 #include <filesystem>
+#include <optional>
 #include <sstream>
 #include <string_view>
 #include <thread>
+#include <utility>
 
 using namespace ax;
 
@@ -56,7 +57,7 @@ AppDelegate::AppDelegate() = default;
 AppDelegate::~AppDelegate() = default;
 
 void AppDelegate::parseArguments(int argc, char** argv) {
-    GameScene::Launch& launch = GameScene::launch();
+    GameScene::Launch launch;
 
     // A whole number; or a word in the log and nothing, so that the option
     // stays as it was: "--level abc" must not quietly become level 0.
@@ -111,6 +112,8 @@ void AppDelegate::parseArguments(int argc, char** argv) {
             launch.skipDialog = true;
         }
     }
+
+    GameScene::setLaunch(std::move(launch));
 }
 
 void AppDelegate::initGfxContextAttrs() {
