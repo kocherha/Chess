@@ -30,6 +30,7 @@
 #include "chess/Game.h"
 #include "chess/GameReview.h"
 #include "chess/Judge.h"
+#include "chess/Opponent.h"
 
 #include "axmol.h"
 
@@ -92,9 +93,9 @@ private:
     void withdrawQuestions();
     void forgetPositionMarks();
     void askOpponentIfItsTurn();
+    void sendToOpponent();  // what chess::Opponent wants of its engine
     void pollOpponent();
     void playRandomMove();
-    void playPendingReply();
 
     // The watching engine: start it on the position now on the board, and
     // collect what it has to say.
@@ -173,7 +174,11 @@ private:
 
     // --- state ---
     chess::Game   _game;
-    chess::Engine _opponent;  // Stockfish playing against the person; started for the first such game
+    // The computer as the other player: when and how it answers (see
+    // chess::Opponent), and the Stockfish it asks, started for the first game
+    // against it.
+    chess::Opponent _opponent;
+    chess::Engine   _opponentEngine;
     GameSetup     _setup;
     chess::Color  _human = chess::Color::White;  // the person's side against the computer
     bool          _started = false;              // has the first game been set up?
@@ -184,8 +189,6 @@ private:
     // one we are waiting for is an answer to a question nobody is asking any
     // more (the move was taken back, a new game began).
     int  _nextTag = 1;
-    int  _moveTag = 0;
-    bool _opponentLost = false;
 
     // The watching engine, and what it has found out about the position on
     // the board: nothing yet, a score still being refined, or its final word
@@ -200,22 +203,9 @@ private:
     bool           _barShown     = false;  // is there a bar in the layout right now?
     chess::Engine::State _opponentState = chess::Engine::State::Stopped;  // as last seen by update()
 
-    // A reply that does not come from a search: played after a short pause,
-    // as if thought about. Either a move the opponent has already made in this
-    // very position (see _replies), or — below the engine's weakest setting —
-    // one picked at random, in which case _replyMove is empty until then.
-    bool        _replyPending = false;
-    float       _replyDelay   = 0.0f;
-    std::string _replyMove;
+    // The person's colour when they asked for a random one, and their moves
+    // under --autoplay.
     std::mt19937 _rng{std::random_device{}()};
-
-    // What the opponent answered in each position it has been asked about in
-    // this game, by the moves that led there. A weakened engine chooses with
-    // a roll of the dice; without this, taking a move back and playing it
-    // again would get a different answer each time — sometimes a far worse
-    // one — and "take back" would double as "roll again".
-    std::map<std::string, std::string> _replies;
-    std::string _moveKey;  // the position the search in progress was asked about
 
     chess::Square _hintFrom = chess::kNoSquare, _hintTo = chess::kNoSquare;
     std::string   _hintText;
