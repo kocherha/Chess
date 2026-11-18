@@ -2,6 +2,7 @@
 
 #include "Desktop.h"
 #include "EventLog.h"
+#include "Layout.h"
 #include "Look.h"
 #include "PuzzleScene.h"
 #include "Shapes.h"
@@ -22,7 +23,6 @@ using namespace chess;
 
 namespace {
 
-constexpr float kMargin    = 26.0f;
 constexpr float kBarHeight = 38.0f;
 
 // The evaluation bar and the space between it and the board.
@@ -935,21 +935,17 @@ void GameScene::layout() {
     _backdrop->clear();
     shapes::rect(_backdrop, Vec2::ZERO, screen, theme::kBackground);
 
-    // Nothing here is a fixed pixel position. The panel takes a share of the
-    // width between two limits, and the board takes the largest square that
-    // fits in what is left with a name strip above and below it.
-    const float panelWidth = std::clamp(std::floor(screen.x * 0.27f), 300.0f, 380.0f);
-    const float areaWidth  = screen.x - panelWidth;
+    // The board takes the largest square that fits beside the panel with a
+    // name strip above and below it.
+    const auto [panelWidth, areaWidth] = layout::split(screen.x);
 
     // The evaluation bar stands to the left of the board, and only while
     // there is an engine to fill it; without one the board has the room.
     const bool  barShown  = _watcher.engineUsable();
     const float evalSpace = barShown ? kEvalWidth + kEvalGap : 0.0f;
 
-    float side = std::min(areaWidth - 2.0f * kMargin - evalSpace, screen.y - 2.0f * (kMargin + kBarHeight));
-    // A whole number of pixels per square, so every edge between two squares
-    // lands on a pixel boundary.
-    side = std::max(160.0f, std::floor(side / 8.0f) * 8.0f);
+    const float side = layout::boardSide(areaWidth - 2.0f * layout::kMargin - evalSpace,
+                                         screen.y - 2.0f * (layout::kMargin + kBarHeight));
     const float frame = look::frameWidth(side / 8.0f);
 
     // Bar and board are centred together, as one thing.

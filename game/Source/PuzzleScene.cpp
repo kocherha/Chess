@@ -2,6 +2,7 @@
 
 #include "Desktop.h"
 #include "EventLog.h"
+#include "Layout.h"
 #include "Look.h"
 #include "Shapes.h"
 #include "Strings.h"
@@ -18,7 +19,6 @@ using namespace chess;
 
 namespace {
 
-constexpr float kMargin    = 26.0f;
 constexpr float kTrayShare = 0.82f;  // a tray's height, in squares
 constexpr float kTrayGap   = 10.0f;
 
@@ -963,13 +963,12 @@ void PuzzleScene::layout() {
     _backdrop->clear();
     shapes::rect(_backdrop, Vec2::ZERO, screen, theme::kBackground);
 
-    const float panelWidth = std::clamp(std::floor(screen.x * 0.27f), 300.0f, 380.0f);
-    const float areaWidth  = screen.x - panelWidth;
+    const auto [panelWidth, areaWidth] = layout::split(screen.x);
 
     // The board with a tray above and below it, as one column.
     const float share = kTrayShare / 8.0f;
-    float side = std::min(areaWidth - 2.0f * kMargin, (screen.y - 2.0f * kMargin - 2.0f * kTrayGap) / (1.0f + 2.0f * share));
-    side = std::max(160.0f, std::floor(side / 8.0f) * 8.0f);
+    const float side  = layout::boardSide(areaWidth - 2.0f * layout::kMargin,
+                                          (screen.y - 2.0f * layout::kMargin - 2.0f * kTrayGap) / (1.0f + 2.0f * share));
     const float frame = look::frameWidth(side / 8.0f);
     const float tray  = std::floor(side / 8.0f * kTrayShare);
 
