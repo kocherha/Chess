@@ -107,10 +107,8 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
         _setup.setSideToMove(colour);
         edited();
     };
-    _panel->onCastling = [this](int index) {
-        const Color colour  = index < 2 ? Color::White : Color::Black;
-        const bool kingSide = index % 2 == 0;
-        _setup.setCastling(colour, kingSide, !_setup.castlingWanted(colour, kingSide));
+    _panel->onCastling = [this](Color colour, Wing wing) {
+        _setup.setCastling(colour, wing, !_setup.castlingWanted(colour, wing));
         edited();
     };
     _panel->onEnPassant = [this](Square square) {
@@ -384,14 +382,9 @@ void PuzzleScene::refreshEditor() {
     }()));
 
     _panel->setSideToMove(_setup.sideToMove());
-    std::array<bool, 4> wanted{}, possible{};
-    for (int i = 0; i < 4; ++i) {
-        const Color colour  = i < 2 ? Color::White : Color::Black;
-        const bool kingSide = i % 2 == 0;
-        wanted[static_cast<std::size_t>(i)]   = _setup.castlingWanted(colour, kingSide);
-        possible[static_cast<std::size_t>(i)] = _setup.castlingPossible(colour, kingSide);
-    }
-    _panel->setCastling(wanted, possible);
+    for (const Color colour : {Color::White, Color::Black})
+        for (const Wing wing : kWings)
+            _panel->setCastling(colour, wing, _setup.castlingWanted(colour, wing), _setup.castlingPossible(colour, wing));
     _panel->setEnPassant(_setup.enPassantCandidates(), _setup.enPassant());
     _panel->setFen(_setup.fen());
 

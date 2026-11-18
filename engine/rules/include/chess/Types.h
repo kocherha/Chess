@@ -9,6 +9,11 @@ namespace chess {
 
 enum class Color : std::uint8_t { White, Black };
 
+// The side of the board a castling goes to: the king's (0-0) or the
+// queen's (0-0-0).
+enum class Wing : std::uint8_t { King, Queen };
+inline constexpr Wing kWings[2] = {Wing::King, Wing::Queen};
+
 constexpr Color opposite(Color color) {
     return color == Color::White ? Color::Black : Color::White;
 }

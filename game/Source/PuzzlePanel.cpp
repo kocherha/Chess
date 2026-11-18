@@ -87,11 +87,12 @@ bool PuzzlePanel::init() {
     _black = button(text::kBlack, Button::Style::Choice);
     _white->onClick = [this] { if (onSideToMove) onSideToMove(Color::White); };
     _black->onClick = [this] { if (onSideToMove) onSideToMove(Color::Black); };
-    for (int i = 0; i < 4; ++i) {
-        _castling[static_cast<std::size_t>(i)] = button(i % 2 == 0 ? text::kCastleShort : text::kCastleLong,
-                                                        Button::Style::Choice);
-        _castling[static_cast<std::size_t>(i)]->onClick = [this, i] { if (onCastling) onCastling(i); };
-    }
+    for (const Color colour : {Color::White, Color::Black})
+        for (const Wing wing : kWings) {
+            Button*& castle = castlingButton(colour, wing);
+            castle = button(wing == Wing::King ? text::kCastleShort : text::kCastleLong, Button::Style::Choice);
+            castle->onClick = [this, colour, wing] { if (onCastling) onCastling(colour, wing); };
+        }
     for (std::size_t i = 0; i < _passant.size(); ++i) {
         _passant[i] = button(i == 0 ? text::kNoEnPassant : "", Button::Style::Choice);
         _passantSquares[i] = kNoSquare;
@@ -167,11 +168,14 @@ void PuzzlePanel::setSideToMove(Color colour) {
     _black->setChosen(colour == Color::Black);
 }
 
-void PuzzlePanel::setCastling(const std::array<bool, 4>& wanted, const std::array<bool, 4>& possible) {
-    for (std::size_t i = 0; i < 4; ++i) {
-        _castling[i]->setEnabled(possible[i]);
-        _castling[i]->setChosen(wanted[i] && possible[i]);
-    }
+Button*& PuzzlePanel::castlingButton(Color colour, Wing wing) {
+    return _castling[static_cast<std::size_t>(colour) * 2 + static_cast<std::size_t>(wing)];
+}
+
+void PuzzlePanel::setCastling(Color colour, Wing wing, bool wanted, bool possible) {
+    Button* castle = castlingButton(colour, wing);
+    castle->setEnabled(possible);
+    castle->setChosen(wanted && possible);
 }
 
 void PuzzlePanel::setEnPassant(const std::vector<Square>& candidates, Square chosen) {
@@ -331,11 +335,11 @@ float PuzzlePanel::layoutEditorChoices(const Metrics& m, float y) {
 
     _castlingLabel->setPosition(Vec2(m.left, y - 8.0f));
     y -= m.compact ? 16.0f : 22.0f;
-    for (int row = 0; row < 2; ++row) {
-        rowLabel(row == 0 ? _whiteLabel : _blackLabel);
-        for (int i = 0; i < 2; ++i)
-            _castling[static_cast<std::size_t>(row * 2 + i)]->setFrame(
-                Vec2(column + static_cast<float>(i) * (sideWidth + m.gap), y - m.small), Vec2(sideWidth, m.small));
+    for (const Color colour : {Color::White, Color::Black}) {
+        rowLabel(colour == Color::White ? _whiteLabel : _blackLabel);
+        for (const Wing wing : kWings)
+            castlingButton(colour, wing)->setFrame(
+                Vec2(column + static_cast<float>(wing) * (sideWidth + m.gap), y - m.small), Vec2(sideWidth, m.small));
         y -= m.small + m.gap;
     }
 

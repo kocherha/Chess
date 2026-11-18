@@ -89,10 +89,10 @@ public:
     // it is in force only when the king and that rook are on their squares;
     // a right that is wanted but not possible comes back by itself when they
     // are put back.
-    bool castlingPossible(Color color, bool kingSide) const;
-    bool canCastle(Color color, bool kingSide) const;  // wanted and possible
-    bool castlingWanted(Color color, bool kingSide) const;
-    void setCastling(Color color, bool kingSide, bool wanted);
+    bool castlingPossible(Color color, Wing wing) const;
+    bool canCastle(Color color, Wing wing) const;  // wanted and possible
+    bool castlingWanted(Color color, Wing wing) const;
+    void setCastling(Color color, Wing wing, bool wanted);
 
     // En passant: the squares behind an opposing pawn that may just have
     // advanced two, where a pawn of the side to move could take it. Set to one

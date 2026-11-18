@@ -35,17 +35,16 @@ public:
 
     // --- the editor ---
     void setSideToMove(chess::Color colour);
-    // Castling rights, in the order white 0-0, white 0-0-0, black 0-0,
-    // black 0-0-0: whether each is ticked, and whether the pieces stand where
-    // it could be.
-    void setCastling(const std::array<bool, 4>& wanted, const std::array<bool, 4>& possible);
+    // One castling right: whether it is ticked, and whether the pieces stand
+    // where it could be.
+    void setCastling(chess::Color colour, chess::Wing wing, bool wanted, bool possible);
     // The squares a pawn could be taken on en passant, and the one chosen
     // (kNoSquare for none).
     void setEnPassant(const std::vector<chess::Square>& candidates, chess::Square chosen);
     void setFen(const std::string& fen);
 
     std::function<void(chess::Color)>  onSideToMove;
-    std::function<void(int index)>     onCastling;   // toggled; index as in setCastling
+    std::function<void(chess::Color, chess::Wing)> onCastling;  // toggled
     std::function<void(chess::Square)> onEnPassant;  // kNoSquare for "none"
 
     // --- solving ---
@@ -122,7 +121,8 @@ private:
     ax::Label *_toMoveLabel = nullptr, *_castlingLabel = nullptr, *_whiteLabel = nullptr, *_blackLabel = nullptr;
     ax::Label *_passantLabel = nullptr, *_fen = nullptr, *_help = nullptr;
     Button *_white = nullptr, *_black = nullptr;
-    std::array<Button*, 4> _castling{};
+    std::array<Button*, 4> _castling{};  // white 0-0, white 0-0-0, black 0-0, black 0-0-0
+    Button*& castlingButton(chess::Color colour, chess::Wing wing);
     std::array<Button*, 9> _passant{};  // "none" and up to eight squares
     std::array<chess::Square, 9> _passantSquares{};
     std::string _fenText;

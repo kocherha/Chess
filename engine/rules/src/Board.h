@@ -80,9 +80,9 @@ bool findAttackers(const At& at, Square target, Color by, Found&& found) {
 // Castling rights, one bit each, in the order a FEN writes them: K Q k q.
 inline constexpr std::uint8_t kWhiteKing = 1, kWhiteQueen = 2, kBlackKing = 4, kBlackQueen = 8;
 
-constexpr std::uint8_t castleBit(Color color, bool kingSide) {
-    return color == Color::White ? (kingSide ? kWhiteKing : kWhiteQueen)
-                                 : (kingSide ? kBlackKing : kBlackQueen);
+constexpr std::uint8_t castleBit(Color color, Wing wing) {
+    return color == Color::White ? (wing == Wing::King ? kWhiteKing : kWhiteQueen)
+                                 : (wing == Wing::King ? kBlackKing : kBlackQueen);
 }
 
 // The piece a FEN letter stands for, either case; None for any other letter.

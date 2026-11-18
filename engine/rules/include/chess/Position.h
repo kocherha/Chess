@@ -36,7 +36,7 @@ public:
     Piece  at(Square square) const { return _board[static_cast<std::size_t>(square)]; }
     Color  sideToMove() const { return _turn; }
     Square enPassantSquare() const { return _enPassant; }
-    bool   canCastle(Color color, bool kingSide) const;
+    bool   canCastle(Color color, Wing wing) const;
     int    halfmoveClock() const { return _halfmove; }
     int    fullmoveNumber() const { return _fullmove; }
 

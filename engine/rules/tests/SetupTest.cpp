@@ -187,18 +187,18 @@ TEST(Setup, BlackPawnsCountToo) {
 
 TEST(Setup, Castling) {
     chess::Setup s = setup("r3k2r/8/8/8/8/8/8/R3K2R w KQkq -");
-    EXPECT_TRUE(s.canCastle(Color::White, true));
+    EXPECT_TRUE(s.canCastle(Color::White, Wing::King));
     EXPECT_EQ(s.fen(), "r3k2r/8/8/8/8/8/8/R3K2R w KQkq - 0 1");
 
     // Moving the rook away suspends the right; putting it back restores it.
     s.remove(sq("h1"));
-    EXPECT_FALSE(s.canCastle(Color::White, true));
-    EXPECT_TRUE(s.castlingWanted(Color::White, true));
+    EXPECT_FALSE(s.canCastle(Color::White, Wing::King));
+    EXPECT_TRUE(s.castlingWanted(Color::White, Wing::King));
     EXPECT_EQ(s.fen(), "r3k2r/8/8/8/8/8/8/R3K3 w Qkq - 0 1");
     s.put(sq("h1"), {PieceType::Rook, Color::White});
-    EXPECT_TRUE(s.canCastle(Color::White, true));
+    EXPECT_TRUE(s.canCastle(Color::White, Wing::King));
 
-    s.setCastling(Color::Black, false, false);
+    s.setCastling(Color::Black, Wing::Queen, false);
     EXPECT_EQ(s.fen(), "r3k2r/8/8/8/8/8/8/R3K2R w KQk - 0 1");
 }
 

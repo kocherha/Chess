@@ -52,8 +52,8 @@ Setup Setup::from(const Position& position) {
         setup._board[static_cast<std::size_t>(square)] = position.at(square);
     setup._turn = position.sideToMove();
     for (Color color : {Color::White, Color::Black})
-        for (bool kingSide : {true, false})
-            setup.setCastling(color, kingSide, position.canCastle(color, kingSide));
+        for (const Wing wing : kWings)
+            setup.setCastling(color, wing, position.canCastle(color, wing));
     setup._enPassant = position.enPassantSquare();
     setup._halfmove  = position.halfmoveClock();
     setup._fullmove  = position.fullmoveNumber();
@@ -77,10 +77,10 @@ std::optional<Setup> Setup::fromFen(std::string_view fen) {
     if (fields.size() > 2) {
         for (char c : fields[2]) {
             switch (c) {
-            case 'K': setup._castling |= castleBit(Color::White, true); break;
-            case 'Q': setup._castling |= castleBit(Color::White, false); break;
-            case 'k': setup._castling |= castleBit(Color::Black, true); break;
-            case 'q': setup._castling |= castleBit(Color::Black, false); break;
+            case 'K': setup._castling |= castleBit(Color::White, Wing::King); break;
+            case 'Q': setup._castling |= castleBit(Color::White, Wing::Queen); break;
+            case 'k': setup._castling |= castleBit(Color::Black, Wing::King); break;
+            case 'q': setup._castling |= castleBit(Color::Black, Wing::Queen); break;
             default:  break;
             }
         }
@@ -101,10 +101,10 @@ std::string Setup::fen() const {
     out += _turn == Color::White ? " w " : " b ";
 
     std::string rights;
-    if (canCastle(Color::White, true))  rights += 'K';
-    if (canCastle(Color::White, false)) rights += 'Q';
-    if (canCastle(Color::Black, true))  rights += 'k';
-    if (canCastle(Color::Black, false)) rights += 'q';
+    if (canCastle(Color::White, Wing::King))  rights += 'K';
+    if (canCastle(Color::White, Wing::Queen)) rights += 'Q';
+    if (canCastle(Color::Black, Wing::King))  rights += 'k';
+    if (canCastle(Color::Black, Wing::Queen)) rights += 'q';
     out += rights.empty() ? "-" : rights;
 
     out += ' ';
@@ -133,25 +133,25 @@ void Setup::setSideToMove(Color color) {
     _turn = color;
 }
 
-bool Setup::castlingPossible(Color color, bool kingSide) const {
+bool Setup::castlingPossible(Color color, Wing wing) const {
     const int rank = homeRank(color);
     return at(makeSquare(4, rank)).is(PieceType::King, color) &&
-           at(makeSquare(kingSide ? 7 : 0, rank)).is(PieceType::Rook, color) && count({PieceType::King, color}) == 1;
+           at(makeSquare(wing == Wing::King ? 7 : 0, rank)).is(PieceType::Rook, color) && count({PieceType::King, color}) == 1;
 }
 
-bool Setup::castlingWanted(Color color, bool kingSide) const {
-    return (_castling & castleBit(color, kingSide)) != 0;
+bool Setup::castlingWanted(Color color, Wing wing) const {
+    return (_castling & castleBit(color, wing)) != 0;
 }
 
-bool Setup::canCastle(Color color, bool kingSide) const {
-    return castlingWanted(color, kingSide) && castlingPossible(color, kingSide);
+bool Setup::canCastle(Color color, Wing wing) const {
+    return castlingWanted(color, wing) && castlingPossible(color, wing);
 }
 
-void Setup::setCastling(Color color, bool kingSide, bool wanted) {
+void Setup::setCastling(Color color, Wing wing, bool wanted) {
     if (wanted)
-        _castling |= castleBit(color, kingSide);
+        _castling |= castleBit(color, wing);
     else
-        _castling &= static_cast<std::uint8_t>(~castleBit(color, kingSide));
+        _castling &= static_cast<std::uint8_t>(~castleBit(color, wing));
 }
 
 std::vector<Square> Setup::enPassantCandidates() const {

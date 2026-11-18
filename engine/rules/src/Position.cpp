@@ -163,8 +163,8 @@ std::string Position::repetitionKey() const {
 
 // --- questions about the board -------------------------------------------------
 
-bool Position::canCastle(Color color, bool kingSide) const {
-    return (_castling & castleBit(color, kingSide)) != 0;
+bool Position::canCastle(Color color, Wing wing) const {
+    return (_castling & castleBit(color, wing)) != 0;
 }
 
 Square Position::kingSquare(Color color) const {
@@ -267,7 +267,7 @@ void Position::generatePseudoLegal(std::vector<Move>& out, Square onlyFrom) cons
                 const Square home = us == Color::White ? kE1 : kE8;
                 if (from != home || isAttacked(home, them))
                     break;
-                if (canCastle(us, true) && at(home + 1).empty() && at(home + 2).empty() &&
+                if (canCastle(us, Wing::King) && at(home + 1).empty() && at(home + 2).empty() &&
                     !isAttacked(home + 1, them)) {
                     Move move;
                     move.from           = home;
@@ -276,7 +276,7 @@ void Position::generatePseudoLegal(std::vector<Move>& out, Square onlyFrom) cons
                     move.castleKingSide = true;
                     out.push_back(move);
                 }
-                if (canCastle(us, false) && at(home - 1).empty() && at(home - 2).empty() &&
+                if (canCastle(us, Wing::Queen) && at(home - 1).empty() && at(home - 2).empty() &&
                     at(home - 3).empty() && !isAttacked(home - 1, them)) {
                     Move move;
                     move.from            = home;
