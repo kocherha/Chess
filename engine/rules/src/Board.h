@@ -25,6 +25,15 @@ inline constexpr Step kKingSteps[]   = {{1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}
 inline constexpr Step kDiagonals[]   = {{1, 1}, {-1, 1}, {-1, -1}, {1, -1}};
 inline constexpr Step kStraights[]   = {{1, 0}, {0, 1}, {-1, 0}, {0, -1}};
 
+// Where `color`'s king stands, or kNoSquare.
+template <class At>
+Square findKing(const At& at, Color color) {
+    for (Square square = 0; square < 64; ++square)
+        if (at(square).is(PieceType::King, color))
+            return square;
+    return kNoSquare;
+}
+
 // Every piece of `by` that attacks `target`, handed to `found` one at a time —
 // pawns, knights, the king, then along the lines — until `found` returns
 // true. True if it did.
@@ -103,6 +112,34 @@ inline std::vector<std::string_view> splitFields(std::string_view text) {
             fields.push_back(text.substr(start, i - start));
     }
     return fields;
+}
+
+// The first field of a FEN read back: each piece it names is handed to
+// `put(square, piece)`. False unless it is eight ranks of eight squares, from
+// rank 8 down, in piece letters and digits.
+template <class Put>
+bool readPlacement(std::string_view field, Put&& put) {
+    int file = 0, rank = 7;
+    for (char c : field) {
+        if (c == '/') {
+            if (file != 8 || rank == 0)
+                return false;
+            file = 0;
+            --rank;
+        } else if (c >= '1' && c <= '8') {
+            file += c - '0';
+            if (file > 8)
+                return false;
+        } else {
+            const PieceType type = typeFromLetter(c);
+            if (type == PieceType::None || file > 7)
+                return false;
+            const Color color = std::isupper(static_cast<unsigned char>(c)) ? Color::White : Color::Black;
+            put(makeSquare(file, rank), Piece{type, color});
+            ++file;
+        }
+    }
+    return rank == 0 && file == 8;
 }
 
 // The first field of a FEN: the board from rank 8 down, runs of empty squares

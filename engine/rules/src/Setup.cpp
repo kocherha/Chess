@@ -66,27 +66,10 @@ std::optional<Setup> Setup::fromFen(std::string_view fen) {
         return std::nullopt;
 
     Setup setup;
-    int file = 0, rank = 7;
-    for (char c : fields[0]) {
-        if (c == '/') {
-            if (file != 8 || rank == 0)
-                return std::nullopt;
-            file = 0;
-            --rank;
-        } else if (c >= '1' && c <= '8') {
-            file += c - '0';
-            if (file > 8)
-                return std::nullopt;
-        } else {
-            const PieceType type = typeFromLetter(c);
-            if (type == PieceType::None || file > 7)
-                return std::nullopt;
-            const Color color = std::isupper(static_cast<unsigned char>(c)) ? Color::White : Color::Black;
-            setup._board[static_cast<std::size_t>(makeSquare(file, rank))] = Piece{type, color};
-            ++file;
-        }
-    }
-    if (rank != 0 || file != 8)
+    const auto put = [&setup](Square square, Piece piece) {
+        setup._board[static_cast<std::size_t>(square)] = piece;
+    };
+    if (!readPlacement(fields[0], put))
         return std::nullopt;
 
     if (fields.size() > 1 && fields[1] == "b")
@@ -204,10 +187,7 @@ int Setup::count(Piece piece) const {
 }
 
 Square Setup::kingSquare(Color color) const {
-    for (Square square = 0; square < 64; ++square)
-        if (at(square).is(PieceType::King, color))
-            return square;
-    return kNoSquare;
+    return findKing([this](Square square) { return at(square); }, color);
 }
 
 std::vector<Square> Setup::attackers(Square target, Color by) const {

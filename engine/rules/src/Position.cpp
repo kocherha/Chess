@@ -52,35 +52,18 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
     Position position;
 
     // Placement: ranks from the eighth down to the first, files a to h.
-    int file = 0, rank = 7;
-    int kings[2] = {0, 0};
-    for (char c : fields[0]) {
-        if (c == '/') {
-            if (file != 8 || rank == 0)
-                return fail(error, "malformed piece placement");
-            file = 0;
-            --rank;
-        } else if (c >= '1' && c <= '8') {
-            file += c - '0';
-        } else {
-            const PieceType type = typeFromLetter(c);
-            if (type == PieceType::None || file > 7)
-                return fail(error, "malformed piece placement");
-            const Color color = std::isupper(static_cast<unsigned char>(c)) ? Color::White : Color::Black;
-            if (type == PieceType::Pawn && (rank == 0 || rank == 7))
-                return fail(error, "a pawn cannot stand on the first or last rank");
-            if (type == PieceType::King)
-                ++kings[static_cast<int>(color)];
-            position._board[static_cast<std::size_t>(makeSquare(file, rank))] = Piece{type, color};
-            ++file;
-        }
-        if (file > 8)
-            return fail(error, "malformed piece placement");
-    }
-    if (rank != 0 || file != 8)
+    const auto put = [&position](Square square, Piece piece) {
+        position._board[static_cast<std::size_t>(square)] = piece;
+    };
+    if (!readPlacement(fields[0], put))
         return fail(error, "malformed piece placement");
-    if (kings[0] != 1 || kings[1] != 1)
-        return fail(error, "each side needs exactly one king");
+    for (int file = 0; file < 8; ++file)
+        if (position.at(makeSquare(file, 0)).type == PieceType::Pawn ||
+            position.at(makeSquare(file, 7)).type == PieceType::Pawn)
+            return fail(error, "a pawn cannot stand on the first or last rank");
+    for (const Color color : {Color::White, Color::Black})
+        if (std::count(position._board.begin(), position._board.end(), Piece{PieceType::King, color}) != 1)
+            return fail(error, "each side needs exactly one king");
 
     if (fields[1] == "w")
         position._turn = Color::White;
@@ -185,11 +168,7 @@ bool Position::canCastle(Color color, bool kingSide) const {
 }
 
 Square Position::kingSquare(Color color) const {
-    for (Square square = 0; square < 64; ++square) {
-        if (at(square).is(PieceType::King, color))
-            return square;
-    }
-    return kNoSquare;
+    return findKing([this](Square square) { return at(square); }, color);
 }
 
 bool Position::isAttacked(Square square, Color by) const {
