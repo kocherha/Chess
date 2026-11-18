@@ -85,8 +85,8 @@ private:
     // --- the flow of a game ---
     void startGame(const GameSetup& setup);
     void play(const chess::Move& move, bool slide);
-    void askEngineIfItsTurn();
-    void pollEngine();
+    void askOpponentIfItsTurn();
+    void pollOpponent();
     void playRandomMove();
     void playPendingReply();
 
@@ -167,7 +167,7 @@ private:
 
     // --- state ---
     chess::Game   _game;
-    chess::Engine _engine;
+    chess::Engine _opponent;  // Stockfish playing against the person; started for the first such game
     GameSetup     _setup;
     chess::Color  _human = chess::Color::White;  // the person's side against the computer
     bool          _started = false;              // has the first game been set up?
@@ -179,7 +179,7 @@ private:
     // more (the move was taken back, a new game began).
     int  _nextTag = 1;
     int  _moveTag = 0;
-    bool _engineLost = false;
+    bool _opponentLost = false;
 
     // The watching engine, and what it has found out about the position on
     // the board: nothing yet, a score still being refined, or its final word
@@ -192,7 +192,7 @@ private:
     std::string       _searchKey;  // which position the search in progress is of (a key of _review's)
     bool           _hintWanted   = false;  // show that move as soon as it is known
     bool           _barShown     = false;  // is there a bar in the layout right now?
-    chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as last seen by update()
+    chess::Engine::State _opponentState = chess::Engine::State::Stopped;  // as last seen by update()
 
     // A reply that does not come from a search: played after a short pause,
     // as if thought about. Either a move the opponent has already made in this

@@ -70,7 +70,7 @@ GameScene::Launch& GameScene::launch() {
 GameScene::~GameScene() {
     // Says goodbye to Stockfish and waits for it to leave, so that closing the
     // window never leaves an engine running behind it.
-    _engine.shutdown();
+    _opponent.shutdown();
     _analysis.shutdown();
 }
 
@@ -300,20 +300,20 @@ void GameScene::startAnalysis() {
 }
 
 void GameScene::startOpponent() {
-    if (_engine.usable())
+    if (_opponent.usable())
         return;
     const std::string path = stockfish::path();
     if (path.empty())
         return;
-    stockfish::traceIfAsked(_engine, "uci ");
-    if (!_engine.start(path))
-        AXLOGW("engine {} did not start: {}", path, _engine.error());
+    stockfish::traceIfAsked(_opponent, "uci ");
+    if (!_opponent.start(path))
+        AXLOGW("engine {} did not start: {}", path, _opponent.error());
 }
 
 std::optional<Engine::Spin> GameScene::eloRange() const {
     if (auto range = _analysis.spin("UCI_Elo"))
         return range;
-    return _engine.spin("UCI_Elo");
+    return _opponent.spin("UCI_Elo");
 }
 
 // The rating the opponent is really asked for at this strength: the one on
@@ -364,7 +364,7 @@ void GameScene::startGame(const GameSetup& setup) {
     // the first such game, or brought back if it has died since the last.
     if (againstComputer())
         startOpponent();
-    if (againstComputer() && !_engine.usable())
+    if (againstComputer() && !_opponent.usable())
         _setup.opponent = GameSetup::Opponent::Human;
 
     switch (_setup.side) {
@@ -375,11 +375,11 @@ void GameScene::startGame(const GameSetup& setup) {
 
     startAnalysis();
 
-    _engine.cancel();
-    _engine.newGame();
+    _opponent.cancel();
+    _opponent.newGame();
     _analysis.newGame();
     _moveTag      = 0;
-    _engineLost   = false;
+    _opponentLost   = false;
     _replyPending = false;
     _hintWanted   = false;
     _replies.clear();
@@ -423,7 +423,7 @@ void GameScene::startGame(const GameSetup& setup) {
 
     refresh();
     analyse();
-    askEngineIfItsTurn();
+    askOpponentIfItsTurn();
     keepAwake();
 }
 
@@ -446,18 +446,18 @@ void GameScene::play(const Move& move, bool slide) {
     _board->show(_game.position(), _game.lastMove(), slide);
     refresh();
     analyse();
-    askEngineIfItsTurn();
+    askOpponentIfItsTurn();
 }
 
-void GameScene::askEngineIfItsTurn() {
+void GameScene::askOpponentIfItsTurn() {
     _replyPending = false;
     if (!_started || !againstComputer() || _game.status().over() ||
         _game.position().sideToMove() == _human) {
         return;
     }
 
-    if (!_engine.usable()) {
-        _engineLost = true;
+    if (!_opponent.usable()) {
+        _opponentLost = true;
         refreshStatus();
         return;
     }
@@ -470,7 +470,7 @@ void GameScene::askEngineIfItsTurn() {
         _replyPending = true;
         _replyMove    = known->second;
         _replyDelay   = kReplyPause;
-        _engine.cancel();
+        _opponent.cancel();
         _moveTag = 0;
         return;
     }
@@ -483,7 +483,7 @@ void GameScene::askEngineIfItsTurn() {
         _replyPending = true;
         _replyMove.clear();
         _replyDelay = kReplyPause + 0.35f * static_cast<float>(chance(_rng));
-        _engine.cancel();
+        _opponent.cancel();
         _moveTag = 0;
         return;
     }
@@ -496,7 +496,7 @@ void GameScene::askEngineIfItsTurn() {
     request.options    = engineOptions(level, elo ? elo->min : 0, elo ? elo->max : 0, hardwareThreads());
     request.tag = _moveTag = _nextTag++;
     _moveKey    = key;
-    _engine.search(std::move(request));
+    _opponent.search(std::move(request));
 }
 
 namespace {
@@ -536,9 +536,9 @@ void GameScene::playPendingReply() {
     play(*move, true);
 }
 
-void GameScene::pollEngine() {
+void GameScene::pollOpponent() {
     SearchResult result;
-    while (_engine.poll(result)) {
+    while (_opponent.poll(result)) {
         if (_moveTag == 0 || result.tag != _moveTag)
             continue;  // an answer to a question that has since been withdrawn
         _moveTag = 0;
@@ -551,24 +551,24 @@ void GameScene::pollEngine() {
             // that is not legal here means the two of us disagree about the
             // rules. Better to stop than to guess.
             AXLOGW("engine move '{}' is not legal in {}", result.bestMove, _game.position().fen());
-            _engineLost = true;
+            _opponentLost = true;
             refresh();
         }
     }
 
     // "Starting" became "ready" (or something worse): what the panel says
     // about the engine may no longer be true.
-    const Engine::State state = _engine.state();
-    if (state != _engineState) {
-        _engineState = state;
+    const Engine::State state = _opponent.state();
+    if (state != _opponentState) {
+        _opponentState = state;
         refresh();
     }
 
     // An engine that dies in the middle of a game says nothing — its output
     // just ends. Notice, and tell the player, instead of "thinking" for ever.
-    if (againstComputer() && _started && !_engineLost && _engine.state() == Engine::State::Failed) {
-        AXLOGW("engine lost: {}", _engine.error());
-        _engineLost = true;
+    if (againstComputer() && _started && !_opponentLost && _opponent.state() == Engine::State::Failed) {
+        AXLOGW("engine lost: {}", _opponent.error());
+        _opponentLost = true;
         _moveTag    = 0;
         refresh();
     }
@@ -731,7 +731,7 @@ void GameScene::showHint() {
 }
 
 void GameScene::update(float delta) {
-    pollEngine();
+    pollOpponent();
     pollAnalysis();
 
     if (_replyPending) {
@@ -768,7 +768,7 @@ void GameScene::update(float delta) {
     // of these is a reason to keep drawing, and the list has to be complete:
     // once the game is asleep only the window can wake it (see Wakefulness.h).
     _awake.update(delta, {
-        {_engine.thinking(), "the opponent is thinking"},
+        {_opponent.thinking(), "the opponent is thinking"},
         {_analysis.thinking(), "the position is being analysed"},
         {_replyPending, "a reply is about to be played"},
         {barMoving, "the evaluation bar is moving"},
@@ -776,7 +776,7 @@ void GameScene::update(float delta) {
         {_input.pressed(), "the mouse button is down"},
         {_panel->dragging(), "the move list is being dragged"},
         {_copiedFor > 0.0f, "the \"copied\" notice is up"},
-        {_engine.state() == Engine::State::Starting, "the opponent is starting"},
+        {_opponent.state() == Engine::State::Starting, "the opponent is starting"},
         {_analysis.state() == Engine::State::Starting, "the analysis engine is starting"},
         {!options.screenshot.empty(), "a screenshot is being taken"},
         {options.autoplayGames > 0, "autoplay"},
@@ -914,7 +914,7 @@ void GameScene::undo() {
     _input.cancelPromotion();
     _input.cancelPress();
 
-    _engine.cancel();
+    _opponent.cancel();
     _moveTag      = 0;
     _replyPending = false;
     _hintWanted   = false;
@@ -939,7 +939,7 @@ void GameScene::undo() {
     eventlog::note("undo " + _game.position().fen());
     refresh();
     analyse();
-    askEngineIfItsTurn();
+    askOpponentIfItsTurn();
 }
 
 void GameScene::flip() {
@@ -970,7 +970,7 @@ void GameScene::resign() {
         return;
     _input.cancelPromotion();
     _input.cancelPress();
-    _engine.cancel();
+    _opponent.cancel();
     _moveTag      = 0;
     _replyPending = false;
     _hintWanted   = false;
@@ -1292,7 +1292,7 @@ void GameScene::refreshStatus() {
         return;
     }
 
-    if (_engineLost) {
+    if (_opponentLost) {
         _panel->setStatus(text::kEngineLost, text::kEngineLostHelp, Tone::Warning);
         return;
     }
@@ -1305,7 +1305,7 @@ void GameScene::refreshStatus() {
             detail = std::string(text::kHint) + ": " + _hintText;
         _panel->setStatus(text::kYourMove, detail);
     } else {
-        _panel->setStatus(_engine.state() == Engine::State::Starting ? text::kEngineStarting : text::kThinking,
+        _panel->setStatus(_opponent.state() == Engine::State::Starting ? text::kEngineStarting : text::kThinking,
                           check);
     }
 }
@@ -1315,7 +1315,7 @@ void GameScene::captureAndQuit() {
     // has answered, the piece has landed, the bar has settled and every move
     // that is going to get a mark has it.
     desktop::screenshotWhenSettled(this, launch().screenshot, [this] {
-        return _engine.thinking() || _analysis.thinking() || _replyPending || _board->animating() ||
-               _engine.state() == Engine::State::Starting || _analysis.state() == Engine::State::Starting;
+        return _opponent.thinking() || _analysis.thinking() || _replyPending || _board->animating() ||
+               _opponent.state() == Engine::State::Starting || _analysis.state() == Engine::State::Starting;
     });
 }
