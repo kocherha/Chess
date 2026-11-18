@@ -31,7 +31,6 @@ public:
     void setEnabled(bool enabled);
     bool enabled() const { return _enabled; }
     void setChosen(bool chosen);
-    bool chosen() const { return _chosen; }
 
     void setHovered(bool hovered);
     void setPressed(bool pressed);

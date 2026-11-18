@@ -41,7 +41,6 @@ public:
     // editor, half way through being set up.
     using Placement = std::array<chess::Piece, 64>;
     void show(const Placement& placement);
-    const Placement& shown() const { return _shown; }
 
     // How the game stands for one of the kings, as a badge on his square, in
     // the signs a score sheet uses: "+" in check, "#" mated, "1" for the

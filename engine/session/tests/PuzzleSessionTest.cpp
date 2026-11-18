@@ -162,7 +162,7 @@ TEST(PuzzleSession, AWrongMoveInAMateProblem) {
     EXPECT_EQ(session.phase(), Phase::Wrong);
     EXPECT_EQ(session.note().kind, Note::Kind::NoMate);
     EXPECT_EQ(session.note().movesLeft, 2);
-    EXPECT_FALSE(session.waitingForEngine());
+    EXPECT_FALSE(session.toEngine().search.has_value());  // nothing more to ask
 }
 
 TEST(PuzzleSession, AnswersToOldQuestionsAreIgnored) {

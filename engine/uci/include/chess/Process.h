@@ -22,8 +22,6 @@ public:
     // reason, if it could not be started.
     bool start(const std::string& path, std::string* error = nullptr);
 
-    bool started() const { return _started; }
-
     // Sends one line; the newline is added here. False once the other end has
     // gone away. Safe to call from one thread while another is in readLine().
     bool writeLine(std::string_view line);

@@ -30,7 +30,6 @@ struct Status {
     std::optional<Color> winner;
 
     bool over() const { return outcome != Outcome::Ongoing; }
-    bool drawn() const { return over() && !winner.has_value(); }
 };
 
 // The names a game is written down under. Anything left empty is recorded as

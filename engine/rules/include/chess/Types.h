@@ -65,12 +65,6 @@ struct Move {
     bool isCapture() const { return captured != PieceType::None; }
     bool isCastle() const { return castleKingSide || castleQueenSide; }
 
-    // Identity only: two moves are the same move if they would be written the
-    // same way in UCI.
-    bool sameAs(const Move& other) const {
-        return from == other.from && to == other.to && promotion == other.promotion;
-    }
-
     // Long algebraic, as UCI engines speak it: "e2e4", "e7e8q", "e1g1".
     std::string uci() const;
 };

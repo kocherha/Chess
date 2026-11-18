@@ -24,7 +24,6 @@ public:
 
     void setFrame(const ax::Vec2& origin, const ax::Vec2& size);
     void setPage(Page page);
-    Page page() const { return _page; }
 
     // The buttons that are on screen on the page now showing.
     ButtonSet& buttons() { return _live; }

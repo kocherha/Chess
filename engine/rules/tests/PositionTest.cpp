@@ -225,7 +225,7 @@ TEST(San, ParsesWhatItWrites) {
     for (const Move& move : position.legalMoves()) {
         const auto parsed = position.parseSan(position.san(move));
         ASSERT_TRUE(parsed.has_value()) << position.san(move);
-        EXPECT_TRUE(parsed->sameAs(move)) << position.san(move);
+        EXPECT_EQ(parsed->uci(), move.uci()) << position.san(move);
     }
     EXPECT_TRUE(position.parseSan("0-0").has_value());
     EXPECT_TRUE(position.parseSan("Nxf7!?").has_value());

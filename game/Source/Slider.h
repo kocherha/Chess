@@ -34,7 +34,6 @@ public:
 
     // Moves the thumb. Does not call onChange: that is for what the player did.
     void setValue(int value);
-    int  value() const { return _value; }
 
     // The same contract as ButtonSet. mouseDown() takes hold of the thumb, or
     // brings it to a press anywhere on the strip, and returns true if the

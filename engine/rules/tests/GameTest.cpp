@@ -71,7 +71,7 @@ TEST(Game, Stalemate) {
     ASSERT_TRUE(game.playSan("Qg6"));
     const Status status = game.status();
     EXPECT_EQ(status.outcome, Outcome::Stalemate);
-    EXPECT_TRUE(status.drawn());
+    EXPECT_FALSE(status.winner.has_value());
 }
 
 TEST(Game, ThreefoldRepetition) {
@@ -85,7 +85,7 @@ TEST(Game, ThreefoldRepetition) {
     EXPECT_FALSE(game.status().over());
     ASSERT_TRUE(game.playSan("Ng8"));    // the starting position, third time
     EXPECT_EQ(game.status().outcome, Outcome::Repetition);
-    EXPECT_TRUE(game.status().drawn());
+    EXPECT_FALSE(game.status().winner.has_value());
 
     // Taking the move back takes the draw back with it.
     ASSERT_TRUE(game.undo());

@@ -140,8 +140,6 @@ public:
     // An answer from the engine. Answers to anything but the latest question
     // are ignored.
     void answer(const SearchResult& result);
-    // Is an answer still owed to the session?
-    bool waitingForEngine() const { return _question != Question::None; }
 
     // --- time ---------------------------------------------------------------------------
 
