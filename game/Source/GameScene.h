@@ -85,6 +85,12 @@ private:
     // --- the flow of a game ---
     void startGame(const GameSetup& setup);
     void play(const chess::Move& move, bool slide);
+    // The position on the board is about to change, or has: what was asked
+    // about the old one — the opponent's reply, a hint — is withdrawn, and
+    // what was drawn for it — a selection, a piece in hand, the hint's arrow —
+    // is wiped.
+    void withdrawQuestions();
+    void forgetPositionMarks();
     void askOpponentIfItsTurn();
     void pollOpponent();
     void playRandomMove();

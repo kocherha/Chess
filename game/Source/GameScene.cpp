@@ -375,13 +375,10 @@ void GameScene::startGame(const GameSetup& setup) {
 
     startAnalysis();
 
-    _opponent.cancel();
+    withdrawQuestions();
     _opponent.newGame();
     _analysis.newGame();
-    _moveTag      = 0;
-    _opponentLost   = false;
-    _replyPending = false;
-    _hintWanted   = false;
+    _opponentLost = false;
     _replies.clear();
     _review.clear();
     _searchKey.clear();
@@ -410,9 +407,7 @@ void GameScene::startGame(const GameSetup& setup) {
     }
     options.moves.clear();
 
-    _input.reset();
-    _hintFrom = _hintTo = kNoSquare;
-    _hintText.clear();
+    forgetPositionMarks();
     _board->closePromotion();
 
     // The player sits at the bottom of their own side of the board.
@@ -438,15 +433,26 @@ void GameScene::play(const Move& move, bool slide) {
         return;
     eventlog::note("move " + move.uci());
 
-    _input.reset();
-    _hintFrom = _hintTo = kNoSquare;
-    _hintText.clear();
+    forgetPositionMarks();
     _hintWanted = false;  // a hint still being worked out was for a position that is gone
 
     _board->show(_game.position(), _game.lastMove(), slide);
     refresh();
     analyse();
     askOpponentIfItsTurn();
+}
+
+void GameScene::withdrawQuestions() {
+    _opponent.cancel();
+    _moveTag      = 0;
+    _replyPending = false;
+    _hintWanted   = false;
+}
+
+void GameScene::forgetPositionMarks() {
+    _input.reset();
+    _hintFrom = _hintTo = kNoSquare;
+    _hintText.clear();
 }
 
 void GameScene::askOpponentIfItsTurn() {
@@ -914,10 +920,7 @@ void GameScene::undo() {
     _input.cancelPromotion();
     _input.cancelPress();
 
-    _opponent.cancel();
-    _moveTag      = 0;
-    _replyPending = false;
-    _hintWanted   = false;
+    withdrawQuestions();
 
     if (_game.status().outcome == Outcome::Resignation) {
         _game.undo();  // only takes the resignation back
@@ -932,9 +935,7 @@ void GameScene::undo() {
         } while (_game.position().sideToMove() != _human);
     }
 
-    _input.reset();
-    _hintFrom = _hintTo = kNoSquare;
-    _hintText.clear();
+    forgetPositionMarks();
     _board->show(_game.position());
     eventlog::note("undo " + _game.position().fen());
     refresh();
@@ -970,18 +971,13 @@ void GameScene::resign() {
         return;
     _input.cancelPromotion();
     _input.cancelPress();
-    _opponent.cancel();
-    _moveTag      = 0;
-    _replyPending = false;
-    _hintWanted   = false;
+    withdrawQuestions();
 
     // Against the computer it is always the person who resigns, whoever is to
     // move; at a shared board it is whoever's turn it is.
     _game.resign(againstComputer() ? _human : _game.position().sideToMove());
     eventlog::note("resign");
-    _input.reset();
-    _hintFrom = _hintTo = kNoSquare;
-    _hintText.clear();
+    forgetPositionMarks();
     refresh();
     analyse();
 }
