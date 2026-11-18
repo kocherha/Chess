@@ -198,6 +198,40 @@ TEST(FakeEngine, MateScoresAreNotCentipawns) {
     EXPECT_FALSE(result.mateIn.has_value());  // nothing carried over from "mate -2"
 }
 
+TEST(FakeEngine, WhatWasSaidAtOneDepthIsKeptWhateverComesAfter) {
+    Engine engine;
+    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
+
+    SearchRequest request = quick();
+    request.moveTimeMs    = 0;
+    request.depth         = 12;  // the fake engine's search with two lines at depths 11 to 13
+    request.noteDepth     = 12;
+    engine.search(request);
+    SearchResult result;
+    ASSERT_TRUE(waitForResult(engine, result));
+
+    // Its last word is from depth 13 ...
+    EXPECT_EQ(result.depth, 13);
+    EXPECT_EQ(result.scoreCp, std::optional<int>(40));
+    EXPECT_EQ(result.bestMove, "e2e4");
+    // ... and what it said at depth 12 is there beside it, both lines.
+    ASSERT_TRUE(result.noted.has_value());
+    EXPECT_EQ(result.noted->scoreCp, std::optional<int>(33));
+    EXPECT_EQ(result.noted->pvMove, "g1f3");
+    ASSERT_TRUE(result.noted->second.has_value());
+    EXPECT_EQ(result.noted->second->scoreCp, std::optional<int>(12));
+
+    // A depth it never stood at leaves nothing; nor does not asking.
+    request.noteDepth = 14;
+    engine.search(request);
+    ASSERT_TRUE(waitForResult(engine, result));
+    EXPECT_FALSE(result.noted.has_value());
+    request.noteDepth = 0;
+    engine.search(request);
+    ASSERT_TRUE(waitForResult(engine, result));
+    EXPECT_FALSE(result.noted.has_value());
+}
+
 TEST(FakeEngine, ProgressIsTheBestLineAndNothingElse) {
     Engine engine;
     ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));

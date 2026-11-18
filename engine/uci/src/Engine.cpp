@@ -259,6 +259,7 @@ void Engine::pump() {
 
     _busy        = true;
     _discard     = false;
+    _noteDepth   = request.noteDepth;
     _current     = SearchResult{};
     _current.tag = request.tag;
 }
@@ -290,123 +291,144 @@ void Engine::handleLine(const std::string& line) {
     if (_trace)
         _trace('<', line);
 
-    if (token[0] == "id") {
-        if (token.size() > 2 && token[1] == "name") {
-            const std::size_t at = line.find("name ");
-            _name = line.substr(at + 5);
-        }
-        return;
-    }
-
-    if (token[0] == "option") {
-        // option name <words...> type <t> [default <v>] [min <a>] [max <b>]
-        std::size_t i = 1;
-        std::string name;
-        if (i < token.size() && token[i] == "name") {
-            for (++i; i < token.size() && token[i] != "type"; ++i)
-                name += (name.empty() ? "" : " ") + token[i];
-        }
-        if (name.empty())
-            return;
-        _known.insert(name);
-
-        std::string type;
-        Spin spin;
-        for (; i + 1 < token.size(); ++i) {
-            if (token[i] == "type")
-                type = token[i + 1];
-            else if (token[i] == "default")
-                toInt(token[i + 1], spin.value);
-            else if (token[i] == "min")
-                toInt(token[i + 1], spin.min);
-            else if (token[i] == "max")
-                toInt(token[i + 1], spin.max);
-        }
-        if (type == "spin")
-            _spins[name] = spin;
-        return;
-    }
-
-    if (token[0] == "uciok") {
+    const std::string& kind = token[0];
+    if (kind == "id") {
+        handleId(token, line);
+    } else if (kind == "option") {
+        handleOption(token);
+    } else if (kind == "uciok") {
         send("isready");
-        return;
-    }
-
-    if (token[0] == "readyok") {
+    } else if (kind == "readyok") {
         if (_state == State::Starting) {
             _state = State::Ready;
             pump();
         }
-        return;
+    } else if (kind == "info") {
+        handleInfo(token);
+    } else if (kind == "bestmove") {
+        handleBestMove(token);
     }
+}
 
-    if (token[0] == "info") {
-        // "info string ..." is free text; anything in it that looks like a
-        // field is a coincidence.
-        if (!_busy || (token.size() > 1 && token[1] == "string"))
-            return;
+// id name <the engine's name, spaces and all>
+void Engine::handleId(const std::vector<std::string>& token, const std::string& line) {
+    if (token.size() > 2 && token[1] == "name")
+        _name = line.substr(line.find("name ") + 5);
+}
 
-        int  depth = 0, multipv = 1;
-        bool bound = false;
-        std::optional<int> cp, mate;
-        std::string firstMove;
-
-        for (std::size_t i = 1; i < token.size(); ++i) {
-            int value = 0;
-            if (token[i] == "depth" && i + 1 < token.size() && toInt(token[i + 1], value)) {
-                depth = value;
-            } else if (token[i] == "multipv" && i + 1 < token.size() && toInt(token[i + 1], value)) {
-                multipv = value;
-            } else if (token[i] == "score" && i + 2 < token.size() && toInt(token[i + 2], value)) {
-                if (token[i + 1] == "cp")
-                    cp = value;
-                else if (token[i + 1] == "mate")
-                    mate = value;
-            } else if (token[i] == "lowerbound" || token[i] == "upperbound") {
-                bound = true;
-            } else if (token[i] == "pv") {
-                if (i + 1 < token.size())
-                    firstMove = token[i + 1];
-                break;  // everything after it is the line itself
-            }
-        }
-
-        // Only a line that says something definite counts. Lines without a
-        // score are progress chatter. A score marked as a bound is not a score
-        // yet — the search failed high or low and is about to try again.
-        if (bound || (!cp && !mate))
-            return;
-
-        // With several lines requested — by us, or by a strength limit behind
-        // the scenes — line one is the best move and line two the next best.
-        // The rest describe moves nobody asks about.
-        if (multipv == 1) {
-            _current.depth   = depth;
-            _current.scoreCp = cp;
-            _current.mateIn  = mate;
-            _current.pvMove  = firstMove;
-        } else if (multipv == 2) {
-            _current.secondDepth = depth;
-            _current.secondCp    = cp;
-            _current.secondMate  = mate;
-        }
-        return;
+// option name <words...> type <t> [default <v>] [min <a>] [max <b>]
+void Engine::handleOption(const std::vector<std::string>& token) {
+    std::size_t i = 1;
+    std::string name;
+    if (i < token.size() && token[i] == "name") {
+        for (++i; i < token.size() && token[i] != "type"; ++i)
+            name += (name.empty() ? "" : " ") + token[i];
     }
-
-    if (token[0] == "bestmove") {
-        if (!_busy)
-            return;
-        _busy = false;
-        if (!_discard) {
-            // "(none)" is what an engine says when there is nothing to play.
-            if (token.size() > 1 && token[1] != "(none)" && token[1] != "0000")
-                _current.bestMove = token[1];
-            _results.push_back(std::move(_current));
-        }
-        _discard = false;
-        pump();
+    if (name.empty())
         return;
+    _known.insert(name);
+
+    std::string type;
+    Spin spin;
+    for (; i + 1 < token.size(); ++i) {
+        if (token[i] == "type")
+            type = token[i + 1];
+        else if (token[i] == "default")
+            toInt(token[i + 1], spin.value);
+        else if (token[i] == "min")
+            toInt(token[i + 1], spin.min);
+        else if (token[i] == "max")
+            toInt(token[i + 1], spin.max);
     }
+    if (type == "spin")
+        _spins[name] = spin;
+}
+
+namespace {
+
+// What one `info` line of a search says, as far as anyone here cares.
+struct InfoLine {
+    int  depth = 0, multipv = 1;
+    bool bound = false;  // the score is only a bound: the search is about to try again
+    std::optional<int> cp, mate;
+    std::string firstMove;  // of its line of play
+
+    bool definite() const { return !bound && (cp || mate); }
+};
+
+InfoLine readInfo(const std::vector<std::string>& token) {
+    InfoLine info;
+    for (std::size_t i = 1; i < token.size(); ++i) {
+        const bool hasValue = i + 1 < token.size();
+        int value = 0;
+        if (token[i] == "depth" && hasValue && toInt(token[i + 1], value)) {
+            info.depth = value;
+        } else if (token[i] == "multipv" && hasValue && toInt(token[i + 1], value)) {
+            info.multipv = value;
+        } else if (token[i] == "score" && i + 2 < token.size() && toInt(token[i + 2], value)) {
+            if (token[i + 1] == "cp")
+                info.cp = value;
+            else if (token[i + 1] == "mate")
+                info.mate = value;
+        } else if (token[i] == "lowerbound" || token[i] == "upperbound") {
+            info.bound = true;
+        } else if (token[i] == "pv") {
+            if (hasValue)
+                info.firstMove = token[i + 1];
+            break;  // everything after it is the line itself
+        }
+    }
+    return info;
+}
+
+}  // namespace
+
+void Engine::handleInfo(const std::vector<std::string>& token) {
+    // "info string ..." is free text; anything in it that looks like a field
+    // is a coincidence.
+    if (!_busy || (token.size() > 1 && token[1] == "string"))
+        return;
+
+    // Only a line that says something definite counts. Lines without a score
+    // are progress chatter. A score marked as a bound is not a score yet —
+    // the search failed high or low and is about to try again.
+    const InfoLine info = readInfo(token);
+    if (!info.definite())
+        return;
+
+    // With several lines requested — by us, or by a strength limit behind
+    // the scenes — line one is the best move and line two the next best.
+    // The rest describe moves nobody asks about.
+    if (info.multipv == 1) {
+        _current.depth   = info.depth;
+        _current.scoreCp = info.cp;
+        _current.mateIn  = info.mate;
+        _current.pvMove  = info.firstMove;
+        // The first line opens what is noted at that depth; said again at
+        // the same depth, it starts it afresh.
+        if (info.depth == _noteDepth)
+            _current.noted = SearchResult::Noted{info.cp, info.mate, info.firstMove, std::nullopt};
+    } else if (info.multipv == 2) {
+        _current.secondDepth = info.depth;
+        _current.secondCp    = info.cp;
+        _current.secondMate  = info.mate;
+        if (info.depth == _noteDepth && _current.noted)
+            _current.noted->second = SearchResult::Noted::Second{info.cp, info.mate};
+    }
+}
+
+void Engine::handleBestMove(const std::vector<std::string>& token) {
+    if (!_busy)
+        return;
+    _busy = false;
+    if (!_discard) {
+        // "(none)" is what an engine says when there is nothing to play.
+        if (token.size() > 1 && token[1] != "(none)" && token[1] != "0000")
+            _current.bestMove = token[1];
+        _results.push_back(std::move(_current));
+    }
+    _discard = false;
+    pump();
 }
 
 // --- finding the engine ----------------------------------------------------------

@@ -4,6 +4,7 @@
 #   go movetime 60000   reports on a search in progress, then "thinks" until it
 #                       is told to stop and answers a1a2
 #   go depth 99         exits without answering, as a crashed engine would
+#   go depth 12         two lines at depths 11, 12 and 13, then answers e2e4
 #   go ...              answers e2e4 at once, with a score
 #
 # Every setoption it receives is echoed back as an `info string`, so a test can
@@ -48,6 +49,15 @@ while IFS= read -r line; do
         ;;
     "go depth 99"*)
         exit 3
+        ;;
+    "go depth 12"*)
+        echo "info depth 11 multipv 1 score cp 20 pv e2e4 e7e5"
+        echo "info depth 11 multipv 2 score cp 10 pv d2d4 d7d5"
+        echo "info depth 12 multipv 1 score cp 33 pv g1f3 d7d5"
+        echo "info depth 12 multipv 2 score cp 12 pv d2d4 d7d5"
+        echo "info depth 13 multipv 1 score cp 40 pv e2e4 e7e5"
+        echo "info depth 12 multipv 2 score cp 12 pv d2d4 d7d5"
+        echo "bestmove e2e4 ponder e7e5"
         ;;
     go*)
         echo "info depth 7 seldepth 9 score cp 31 nodes 1234 pv e2e4 e7e5"

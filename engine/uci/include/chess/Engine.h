@@ -41,6 +41,10 @@ struct SearchRequest {
     // particular move is worth rather than which move is best.
     std::vector<std::string> searchMoves;
 
+    // Keep, besides its last word, what the engine said when it had looked
+    // exactly this deep (SearchResult::noted). 0: nothing to keep.
+    int noteDepth = 0;
+
     // Engine options to apply first, as (name, value). Only those that differ
     // from what the engine was last told are actually sent.
     std::vector<std::pair<std::string, std::string>> options;
@@ -71,6 +75,22 @@ struct SearchResult {
     // other, so for a moment the second is from the iteration before.
     std::optional<int> secondCp, secondMate;
     int                secondDepth = 0;
+
+    // What the engine said when it had looked exactly SearchRequest::noteDepth
+    // deep, if it got that far. Unlike everything above, this does not depend
+    // on how long the search was let run: a fast machine and a slow one, a
+    // search that finished and one cut short after that depth, all have the
+    // same thing here. `second` is the second line at that same depth; it
+    // arrives after the first, and never if there is no second move.
+    struct Noted {
+        std::optional<int> scoreCp, mateIn;
+        std::string        pvMove;
+        struct Second {
+            std::optional<int> scoreCp, mateIn;
+        };
+        std::optional<Second> second;
+    };
+    std::optional<Noted> noted;
 };
 
 class Engine {
@@ -162,12 +182,19 @@ private:
     std::set<std::string>              _known;    // every option the engine declared
     std::map<std::string, std::string> _applied;  // what we last set each option to
 
+    // One reply of the engine each; all with _mutex held.
+    void handleId(const std::vector<std::string>& token, const std::string& line);
+    void handleOption(const std::vector<std::string>& token);
+    void handleInfo(const std::vector<std::string>& token);
+    void handleBestMove(const std::vector<std::string>& token);
+
     bool _busy     = false;  // a `go` is out and its `bestmove` has not come back
     bool _discard  = false;  // ...and when it does, nobody wants it
     bool _newGame  = false;
     bool _quitting = false;
     std::optional<SearchRequest> _pending;
     SearchResult                 _current;  // being filled in from `info` lines
+    int                          _noteDepth = 0;  // of the search in progress
     std::deque<SearchResult>     _results;
 };
 
