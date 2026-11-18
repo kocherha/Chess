@@ -15,10 +15,11 @@ using namespace board;
 
 constexpr Square kA1 = 0, kE1 = 4, kH1 = 7, kA8 = 56, kE8 = 60, kH8 = 63;
 
-bool fail(std::string* error, std::string message) {
+// Says what is wrong with a FEN, to whoever asked to know: `return fail(...)`.
+std::nullopt_t fail(std::string* error, std::string message) {
     if (error != nullptr)
         *error = std::move(message);
-    return false;
+    return std::nullopt;
 }
 
 bool parseNumber(std::string_view text, int& out) {
@@ -95,10 +96,8 @@ Position Position::initial() {
 
 std::optional<Position> Position::fromFen(std::string_view fen, std::string* error) {
     const auto fields = splitFields(fen);
-    if (fields.size() < 4) {
-        fail(error, "a FEN needs at least four fields");
-        return std::nullopt;
-    }
+    if (fields.size() < 4)
+        return fail(error, "a FEN needs at least four fields");
 
     Position position;
 
@@ -107,52 +106,38 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
     int kings[2] = {0, 0};
     for (char c : fields[0]) {
         if (c == '/') {
-            if (file != 8 || rank == 0) {
-                fail(error, "malformed piece placement");
-                return std::nullopt;
-            }
+            if (file != 8 || rank == 0)
+                return fail(error, "malformed piece placement");
             file = 0;
             --rank;
         } else if (c >= '1' && c <= '8') {
             file += c - '0';
         } else {
             const PieceType type = typeFromLetter(c);
-            if (type == PieceType::None || file > 7) {
-                fail(error, "malformed piece placement");
-                return std::nullopt;
-            }
+            if (type == PieceType::None || file > 7)
+                return fail(error, "malformed piece placement");
             const Color color = std::isupper(static_cast<unsigned char>(c)) ? Color::White : Color::Black;
-            if (type == PieceType::Pawn && (rank == 0 || rank == 7)) {
-                fail(error, "a pawn cannot stand on the first or last rank");
-                return std::nullopt;
-            }
+            if (type == PieceType::Pawn && (rank == 0 || rank == 7))
+                return fail(error, "a pawn cannot stand on the first or last rank");
             if (type == PieceType::King)
                 ++kings[static_cast<int>(color)];
             position._board[static_cast<std::size_t>(makeSquare(file, rank))] = Piece{type, color};
             ++file;
         }
-        if (file > 8) {
-            fail(error, "malformed piece placement");
-            return std::nullopt;
-        }
+        if (file > 8)
+            return fail(error, "malformed piece placement");
     }
-    if (rank != 0 || file != 8) {
-        fail(error, "malformed piece placement");
-        return std::nullopt;
-    }
-    if (kings[0] != 1 || kings[1] != 1) {
-        fail(error, "each side needs exactly one king");
-        return std::nullopt;
-    }
+    if (rank != 0 || file != 8)
+        return fail(error, "malformed piece placement");
+    if (kings[0] != 1 || kings[1] != 1)
+        return fail(error, "each side needs exactly one king");
 
     if (fields[1] == "w")
         position._turn = Color::White;
     else if (fields[1] == "b")
         position._turn = Color::Black;
-    else {
-        fail(error, "the side to move must be w or b");
-        return std::nullopt;
-    }
+    else
+        return fail(error, "the side to move must be w or b");
 
     if (fields[2] != "-") {
         for (char c : fields[2]) {
@@ -162,8 +147,7 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
             case 'k': position._castling |= kBlackKing; break;
             case 'q': position._castling |= kBlackQueen; break;
             default:
-                fail(error, "malformed castling rights");
-                return std::nullopt;
+                return fail(error, "malformed castling rights");
             }
         }
     }
@@ -182,29 +166,21 @@ std::optional<Position> Position::fromFen(std::string_view fen, std::string* err
         // The square behind a pawn that has just advanced two: rank 6 with
         // white to move, rank 3 with black to move.
         const int expected = position._turn == Color::White ? 5 : 2;
-        if (square == kNoSquare || rankOf(square) != expected) {
-            fail(error, "malformed en passant square");
-            return std::nullopt;
-        }
+        if (square == kNoSquare || rankOf(square) != expected)
+            return fail(error, "malformed en passant square");
         const Square pawn = makeSquare(fileOf(square), position._turn == Color::White ? 4 : 3);
         if (position.at(pawn).is(PieceType::Pawn, opposite(position._turn)) && position.at(square).empty())
             position._enPassant = square;
     }
 
-    if (fields.size() > 4 && !parseNumber(fields[4], position._halfmove)) {
-        fail(error, "malformed halfmove clock");
-        return std::nullopt;
-    }
-    if (fields.size() > 5 && (!parseNumber(fields[5], position._fullmove) || position._fullmove < 1)) {
-        fail(error, "malformed move number");
-        return std::nullopt;
-    }
+    if (fields.size() > 4 && !parseNumber(fields[4], position._halfmove))
+        return fail(error, "malformed halfmove clock");
+    if (fields.size() > 5 && (!parseNumber(fields[5], position._fullmove) || position._fullmove < 1))
+        return fail(error, "malformed move number");
 
     // The side that has just moved cannot have left its own king attacked.
-    if (position.isAttacked(position.kingSquare(opposite(position._turn)), position._turn)) {
-        fail(error, "the side not to move is in check");
-        return std::nullopt;
-    }
+    if (position.isAttacked(position.kingSquare(opposite(position._turn)), position._turn))
+        return fail(error, "the side not to move is in check");
 
     return position;
 }
