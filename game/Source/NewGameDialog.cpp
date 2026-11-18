@@ -23,12 +23,6 @@ constexpr float kGap     = 10.0f;
 constexpr float kSlider    = 24.0f;
 constexpr float kSliderGap = 3.0f;
 
-Label* makeLabel(const std::string& text, float points, const Color3B& colour) {
-    Label* label = typeset::label(text, points, colour);
-    label->setAnchorPoint(Vec2(0.0f, 0.5f));
-    return label;
-}
-
 }  // namespace
 
 NewGameDialog* NewGameDialog::create() {
@@ -48,18 +42,18 @@ bool NewGameDialog::init() {
     _back = DrawNode::create();
     addChild(_back);
 
-    _title = makeLabel(text::kNewGame, 26.0f, theme::kInk);
+    _title = typeset::leftLabel(text::kNewGame, 26.0f, theme::kInk);
     typeset::embolden(_title);
-    _opponentTitle    = makeLabel(text::kOpponent, 13.0f, theme::kFaint);
-    _sideTitle        = makeLabel(text::kYourColour, 13.0f, theme::kFaint);
-    _levelTitle       = makeLabel(text::kDifficulty, 13.0f, theme::kFaint);
-    _levelName        = makeLabel("", 17.0f, theme::kInk);
+    _opponentTitle    = typeset::leftLabel(text::kOpponent, 13.0f, theme::kFaint);
+    _sideTitle        = typeset::leftLabel(text::kYourColour, 13.0f, theme::kFaint);
+    _levelTitle       = typeset::leftLabel(text::kDifficulty, 13.0f, theme::kFaint);
+    _levelName        = typeset::leftLabel("", 17.0f, theme::kInk);
     // The same line, at its far end: the number that goes with the name.
-    _levelMeasure     = makeLabel("", 14.0f, theme::kDim);
+    _levelMeasure     = typeset::leftLabel("", 14.0f, theme::kDim);
     _levelMeasure->setAnchorPoint(Vec2(1.0f, 0.5f));
-    _levelDescription = makeLabel("", 14.0f, theme::kDim);
+    _levelDescription = typeset::leftLabel("", 14.0f, theme::kDim);
     _levelDescription->setAnchorPoint(Vec2(0.0f, 1.0f));
-    _notice = makeLabel(text::kNoEngine, 14.0f, theme::kWarn);
+    _notice = typeset::leftLabel(text::kNoEngine, 14.0f, theme::kWarn);
     _notice->setAnchorPoint(Vec2(0.0f, 1.0f));
     for (Label* label : {_title, _opponentTitle, _sideTitle, _levelTitle, _levelName, _levelMeasure,
                          _levelDescription, _notice})

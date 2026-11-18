@@ -45,9 +45,8 @@ bool PuzzleDialog::init() {
     addChild(_content);
     addChild(_ticks);
 
-    _title = typeset::label(text::kCollection, 24.0f, theme::kInk);
+    _title = typeset::leftLabel(text::kCollection, 24.0f, theme::kInk);
     typeset::embolden(_title);
-    _title->setAnchorPoint(Vec2(0.0f, 0.5f));
     addChild(_title);
 
     _close          = Button::create(text::kCancel, Button::Style::Plain, 15.0f);
@@ -79,8 +78,7 @@ void PuzzleDialog::rebuild() {
         // Returned for the one line that fills it at once; the vector grows,
         // so nothing holds on to it.
         Group g;
-        g.title = typeset::label(title, 13.0f, theme::kFaint);
-        g.title->setAnchorPoint(Vec2(0.0f, 0.5f));
+        g.title = typeset::leftLabel(title, 13.0f, theme::kFaint);
         _content->addChild(g.title);
         _groups.push_back(std::move(g));
         return _groups.back();

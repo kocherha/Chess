@@ -27,12 +27,6 @@ constexpr PieceType kOrder[kColumns] = {PieceType::King,   PieceType::Queen,  Pi
                                         PieceType::Bishop, PieceType::Knight, PieceType::Pawn};
 constexpr float kLargestSquare = 72.0f, kSmallestSquare = 36.0f;
 
-Label* makeLabel(const std::string& text, float points, const Color3B& colour) {
-    Label* label = typeset::label(text, points, colour);
-    label->setAnchorPoint(Vec2(0.0f, 0.5f));
-    return label;
-}
-
 }  // namespace
 
 LookDialog* LookDialog::create() {
@@ -58,10 +52,10 @@ bool LookDialog::init() {
     addChild(_tiles);
     addChild(_pieces);
 
-    _title = makeLabel(text::kLooks, 26.0f, theme::kInk);
+    _title = typeset::leftLabel(text::kLooks, 26.0f, theme::kInk);
     typeset::embolden(_title);
-    _piecesTitle = makeLabel(text::kLookPieces, 13.0f, theme::kFaint);
-    _boardTitle  = makeLabel(text::kLookBoard, 13.0f, theme::kFaint);
+    _piecesTitle = typeset::leftLabel(text::kLookPieces, 13.0f, theme::kFaint);
+    _boardTitle  = typeset::leftLabel(text::kLookBoard, 13.0f, theme::kFaint);
     for (Label* label : {_title, _piecesTitle, _boardTitle})
         addChild(label);
 

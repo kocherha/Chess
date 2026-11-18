@@ -44,6 +44,12 @@ Label* label(const std::string& text, float points, const Color3B& colour) {
     return made;
 }
 
+Label* leftLabel(const std::string& text, float points, const Color3B& colour) {
+    Label* made = label(text, points, colour);
+    made->setAnchorPoint(Vec2(0.0f, 0.5f));
+    return made;
+}
+
 void embolden(Label* label) {
     label->enableShadow(Color4B::WHITE, Vec2(kBoldShift, 0.0f), 0);
 }

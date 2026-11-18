@@ -9,6 +9,9 @@ namespace typeset {
 
 // A system-font label in the interface's typeface.
 ax::Label* label(const std::string& text, float points, const ax::Color3B& colour);
+// The same, placed by its left edge and the middle of its height: running
+// text, a heading, a cell of a list.
+ax::Label* leftLabel(const std::string& text, float points, const ax::Color3B& colour);
 
 // Makes a label's strokes heavier, for a title or a sign that has to carry at
 // a small size. The label is drawn a second time a fraction of a point to the

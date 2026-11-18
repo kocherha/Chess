@@ -35,8 +35,7 @@ PuzzlePanel* PuzzlePanel::create() {
 }
 
 Label* PuzzlePanel::addLabel(float points, const Color3B& colour) {
-    Label* label = typeset::label("", points, colour);
-    label->setAnchorPoint(Vec2(0.0f, 0.5f));
+    Label* label = typeset::leftLabel("", points, colour);
     addChild(label);
     return label;
 }

@@ -36,9 +36,8 @@ bool ConfirmDialog::init() {
     _back = DrawNode::create();
     addChild(_back);
 
-    _title = typeset::label("", 22.0f, theme::kInk);
+    _title = typeset::leftLabel("", 22.0f, theme::kInk);
     typeset::embolden(_title);
-    _title->setAnchorPoint(Vec2(0.0f, 0.5f));
     _message = typeset::label("", 15.0f, theme::kDim);
     _message->setAnchorPoint(Vec2(0.0f, 1.0f));
     addChild(_title);

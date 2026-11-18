@@ -97,8 +97,7 @@ void PlayerBar::rebuild() {
 
     float x = disc.x + radius + 12.0f;
 
-    auto* name = typeset::label(_name, 16.0f, _toMove ? theme::kInk : theme::kDim);
-    name->setAnchorPoint(Vec2(0.0f, 0.5f));
+    auto* name = typeset::leftLabel(_name, 16.0f, _toMove ? theme::kInk : theme::kDim);
     name->setPosition(Vec2(x, middle));
     _content->addChild(name);
     x += name->getContentSize().width + 16.0f;
@@ -145,8 +144,7 @@ void PlayerBar::rebuild() {
     }
 
     if (!_lead.empty()) {
-        auto* lead = typeset::label(_lead, 14.0f, theme::kDim);
-        lead->setAnchorPoint(Vec2(0.0f, 0.5f));
+        auto* lead = typeset::leftLabel(_lead, 14.0f, theme::kDim);
         lead->setPosition(Vec2(x, middle));
         _content->addChild(lead);
     }
@@ -171,16 +169,14 @@ bool SidePanel::init() {
     _back = DrawNode::create();
     addChild(_back);
 
-    _title = typeset::label(text::kTitle, 26.0f, theme::kInk);
+    _title = typeset::leftLabel(text::kTitle, 26.0f, theme::kInk);
     typeset::embolden(_title);
-    _subtitle   = typeset::label("", 14.0f, theme::kDim);
-    _headline   = typeset::label("", 19.0f, theme::kInk);
-    _detail     = typeset::label("", 14.0f, theme::kDim);
-    _movesTitle = typeset::label(text::kMoves, 13.0f, theme::kFaint);
-    for (Label* label : {_title, _subtitle, _headline, _detail, _movesTitle}) {
-        label->setAnchorPoint(Vec2(0.0f, 0.5f));
+    _subtitle   = typeset::leftLabel("", 14.0f, theme::kDim);
+    _headline   = typeset::leftLabel("", 19.0f, theme::kInk);
+    _detail     = typeset::leftLabel("", 14.0f, theme::kDim);
+    _movesTitle = typeset::leftLabel(text::kMoves, 13.0f, theme::kFaint);
+    for (Label* label : {_title, _subtitle, _headline, _detail, _movesTitle})
         addChild(label);
-    }
     _detail->setAnchorPoint(Vec2(0.0f, 1.0f));  // it may wrap, so it hangs from its top
 
     _highlights = DrawNode::create();
@@ -454,8 +450,7 @@ void SidePanel::rebuildMoves() {
     const float width = _size.x - 2.0f * kPadding;
 
     if (_list.empty()) {
-        auto* empty = typeset::label(text::kNoMoves, 14.0f, theme::kFaint);
-        empty->setAnchorPoint(Vec2(0.0f, 0.5f));
+        auto* empty = typeset::leftLabel(text::kNoMoves, 14.0f, theme::kFaint);
         empty->setPosition(Vec2(kPadding, _listTop - kRowHeight * 0.5f - 4.0f));
         _moveRows->addChild(empty);
         return;
@@ -491,20 +486,18 @@ void SidePanel::rebuildMoves() {
                 continue;
             const float x = kPadding + numberWidth + static_cast<float>(side) * column;
 
-            auto* move = typeset::label(_list.move(index), 15.0f, index == _list.newest() ? theme::kInk : theme::kDim);
-            move->setAnchorPoint(Vec2(0.0f, 0.5f));
+            auto* move = typeset::leftLabel(_list.move(index), 15.0f, index == _list.newest() ? theme::kInk : theme::kDim);
             move->setPosition(Vec2(x, y));
             _moveRows->addChild(move);
 
             // Its mark, straight after it, in the mark's own colour.
             if (const Mark mark = _list.mark(index); mark != Mark::None) {
                 const Color4F tint = theme::markColour(mark);
-                auto* sign = typeset::label(suffix(mark), 15.0f,
+                auto* sign = typeset::leftLabel(suffix(mark), 15.0f,
                                             Color3B(static_cast<uint8_t>(tint.r * 255.0f),
                                                     static_cast<uint8_t>(tint.g * 255.0f),
                                                     static_cast<uint8_t>(tint.b * 255.0f)));
                 typeset::embolden(sign);
-                sign->setAnchorPoint(Vec2(0.0f, 0.5f));
                 sign->setPosition(Vec2(x + move->getContentSize().width + 1.0f, y));
                 _moveRows->addChild(sign);
             }
