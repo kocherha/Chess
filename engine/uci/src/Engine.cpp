@@ -350,7 +350,6 @@ void Engine::handleLine(const std::string& line) {
         bool bound = false;
         std::optional<int> cp, mate;
         std::string firstMove;
-        std::vector<std::string> pv;
 
         for (std::size_t i = 1; i < token.size(); ++i) {
             int value = 0;
@@ -368,7 +367,6 @@ void Engine::handleLine(const std::string& line) {
             } else if (token[i] == "pv") {
                 if (i + 1 < token.size())
                     firstMove = token[i + 1];
-                pv.assign(token.begin() + static_cast<std::ptrdiff_t>(i) + 1, token.end());
                 break;  // everything after it is the line itself
             }
         }
@@ -387,12 +385,10 @@ void Engine::handleLine(const std::string& line) {
             _current.scoreCp = cp;
             _current.mateIn  = mate;
             _current.pvMove  = firstMove;
-            _current.pv      = std::move(pv);
         } else if (multipv == 2) {
             _current.secondDepth = depth;
             _current.secondCp    = cp;
             _current.secondMate  = mate;
-            _current.secondMove  = firstMove;
         }
         return;
     }

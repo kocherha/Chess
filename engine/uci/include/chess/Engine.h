@@ -64,14 +64,11 @@ struct SearchResult {
     // principal variation. While a search is running this is how to see where
     // it is heading; bestMove is only set once it has finished.
     std::string pvMove;
-    // The whole of that line, the first move included.
-    std::vector<std::string> pv;
 
-    // The second-best move and what it is worth, when the engine was asked for
-    // two lines (its MultiPV option) and there is a second legal move. Its
-    // depth is given separately: the two lines of one iteration arrive one
-    // after the other, so for a moment the second is from the iteration before.
-    std::string        secondMove;
+    // What the second-best move is worth, when the engine was asked for two
+    // lines (its MultiPV option) and there is a second legal move. Its depth is
+    // given separately: the two lines of one iteration arrive one after the
+    // other, so for a moment the second is from the iteration before.
     std::optional<int> secondCp, secondMate;
     int                secondDepth = 0;
 };

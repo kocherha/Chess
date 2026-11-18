@@ -220,7 +220,6 @@ TEST(FakeEngine, ProgressIsTheBestLineAndNothingElse) {
     EXPECT_FALSE(seen.mateIn.has_value());  // not the "mate 1" in the free text
 
     // The second line is kept too, as what it is.
-    EXPECT_EQ(seen.secondMove, "a2a3");
     EXPECT_EQ(seen.secondDepth, 9);
     ASSERT_TRUE(seen.secondCp.has_value());
     EXPECT_EQ(*seen.secondCp, -300);
@@ -316,8 +315,7 @@ TEST(FakeEngine, MateSearchAndChosenMoves) {
     request.mate          = 3;
     engine.search(request);
     ASSERT_TRUE(waitForResult(engine, result));
-    // The whole line comes back, not just its first move.
-    EXPECT_EQ(result.pv, (std::vector<std::string>{"e2e4", "e7e5"}));
+    EXPECT_EQ(result.pvMove, "e2e4");
 
     request.moveTimeMs  = 500;
     request.searchMoves = {"g1f3", "d2d4"};
@@ -486,7 +484,7 @@ TEST_F(Stockfish, MateSearchWithChosenMoves) {
     ASSERT_TRUE(result.mateIn.has_value());
     EXPECT_EQ(*result.mateIn, 2);
     EXPECT_EQ(result.bestMove, "b5b6");
-    EXPECT_GE(result.pv.size(), 3u);
+    EXPECT_EQ(result.pvMove, "b5b6");
 
     // Only Rh2: no mate in two after that.
     request.searchMoves = {"h1h2"};
