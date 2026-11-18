@@ -1,4 +1,5 @@
 add_executable(chess_session_tests
+    BoardMarksTest.cpp
     GameReviewTest.cpp
     MoveListTest.cpp
     OpponentTest.cpp

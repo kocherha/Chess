@@ -1001,35 +1001,13 @@ void PuzzleScene::refreshMarks() {
         return;
     }
 
-    const Game& game = _session.game();
-    if (const Move* last = game.lastMove()) {
-        marks.lastFrom = last->from;
-        marks.lastTo   = last->to;
-    }
-    const Position& position = game.position();
-    if (position.inCheck())
-        marks.check = position.kingSquare(position.sideToMove());
-
-    using Sign = BoardNode::Sign;
-    const Status status = game.status();
-    if (status.outcome == Outcome::Checkmate && status.winner) {
-        marks.kings[0] = {position.kingSquare(*status.winner), Sign::Won};
-        marks.kings[1] = {position.kingSquare(opposite(*status.winner)), Sign::Mate};
-    } else if (status.over()) {
-        marks.kings[0] = {position.kingSquare(Color::White), Sign::Draw};
-        marks.kings[1] = {position.kingSquare(Color::Black), Sign::Draw};
-    } else if (position.inCheck()) {
-        marks.kings[0] = {position.kingSquare(position.sideToMove()), Sign::Check};
-    }
-
+    marks = marksFor(_session.game(), _session.marks());
     if (const Square selected = _input.selected(); selected != kNoSquare && playerToMove()) {
         marks.selected = selected;
-        marks.targets  = position.legalMovesFrom(selected);
+        marks.targets  = _session.game().position().legalMovesFrom(selected);
     }
     marks.hintFrom = _session.hintFrom();
     marks.hintTo   = _session.hintTo();
-    if (const auto& verdicts = _session.marks(); !verdicts.empty() && verdicts.size() == game.plies())
-        marks.verdict = verdicts.back();
     _board->setMarks(marks);
 }
 

@@ -1002,56 +1002,13 @@ void GameScene::showMoves() {
 }
 
 void GameScene::refreshMarks() {
-    BoardNode::Marks marks;
-
-    if (const Move* last = _game.lastMove()) {
-        marks.lastFrom = last->from;
-        marks.lastTo   = last->to;
-    }
-
-    const Position& position = _game.position();
-    if (position.inCheck())
-        marks.check = position.kingSquare(position.sideToMove());
-
-    // What the state of the game says about the kings.
-    using Sign = BoardNode::Sign;
-    const auto sign = [&](Color king, Sign what) {
-        marks.kings[king == Color::White ? 0 : 1] = {position.kingSquare(king), what};
-    };
-    const Status status = _game.status();
-    switch (status.outcome) {
-    case Outcome::Ongoing:
-        if (_started && position.inCheck())
-            sign(position.sideToMove(), Sign::Check);
-        break;
-    case Outcome::Checkmate:
-    case Outcome::Resignation:
-        if (status.winner) {
-            sign(*status.winner, Sign::Won);
-            sign(opposite(*status.winner),
-                 status.outcome == Outcome::Checkmate ? Sign::Mate : Sign::Resigned);
-        }
-        break;
-    case Outcome::Stalemate:
-    case Outcome::FiftyMoves:
-    case Outcome::Repetition:
-    case Outcome::InsufficientMaterial:
-        sign(Color::White, Sign::Draw);
-        sign(Color::Black, Sign::Draw);
-        break;
-    }
-
+    BoardNode::Marks marks = marksFor(_game, _watcher.review().marks());
     if (const Square selected = _input.selected(); selected != kNoSquare && humanToMove()) {
         marks.selected = selected;
-        marks.targets  = position.legalMovesFrom(selected);
+        marks.targets  = _game.position().legalMovesFrom(selected);
     }
-
     marks.hintFrom = _hintFrom;
     marks.hintTo   = _hintTo;
-
-    // What the last move was worth, on the square it went to.
-    if (const auto& verdicts = _watcher.review().marks(); !verdicts.empty() && verdicts.size() == _game.plies())
-        marks.verdict = verdicts.back();
     _board->setMarks(marks);
 }
 

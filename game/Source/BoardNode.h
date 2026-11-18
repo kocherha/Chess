@@ -5,6 +5,7 @@
 // scene's business.
 #pragma once
 
+#include "chess/BoardMarks.h"
 #include "chess/Judge.h"
 #include "chess/Position.h"
 
@@ -42,32 +43,10 @@ public:
     using Placement = std::array<chess::Piece, 64>;
     void show(const Placement& placement);
 
-    // How the game stands for one of the kings, as a badge on his square, in
-    // the signs a score sheet uses: "+" in check, "#" mated, "1" for the
-    // winner, "0" for the one who resigned, "½" for a draw of any kind.
-    enum class Sign { None, Check, Mate, Won, Resigned, Draw };
-    struct KingSign {
-        chess::Square square = chess::kNoSquare;
-        Sign          sign   = Sign::None;
-    };
-
-    struct Marks {
-        chess::Square lastFrom = chess::kNoSquare, lastTo = chess::kNoSquare;
-        chess::Square selected = chess::kNoSquare;
-        chess::Square check    = chess::kNoSquare;  // the king that is in check
-        chess::Square hintFrom = chess::kNoSquare, hintTo = chess::kNoSquare;
-        // What the last move was worth ("!!", "?", ...): a badge on the corner
-        // of the square it went to. None for no badge.
-        chess::Mark verdict = chess::Mark::None;
-        // The same kind of badge on the kings, for the state of the game. If
-        // the last move ended on a king's square too, its own badge moves to
-        // the other corner.
-        std::array<KingSign, 2> kings{};
-        std::vector<chess::Move> targets;           // where the selected piece may go
-        // Squares the position editor points at: what makes the position
-        // impossible. Tinted red under the pieces.
-        std::vector<chess::Square> problems;
-    };
+    // What is drawn on top of the pieces: see chess::BoardMarks.
+    using Sign     = chess::GameSign;
+    using KingSign = chess::KingSign;
+    using Marks    = chess::BoardMarks;
     void setMarks(const Marks& marks);
 
     // The square under a point given in world coordinates, or kNoSquare.
