@@ -77,8 +77,10 @@ public:
     Status status() const;
 
     // The game as a UCI `position` command, moves and all, so that the engine
-    // sees the same history we do and can count repetitions itself.
-    std::string uciPosition() const;
+    // sees the same history we do and can count repetitions itself. With
+    // `count`: the game as it stood after its first `count` moves.
+    std::string uciPosition() const { return uciPosition(_history.size()); }
+    std::string uciPosition(std::size_t count) const;
 
     // "1-0", "0-1", "1/2-1/2", or "*" while it is still being played.
     std::string result() const;

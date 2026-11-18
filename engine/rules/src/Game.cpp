@@ -99,17 +99,18 @@ Status Game::computeStatus() const {
     return {};
 }
 
-std::string Game::uciPosition() const {
+std::string Game::uciPosition(std::size_t count) const {
     std::string command = "position ";
     if (_start == Position::initial())
         command += "startpos";
     else
         command += "fen " + _start.fen();
 
-    if (!_history.empty()) {
+    count = std::min(count, _history.size());
+    if (count > 0) {
         command += " moves";
-        for (const Record& record : _history)
-            command += ' ' + record.move.uci();
+        for (std::size_t ply = 0; ply < count; ++ply)
+            command += ' ' + _history[ply].move.uci();
     }
     return command;
 }

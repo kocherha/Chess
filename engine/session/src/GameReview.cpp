@@ -19,21 +19,11 @@ void GameReview::clear() {
 bool GameReview::follow(const Game& game) {
     _game = game;
 
+    // The engine is asked about each position by its `position` command, so
+    // that is what a finding is filed under.
     _keys.clear();
-    std::string key = "position ";
-    if (_game.startPosition() == Position::initial())
-        key += "startpos";
-    else
-        key += "fen " + _game.startPosition().fen();
-    _keys.push_back(key);
-
-    bool first = true;
-    for (const Game::Record& record : _game.history()) {
-        key += first ? " moves " : " ";
-        key += record.move.uci();
-        first = false;
-        _keys.push_back(key);
-    }
+    for (std::size_t ply = 0; ply <= _game.plies(); ++ply)
+        _keys.push_back(_game.uciPosition(ply));
     return judgeMoves();
 }
 
