@@ -13,6 +13,15 @@
 #include <string>
 #include <vector>
 
+// Is this node on screen — it and everything it sits in visible? A hidden
+// control takes no clicks. (For the slider as much as for the button.)
+inline bool shownOnScreen(const ax::Node* node) {
+    for (; node != nullptr; node = node->getParent())
+        if (!node->isVisible())
+            return false;
+    return true;
+}
+
 class Button : public ax::Node
 {
 public:

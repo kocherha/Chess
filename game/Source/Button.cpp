@@ -77,10 +77,8 @@ void Button::setPressed(bool pressed) {
 }
 
 bool Button::contains(const Vec2& worldPoint) const {
-    for (const Node* node = this; node != nullptr; node = node->getParent()) {
-        if (!node->isVisible())
-            return false;
-    }
+    if (!shownOnScreen(this))
+        return false;
     const Vec2 local = convertToNodeSpace(worldPoint);
     return local.x >= 0.0f && local.y >= 0.0f && local.x <= _size.x && local.y <= _size.y;
 }

@@ -1,5 +1,6 @@
 #include "Slider.h"
 
+#include "Button.h"
 #include "Shapes.h"
 #include "Theme.h"
 
@@ -59,10 +60,8 @@ void Slider::setValue(int value) {
 }
 
 bool Slider::contains(const Vec2& worldPoint) const {
-    for (const Node* node = this; node != nullptr; node = node->getParent()) {
-        if (!node->isVisible())
-            return false;
-    }
+    if (!shownOnScreen(this))
+        return false;
     const Vec2 local = convertToNodeSpace(worldPoint);
     return local.x >= -kOverhang && local.x <= _size.x + kOverhang && local.y >= 0.0f && local.y <= _size.y;
 }
