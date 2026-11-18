@@ -46,14 +46,14 @@ const std::vector<Level>& levels() {
     // a whole number of steps above the floor, a share of random moves a
     // whole number of hundredths.
     static const std::vector<Level> table = {
-        {1, 1320, 150, 0.35},
-        {2, 1320, 200, 0.15},
-        {3, 1320, 300, 0.0},
-        {4, 1600, 400, 0.0},
-        {5, 1900, 500, 0.0},
-        {6, 2200, 700, 0.0},
-        {7, 2600, 1000, 0.0},
-        {8, 0, 2000, 0.0},
+        {.number = 1, .elo = 1320, .moveTimeMs = 150, .randomMoveShare = 0.35},
+        {.number = 2, .elo = 1320, .moveTimeMs = 200, .randomMoveShare = 0.15},
+        {.number = 3, .elo = 1320, .moveTimeMs = 300},
+        {.number = 4, .elo = 1600, .moveTimeMs = 400},
+        {.number = 5, .elo = 1900, .moveTimeMs = 500},
+        {.number = 6, .elo = 2200, .moveTimeMs = 700},
+        {.number = 7, .elo = 2600, .moveTimeMs = 1000},
+        {.number = 8, .elo = 0 /* no limit */, .moveTimeMs = 2000},
     };
     return table;
 }
