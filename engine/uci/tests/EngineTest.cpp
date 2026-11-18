@@ -35,6 +35,11 @@ bool waitForResult(Engine& engine, SearchResult& result, std::chrono::millisecon
     return waitFor([&] { return engine.poll(result); }, limit);
 }
 
+// The fake engine, started and past its handshake.
+bool startedAndReady(Engine& engine) {
+    return engine.start(CHESS_FAKE_ENGINE) && waitFor([&] { return engine.state() == Engine::State::Ready; });
+}
+
 // Collects what the client sends, for the tests that care about the wire.
 struct Wire {
     std::mutex               mutex;
@@ -82,8 +87,7 @@ SearchRequest endless(int tag = 0) {
 
 TEST(FakeEngine, Handshake) {
     Engine engine;
-    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
-    ASSERT_TRUE(waitFor([&] { return engine.state() == Engine::State::Ready; }));
+    ASSERT_TRUE(startedAndReady(engine));
 
     EXPECT_EQ(engine.name(), "Fake Engine 1.0");
     EXPECT_TRUE(engine.hasOption("UCI_LimitStrength"));
@@ -123,8 +127,7 @@ TEST(FakeEngine, ANewSearchReplacesTheOldOne) {
     Wire wire;  // declared first: it must outlive the engine that reports to it
     Engine engine;
     wire.attach(engine);
-    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
-    ASSERT_TRUE(waitFor([&] { return engine.state() == Engine::State::Ready; }));
+    ASSERT_TRUE(startedAndReady(engine));
 
     engine.search(endless(1));
     engine.search(quick(2));
@@ -145,8 +148,7 @@ TEST(FakeEngine, ANewSearchReplacesTheOldOne) {
 
 TEST(FakeEngine, CancelMeansNoAnswer) {
     Engine engine;
-    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
-    ASSERT_TRUE(waitFor([&] { return engine.state() == Engine::State::Ready; }));
+    ASSERT_TRUE(startedAndReady(engine));
 
     engine.search(endless(1));
     EXPECT_TRUE(engine.thinking());
@@ -164,8 +166,7 @@ TEST(FakeEngine, CancelMeansNoAnswer) {
 
 TEST(FakeEngine, MateScoresAreNotCentipawns) {
     Engine engine;
-    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
-    ASSERT_TRUE(waitFor([&] { return engine.state() == Engine::State::Ready; }));
+    ASSERT_TRUE(startedAndReady(engine));
 
     // Let the endless search be answered properly this time: stop it by hand
     // with a second request that we then also let finish.
@@ -311,8 +312,7 @@ TEST(FakeEngine, MateSearchAndChosenMoves) {
 
 TEST(FakeEngine, AnEngineThatDiesIsReportedNotWaitedFor) {
     Engine engine;
-    ASSERT_TRUE(engine.start(CHESS_FAKE_ENGINE));
-    ASSERT_TRUE(waitFor([&] { return engine.state() == Engine::State::Ready; }));
+    ASSERT_TRUE(startedAndReady(engine));
 
     SearchRequest fatal = quick();
     fatal.moveTimeMs    = 0;
