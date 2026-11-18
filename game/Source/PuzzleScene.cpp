@@ -179,27 +179,9 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     keyboard->onKeyPressed = [this](EventKeyboard::KeyCode code, Event*) { onKeyPressed(code); };
     _eventDispatcher->addEventListenerWithSceneGraphPriority(keyboard, this);
 
-#if defined(AX_PLATFORM_PC)
-    const auto whenWindow = [this](std::string_view event, std::function<void(EventCustom*)> what) {
-        _eventDispatcher->addEventListenerWithSceneGraphPriority(
-            EventListenerCustom::create(event, std::move(what)), this);
-    };
-    whenWindow(RenderViewImpl::EVENT_WINDOW_POSITIONED, [this](EventCustom*) { keepAwake(); });
-    whenWindow(RenderViewImpl::EVENT_WINDOW_FOCUSED, [this](EventCustom*) { keepAwake(); });
-    whenWindow(RenderViewImpl::EVENT_WINDOW_RESIZED, [this](EventCustom*) {
-        keepAwake();
-        if (auto* view = Director::getInstance()->getRenderView()) {
-            const Vec2 frame = view->getFrameSize();
-            if (frame.x >= 1.0f && frame.y >= 1.0f)
-                view->setDesignResolutionSize(frame.x, frame.y, ResolutionPolicy::SHOW_ALL);
-        }
-        layout();
-    });
-    whenWindow(RenderViewImpl::EVENT_WINDOW_CLOSE, [this](EventCustom* event) {
-        if (auto* closing = static_cast<bool*>(event->getUserData()))
-            askBeforeQuitting(*closing);
-    });
-#endif
+    desktop::followWindow(this, {.wake    = [this] { keepAwake(); },
+                                 .resized = [this] { layout(); },
+                                 .closing = [this](bool& closing) { askBeforeQuitting(closing); }});
 
     // The engine: the same Stockfish the game plays with, a process of this
     // scene's own.

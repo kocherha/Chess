@@ -23,6 +23,37 @@ std::string paste() {
     return {};
 }
 
+void followWindow(Node* scene, WindowHooks hooks) {
+#if defined(AX_PLATFORM_PC)
+    // Scene-graph priority, not addCustomEventListener: the latter registers
+    // with the dispatcher itself and would outlive the scene.
+    auto* dispatcher = scene->getEventDispatcher();
+    const auto when  = [&](std::string_view event, std::function<void(EventCustom*)> what) {
+        dispatcher->addEventListenerWithSceneGraphPriority(EventListenerCustom::create(event, std::move(what)), scene);
+    };
+    when(RenderViewImpl::EVENT_WINDOW_POSITIONED, [wake = hooks.wake](EventCustom*) { wake(); });
+    when(RenderViewImpl::EVENT_WINDOW_FOCUSED, [wake = hooks.wake](EventCustom*) { wake(); });
+    when(RenderViewImpl::EVENT_WINDOW_RESIZED, [wake = hooks.wake, resized = hooks.resized](EventCustom*) {
+        wake();
+        auto* view = Director::getInstance()->getRenderView();
+        if (view == nullptr)
+            return;
+        const Vec2 frame = view->getFrameSize();
+        if (frame.x < 1.0f || frame.y < 1.0f)
+            return;  // minimised: nothing to lay out for
+        view->setDesignResolutionSize(frame.x, frame.y, ResolutionPolicy::SHOW_ALL);
+        resized();
+    });
+    when(RenderViewImpl::EVENT_WINDOW_CLOSE, [closing = hooks.closing](EventCustom* event) {
+        if (auto* flag = static_cast<bool*>(event->getUserData()))
+            closing(*flag);
+    });
+#else
+    (void)scene;
+    (void)hooks;
+#endif
+}
+
 void screenshotWhenSettled(Node* host, const std::string& path, std::function<bool()> busy) {
     // How long it has waited, and for how long nothing has been going on.
     struct Clock {

@@ -189,27 +189,9 @@ bool GameScene::init() {
     keyboard->onKeyPressed = [this](EventKeyboard::KeyCode code, Event*) { onKeyPressed(code); };
     _eventDispatcher->addEventListenerWithSceneGraphPriority(keyboard, this);
 
-#if defined(AX_PLATFORM_PC)
-    // The system's half of "something happened". Resized, moved to another
-    // display, brought back to the front: all three can leave stale pixels on
-    // a window that has stopped drawing, so each of them buys a few frames.
-    //
-    // Scene-graph priority, not addCustomEventListener: the latter registers
-    // with the dispatcher itself and would outlive this scene.
-    const auto whenWindow = [this](std::string_view event, std::function<void(EventCustom*)> what) {
-        _eventDispatcher->addEventListenerWithSceneGraphPriority(
-            EventListenerCustom::create(event, std::move(what)), this);
-    };
-    whenWindow(RenderViewImpl::EVENT_WINDOW_POSITIONED, [this](EventCustom*) { keepAwake(); });
-    whenWindow(RenderViewImpl::EVENT_WINDOW_FOCUSED, [this](EventCustom*) { keepAwake(); });
-    whenWindow(RenderViewImpl::EVENT_WINDOW_RESIZED, [this](EventCustom*) { onWindowResized(); });
-    // The close button, Cmd+Q, the window manager: all of them arrive here
-    // carrying a flag that says "yes, close", which a listener may turn off.
-    whenWindow(RenderViewImpl::EVENT_WINDOW_CLOSE, [this](EventCustom* event) {
-        if (auto* closing = static_cast<bool*>(event->getUserData()))
-            askBeforeQuitting(*closing);
-    });
-#endif
+    desktop::followWindow(this, {.wake    = [this] { keepAwake(); },
+                                 .resized = [this] { layout(); },
+                                 .closing = [this](bool& closing) { askBeforeQuitting(closing); }});
 
     startEngine();
 
@@ -1113,24 +1095,6 @@ void GameScene::onKeyPressed(EventKeyboard::KeyCode code) {
 }
 
 // --- putting the state on screen ---------------------------------------------------
-
-void GameScene::onWindowResized() {
-    keepAwake();
-
-    auto* view = Director::getInstance()->getRenderView();
-    if (view == nullptr)
-        return;
-
-    // Design resolution = frame size, so the scene is never scaled to fit: a
-    // larger window shows a larger board rather than the same picture
-    // stretched, and the text stays as crisp as it was.
-    const Vec2 frame = view->getFrameSize();
-    if (frame.x < 1.0f || frame.y < 1.0f)
-        return;
-    view->setDesignResolutionSize(frame.x, frame.y, ResolutionPolicy::SHOW_ALL);
-
-    layout();
-}
 
 void GameScene::layout() {
     const Vec2 screen = Director::getInstance()->getVisibleSize();

@@ -153,7 +153,6 @@ private:
     void refreshMarks();
     void refreshStatus();
     void refreshBars();
-    void onWindowResized();
 
     // Draws for a moment, then stops the render loop until something happens.
     void keepAwake() { _awake.keepAwake(); }
