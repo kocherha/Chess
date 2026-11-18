@@ -19,9 +19,6 @@ namespace {
 // itself out again against whatever it gets.
 constexpr Size kWindow(1180, 780);
 constexpr int  kMinWidth = 820, kMinHeight = 560;
-}  // namespace
-
-namespace {
 
 // Where the game keeps what it remembers between runs — the last game's
 // settings and the chosen look.
@@ -114,8 +111,9 @@ bool AppDelegate::applicationDidFinishLaunching() {
     if (renderView == nullptr) {
 #if (AX_TARGET_PLATFORM == AX_PLATFORM_WIN32) || (AX_TARGET_PLATFORM == AX_PLATFORM_MAC) || \
     (AX_TARGET_PLATFORM == AX_PLATFORM_LINUX)
-        // Resizable: GameScene listens for the resize event, follows the
-        // design resolution to the new frame size and lays itself out again.
+        // Resizable: each scene follows the window (desktop::followWindow),
+        // sets the design resolution to the new frame size and lays itself
+        // out again.
         auto* window = RenderViewImpl::createWithRect(text::kTitle, ax::Rect(0, 0, kWindow.width, kWindow.height),
                                                       /*frameZoomFactor=*/1.0f, /*resizable=*/true);
         // Below this the panel and the board no longer both fit.
@@ -163,7 +161,7 @@ bool AppDelegate::applicationDidFinishLaunching() {
 //
 // So this loop has two gears. While the director is animating it is axmol's
 // loop, line for line. Once the scene has stopped the animation (see
-// GameScene::update) it stops asking and waits: glfwWaitEvents() does not
+// Wakefulness.h) it stops asking and waits: glfwWaitEvents() does not
 // return until the system has something for this window — a key, the mouse, a
 // resize, a close. The process is then blocked in the kernel and uses no CPU
 // at all. Whatever arrives is delivered through the same GLFW callbacks as
