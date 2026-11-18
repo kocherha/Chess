@@ -71,6 +71,10 @@ public:
     void resign(Color who);
     void resign() { resign(_position.sideToMove()); }
 
+    // How the game stands. Worked out once per change — it looks at every
+    // legal move and back over the positions that could repeat — and kept
+    // until the next move, take-back or resignation. Not to be called from
+    // two threads at once.
     Status status() const;
 
     // The game as a UCI `position` command, moves and all, so that the engine
@@ -95,10 +99,13 @@ public:
     int materialBalance() const;
 
 private:
+    Status computeStatus() const;
+
     Position            _start;
     Position            _position;
     std::vector<Record> _history;
     std::optional<Color> _resigned;
+    mutable std::optional<Status> _status;  // status(), until something changes
 };
 
 }  // namespace chess

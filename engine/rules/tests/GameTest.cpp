@@ -274,3 +274,37 @@ TEST(Game, PgnCarriesMarks) {
     const std::string pgn = game.pgn({}, {"?!", "", "??"});
     EXPECT_NE(pgn.find("\n1. f3?! e5 2. g4?? Qh4# 0-1\n"), std::string::npos);
 }
+
+// status() is kept between changes; every change has to let go of it.
+TEST(Game, StatusFollowsEveryChange) {
+    Game game;
+    for (const char* san : {"e4", "e5", "Qh5", "Nc6", "Bc4", "Nf6"})
+        ASSERT_TRUE(game.playSan(san)) << san;
+    EXPECT_EQ(game.status().outcome, Outcome::Ongoing);
+
+    ASSERT_TRUE(game.playSan("Qxf7#"));
+    EXPECT_EQ(game.status().outcome, Outcome::Checkmate);
+
+    ASSERT_TRUE(game.undo());
+    EXPECT_EQ(game.status().outcome, Outcome::Ongoing);
+
+    game.resign(Color::Black);
+    EXPECT_EQ(game.status().outcome, Outcome::Resignation);
+    EXPECT_EQ(game.result(), "1-0");
+
+    ASSERT_TRUE(game.undo());  // takes back the resignation only
+    EXPECT_EQ(game.status().outcome, Outcome::Ongoing);
+    EXPECT_EQ(game.plies(), 6u);
+
+    // A copy carries its own answer and changes on its own.
+    Game copy = game;
+    ASSERT_TRUE(copy.playSan("Qxf7#"));
+    EXPECT_EQ(copy.status().outcome, Outcome::Checkmate);
+    EXPECT_EQ(game.status().outcome, Outcome::Ongoing);
+
+    // And it is the same answer as working it out afresh.
+    Game fresh(game.startPosition());
+    for (const auto& record : game.history())
+        ASSERT_TRUE(fresh.play(record.move));
+    EXPECT_EQ(fresh.status().outcome, game.status().outcome);
+}

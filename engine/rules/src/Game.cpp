@@ -24,6 +24,7 @@ bool Game::play(const Move& wanted) {
     _history.push_back(std::move(record));
 
     _position.apply(*move);
+    _status.reset();
     return true;
 }
 
@@ -40,21 +41,31 @@ bool Game::playSan(std::string_view text) {
 bool Game::undo() {
     if (_resigned) {
         _resigned.reset();
+        _status.reset();
         return true;
     }
     if (_history.empty())
         return false;
     _position = _history.back().before;
     _history.pop_back();
+    _status.reset();
     return true;
 }
 
 void Game::resign(Color who) {
-    if (!status().over())
+    if (!status().over()) {
         _resigned = who;
+        _status.reset();
+    }
 }
 
 Status Game::status() const {
+    if (!_status)
+        _status = computeStatus();
+    return *_status;
+}
+
+Status Game::computeStatus() const {
     if (_resigned)
         return {Outcome::Resignation, opposite(*_resigned)};
 
