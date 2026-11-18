@@ -201,11 +201,7 @@ void LookDialog::layout(const Vec2& screen) {
     const float previewHeight = square * kRows + 2.0f * frame;
 
     const float height = above + previewHeight + below;
-    const Vec2 corner(std::floor((screen.x - width) * 0.5f), std::floor((screen.y - height) * 0.5f));
-
-    _back->clear();
-    shapes::rect(_back, Vec2::ZERO, screen, theme::kScrim);
-    shapes::roundedRect(_back, corner, Vec2(width, height), 16.0f, theme::kPanel, 1.0f, theme::kLine);
+    const Vec2 corner = drawCard(_back, screen, Vec2(width, height));
 
     const float left = corner.x + kPadding;
     float y          = corner.y + height - kPadding;

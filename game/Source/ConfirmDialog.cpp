@@ -128,11 +128,7 @@ void ConfirmDialog::layout(const Vec2& screen) {
     const float messageHeight = _message->getContentSize().height;
 
     const float height = kPadding + 30.0f + 18.0f + messageHeight + 28.0f + kRow + kPadding;
-    const Vec2 corner(std::floor((screen.x - width) * 0.5f), std::floor((screen.y - height) * 0.5f));
-
-    _back->clear();
-    shapes::rect(_back, Vec2::ZERO, screen, theme::kScrim);
-    shapes::roundedRect(_back, corner, Vec2(width, height), 16.0f, theme::kPanel, 1.0f, theme::kLine);
+    const Vec2 corner = drawCard(_back, screen, Vec2(width, height));
 
     const float left = corner.x + kPadding;
     float y          = corner.y + height - kPadding;
