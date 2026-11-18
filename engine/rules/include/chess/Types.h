@@ -33,6 +33,8 @@ constexpr int fileOf(Square square) { return square & 7; }
 constexpr int rankOf(Square square) { return square >> 3; }
 constexpr Square makeSquare(int file, int rank) { return rank * 8 + file; }
 constexpr bool onBoard(int file, int rank) { return file >= 0 && file < 8 && rank >= 0 && rank < 8; }
+// a1 is dark, h1 light.
+constexpr bool lightSquare(Square square) { return (fileOf(square) + rankOf(square)) % 2 != 0; }
 
 // "e4" and back. parseSquare returns kNoSquare for anything that is not a
 // square name.

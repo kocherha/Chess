@@ -18,10 +18,6 @@ using namespace board;
 constexpr int homeRank(Color color) { return color == Color::White ? 0 : 7; }
 constexpr int pawnRank(Color color) { return color == Color::White ? 1 : 6; }
 
-bool lightSquare(Square square) {
-    return (fileOf(square) + rankOf(square)) % 2 != 0;
-}
-
 bool slider(PieceType type) {
     return type == PieceType::Bishop || type == PieceType::Rook || type == PieceType::Queen;
 }

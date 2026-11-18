@@ -21,10 +21,6 @@ constexpr float kSlideSeconds = 0.14f;
 constexpr PieceType kPromotionOrder[4] = {PieceType::Queen, PieceType::Knight, PieceType::Rook,
                                           PieceType::Bishop};
 
-bool lightSquare(Square square) {
-    return (fileOf(square) + rankOf(square)) % 2 != 0;
-}
-
 }  // namespace
 
 BoardNode* BoardNode::create() {

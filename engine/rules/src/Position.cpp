@@ -617,7 +617,7 @@ bool Position::insufficientMaterial() const {
             break;
         case PieceType::Bishop:
             ++bishops;
-            ((fileOf(square) + rankOf(square)) % 2 == 0 ? darkBishop : lightBishop) = true;
+            (lightSquare(square) ? lightBishop : darkBishop) = true;
             break;
         default:
             // A pawn, rook or queen can always be turned into a mate.
