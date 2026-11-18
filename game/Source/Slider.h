@@ -28,8 +28,9 @@ public:
     void setFrame(const ax::Vec2& origin, const ax::Vec2& size);
 
     // The values run from 0 to count - 1. `stops` are the marked ones, in
-    // rising order, the first of them 0 and the last count - 1.
-    void setScale(int count, std::vector<int> stops);
+    // rising order, the first of them 0 and the last count - 1. (Not called
+    // setScale: that is ax::Node's, and a slider is scaled like any node.)
+    void setRange(int count, std::vector<int> stops);
 
     // Moves the thumb. Does not call onChange: that is for what the player did.
     void setValue(int value);

@@ -98,7 +98,7 @@ bool NewGameDialog::init() {
         std::vector<int> stops;
         for (const chess::Level& level : chess::levels())
             stops.push_back(chess::strengthOfLevel(level.number));
-        _strength->setScale(chess::strengthCount(), std::move(stops));
+        _strength->setRange(chess::strengthCount(), std::move(stops));
     }
     _strength->onChange = [this](int strength) { chooseStrength(strength); };
     addChild(_strength);

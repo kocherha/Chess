@@ -43,7 +43,7 @@ void Slider::setFrame(const Vec2& origin, const Vec2& size) {
     redraw();
 }
 
-void Slider::setScale(int count, std::vector<int> stops) {
+void Slider::setRange(int count, std::vector<int> stops) {
     _count = std::max(1, count);
     _stops = std::move(stops);
     _value = std::clamp(_value, 0, _count - 1);
