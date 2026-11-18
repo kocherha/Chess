@@ -28,9 +28,9 @@
 
 #include "chess/Engine.h"
 #include "chess/Game.h"
-#include "chess/GameReview.h"
 #include "chess/Judge.h"
 #include "chess/Opponent.h"
+#include "chess/Watcher.h"
 
 #include "axmol.h"
 
@@ -101,15 +101,14 @@ private:
     // collect what it has to say.
     void analyse();
     void pollAnalysis();
-    void showScore(const chess::Score& score);
-    void showHint();
+    void sendToWatcher();    // what chess::Watcher wants of its engine
+    void takeFromWatcher();  // and what it has for the screen
+    void showHint(const std::string& uci);
 
     // What it has said about the game's positions, and the marks that follow,
     // are _review's (see chess/GameReview.h). The scene runs the searches:
     // the position on the board first, then — with nothing more urgent — the
     // ones the game moved on from too quickly.
-    bool keepWhatWasFound();
-    void reviewNext();
     void marksChanged();
     void showMoves();
 
@@ -185,22 +184,10 @@ private:
     std::optional<chess::Position> _startFrom;   // the next new game begins here, not at the start
     bool _lentAnalysis = false;  // the watching engine is the problems mode's for now
 
-    // Requests to an engine carry a tag; an answer whose tag is no longer the
-    // one we are waiting for is an answer to a question nobody is asking any
-    // more (the move was taken back, a new game began).
-    int  _nextTag = 1;
-
-    // The watching engine, and what it has found out about the position on
-    // the board: nothing yet, a score still being refined, or its final word
-    // together with the move it would play.
-    chess::Engine  _analysis;
-    int            _analysisTag  = 0;
-    bool           _analysisDone = false;
-    std::string    _analysisBest;        // UCI; set when the analysis has finished
-    chess::GameReview _review;
-    std::string       _searchKey;  // which position the search in progress is of (a key of _review's)
-    bool           _hintWanted   = false;  // show that move as soon as it is known
-    bool           _barShown     = false;  // is there a bar in the layout right now?
+    // The engine that watches the game — the bar, the marks, the hint (see
+    // chess::Watcher) — and the Stockfish it asks, which the problems borrow.
+    chess::Watcher _watcher;
+    chess::Engine  _watcherEngine;
     chess::Engine::State _opponentState = chess::Engine::State::Stopped;  // as last seen by update()
 
     // The person's colour when they asked for a random one, and their moves

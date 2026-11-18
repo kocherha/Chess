@@ -13,7 +13,6 @@
 #include "chess/Pause.h"
 
 #include <algorithm>
-#include <cassert>
 #include <cmath>
 #include <ctime>
 #include <thread>
@@ -29,15 +28,6 @@ constexpr float kBarHeight = 38.0f;
 // The evaluation bar and the space between it and the board.
 constexpr float kEvalWidth = 24.0f;
 constexpr float kEvalGap   = 12.0f;
-
-// How long the watching engine looks at a position, at most. It reports as it
-// goes, so the bar starts moving within a few hundredths of a second; this is
-// only where it stops refining.
-constexpr int kAnalysisMs    = 1000;
-constexpr int kAnalysisDepth = 22;
-// Its first few iterations are guesses that swing wildly. Nothing shallower
-// than this is shown unless it is all there will ever be.
-constexpr int kAnalysisMinDepth = 6;
 
 // The best move and the runner-up: how far apart they are is what tells an
 // only move from one of several good ones.
@@ -74,7 +64,7 @@ GameScene::~GameScene() {
     // Says goodbye to Stockfish and waits for it to leave, so that closing the
     // window never leaves an engine running behind it.
     _opponentEngine.shutdown();
-    _analysis.shutdown();
+    _watcherEngine.shutdown();
 }
 
 // --- setting up --------------------------------------------------------------------
@@ -264,12 +254,9 @@ void GameScene::openPuzzles() {
 
     // The watching engine goes with them: whatever it was looking at is kept
     // as far as it got, and looked at again on the way back (onEnter).
-    if (auto* scene = PuzzleScene::create(_analysis, std::move(hooks), std::move(opening))) {
-        if (keepWhatWasFound())
-            marksChanged();
-        _analysis.handOver();
-        _analysisTag = 0;
-        _searchKey.clear();
+    if (auto* scene = PuzzleScene::create(_watcherEngine, std::move(hooks), std::move(opening))) {
+        _watcher.lend();
+        _watcherEngine.handOver();
         _lentAnalysis = true;
         Director::getInstance()->pushScene(scene);
     }
@@ -288,18 +275,18 @@ void GameScene::offerGameFrom(const Position& position) {
 }
 
 void GameScene::startAnalysis() {
-    if (_analysis.usable())
+    if (_watcherEngine.usable())
         return;
     const std::string path = stockfish::path();
     if (path.empty()) {
         AXLOGW("no Stockfish found: only the two-player game is available");
         return;
     }
-    stockfish::traceIfAsked(_analysis, "eval");
-    if (_analysis.start(path))
+    stockfish::traceIfAsked(_watcherEngine, "eval");
+    if (_watcherEngine.start(path))
         AXLOGI("engine: {}", path);
     else
-        AXLOGW("analysis engine did not start: {}", _analysis.error());
+        AXLOGW("analysis engine did not start: {}", _watcherEngine.error());
 }
 
 void GameScene::startOpponent() {
@@ -314,7 +301,7 @@ void GameScene::startOpponent() {
 }
 
 std::optional<Engine::Spin> GameScene::eloRange() const {
-    if (auto range = _analysis.spin("UCI_Elo"))
+    if (auto range = _watcherEngine.spin("UCI_Elo"))
         return range;
     return _opponentEngine.spin("UCI_Elo");
 }
@@ -381,9 +368,8 @@ void GameScene::startGame(const GameSetup& setup) {
     withdrawQuestions();
     _opponent.newGame(opposite(_human), levelAtStrength(_setup.strength));
     _opponentEngine.newGame();
-    _analysis.newGame();
-    _review.clear();
-    _searchKey.clear();
+    _watcherEngine.newGame();
+    _watcher.newGame();
 
     // The command line may have asked for a particular start. That is honoured
     // once, for the first game; "new game" after it means a new game.
@@ -436,7 +422,6 @@ void GameScene::play(const Move& move, bool slide) {
     eventlog::note("move " + move.uci());
 
     forgetPositionMarks();
-    _hintWanted = false;  // a hint still being worked out was for a position that is gone
 
     _board->show(_game.position(), _game.lastMove(), slide);
     refresh();
@@ -447,7 +432,6 @@ void GameScene::play(const Move& move, bool slide) {
 void GameScene::withdrawQuestions() {
     _opponent.withdraw();
     sendToOpponent();
-    _hintWanted = false;
 }
 
 void GameScene::forgetPositionMarks() {
@@ -512,11 +496,6 @@ void GameScene::pollOpponent() {
 
 // A search is about to be abandoned: whatever it has found so far is still
 // worth having. True if that changed the marks.
-bool GameScene::keepWhatWasFound() {
-    SearchResult result;
-    return _analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag &&
-           _review.note(_searchKey, result, false);
-}
 
 void GameScene::marksChanged() {
     showMoves();
@@ -524,144 +503,68 @@ void GameScene::marksChanged() {
 }
 
 void GameScene::analyse() {
-    const bool marked = keepWhatWasFound();
-    _analysis.cancel();
-    _analysisTag  = 0;
-    _analysisDone = false;
-    _analysisBest.clear();
-    _searchKey.clear();
-
-    if (_review.follow(_game) || marked)
-        marksChanged();
-
     if (!_started) {
         _evalBar->show({});
         return;
     }
+    _watcher.follow(_game);
+    sendToWatcher();
+    takeFromWatcher();
+}
 
-    // A finished game needs no opinion: the result is the evaluation. The
-    // moves that led to it may still be waiting for theirs.
-    const Status status = _game.status();
-    if (status.over()) {
-        EvalBar::Score score;
-        score.kind = !status.winner                   ? EvalBar::Score::Kind::Drawn
-                     : *status.winner == Color::White ? EvalBar::Score::Kind::WhiteWon
-                                                      : EvalBar::Score::Kind::BlackWon;
-        _evalBar->show(score);
-        reviewNext();
+void GameScene::sendToWatcher() {
+    auto work = _watcher.toEngine();
+    if (work.cancel)
+        _watcherEngine.cancel();
+    if (!work.search)
         return;
-    }
+    work.search->options = watcherOptions(kAnalysisLines);
+    _watcherEngine.search(std::move(*work.search));
+}
 
-    if (!_analysis.usable())
-        return;
-
-    // Been here before — a move was taken back? Then it is already known.
-    if (const auto* known = _review.found(_review.now()); known != nullptr && known->complete) {
-        _analysisDone = true;
-        _analysisBest = known->best;
-        showScore(known->score);
-        if (_hintWanted)
-            showHint();
-        reviewNext();
-        return;
-    }
-
-    // The bar keeps showing the previous position's score until this one has
-    // something to say. One move rarely changes the picture much, and a bar
-    // that jumped back to the middle after every move would be all flicker.
-    SearchRequest request;
-    request.position   = _review.now();
-    request.moveTimeMs = kAnalysisMs;
-    request.depth      = kAnalysisDepth;
-    request.options    = watcherOptions(kAnalysisLines);
-    request.tag = _analysisTag = _nextTag++;
-    _searchKey = _review.now();
-    _analysis.search(std::move(request));
+void GameScene::takeFromWatcher() {
+    if (const auto standing = _watcher.takeStanding())
+        _evalBar->show(*standing);
+    if (_watcher.takeMarksChanged())
+        marksChanged();
+    if (const auto hint = _watcher.takeHint())
+        showHint(*hint);
 }
 
 // With nothing more urgent to look at, the engine goes back over the game:
 // the most recent position it did not get a proper look at, then the one
 // before. A move is marked as soon as the positions either side of it are in.
-void GameScene::reviewNext() {
-    if (!_analysis.usable() || _analysisTag != 0 || !_started)
-        return;
-    auto request = _review.nextToReview();
-    if (!request)
-        return;
-    request->options = watcherOptions(kAnalysisLines);
-    request->tag = _analysisTag = _nextTag++;
-    _searchKey = request->position;
-    _analysis.search(std::move(*request));
-}
 
-void GameScene::showScore(const Score& found) {
-    // The engine scores for whoever is to move; the bar is always white's view.
-    const int sign = _game.position().sideToMove() == Color::White ? 1 : -1;
-
-    EvalBar::Score score;
-    if (found.mate && *found.mate != 0) {
-        score.kind  = EvalBar::Score::Kind::Mate;
-        score.value = sign * *found.mate;
-    } else if (found.cp) {
-        score.kind  = EvalBar::Score::Kind::Centipawns;
-        score.value = sign * *found.cp;
-    } else {
-        return;
-    }
-    _evalBar->show(score);
-}
 
 void GameScene::pollAnalysis() {
-    SearchResult result;
-    // Is the search in progress about the position on the board, or one of
-    // the earlier ones being gone back over?
-    const auto onBoard = [this] {
-        return _searchKey == _review.now() && !_game.status().over();
-    };
-
-    // While it is still looking at the position on the board: follow along.
-    if (onBoard() && _analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag &&
-        result.depth >= kAnalysisMinDepth) {
-        showScore(Score{result.scoreCp, result.mateIn});
-    }
-
-    while (_analysis.poll(result)) {
-        if (_analysisTag == 0 || result.tag != _analysisTag)
-            continue;
-        _analysisTag      = 0;
-        const bool marked = _review.note(_searchKey, result, true);
-
-        if (onBoard()) {
-            _analysisDone = true;
-            _analysisBest = result.bestMove;
-            showScore(Score{result.scoreCp, result.mateIn});
-            if (_hintWanted)
-                showHint();
-        }
-        _searchKey.clear();
-        if (marked)
-            marksChanged();
-        refresh();
-        reviewNext();
-    }
-
     // The bar is only on screen while there is an engine behind it. If that
     // changes — it has just come up, or it has died — the board gets the
     // space back or gives it up.
-    if (_analysis.usable() != _barShown) {
+    if (_watcherEngine.usable() != _watcher.engineUsable()) {
+        _watcher.setEngineUsable(_watcherEngine.usable());
         layout();
-        if (_barShown && _analysisTag == 0 && !_analysisDone)
-            analyse();
     }
+
+    SearchResult result;
+    if (_watcherEngine.progress(result))
+        _watcher.progress(result);
+    bool answered = false;
+    while (_watcherEngine.poll(result)) {
+        _watcher.answer(result);
+        answered = true;
+    }
+    sendToWatcher();
+    takeFromWatcher();
+    if (answered)
+        refresh();
 }
 
-void GameScene::showHint() {
-    _hintWanted = false;
-    if (const auto move = _game.position().parseUci(_analysisBest)) {
+void GameScene::showHint(const std::string& uci) {
+    if (const auto move = _game.position().parseUci(uci)) {
         _hintFrom = move->from;
         _hintTo   = move->to;
         _hintText = text::localSan(_game.position().san(*move));
-        eventlog::note("hint " + _analysisBest);
+        eventlog::note("hint " + uci);
     }
 }
 
@@ -704,7 +607,7 @@ void GameScene::update(float delta) {
     // once the game is asleep only the window can wake it (see Wakefulness.h).
     _awake.update(delta, {
         {_opponentEngine.thinking(), "the opponent is thinking"},
-        {_analysis.thinking(), "the position is being analysed"},
+        {_watcherEngine.thinking(), "the position is being analysed"},
         {_opponent.pausing(), "a reply is about to be played"},
         {barMoving, "the evaluation bar is moving"},
         {_board->animating(), "a piece is moving"},
@@ -712,7 +615,7 @@ void GameScene::update(float delta) {
         {_panel->dragging(), "the move list is being dragged", Wakefulness::Kind::Stay},
         {_copiedFor > 0.0f, "the \"copied\" notice is up", Wakefulness::Kind::Stay},
         {_opponentEngine.state() == Engine::State::Starting, "the opponent is starting"},
-        {_analysis.state() == Engine::State::Starting, "the analysis engine is starting"},
+        {_watcherEngine.state() == Engine::State::Starting, "the analysis engine is starting"},
         {!options.screenshot.empty(), "a screenshot is being taken", Wakefulness::Kind::Stay},
         {options.autoplayGames > 0, "autoplay", Wakefulness::Kind::Stay},
     });
@@ -754,7 +657,7 @@ void GameScene::showNewGameDialog() {
     GameSetup offered = _setup;
     if (_startFrom)
         offered.side = _startFrom->sideToMove() == Color::White ? GameSetup::Side::White : GameSetup::Side::Black;
-    _dialog->open(offered, _started, _analysis.usable(), elo ? elo->min : 0, elo ? elo->max : 0);
+    _dialog->open(offered, _started, _watcherEngine.usable(), elo ? elo->min : 0, elo ? elo->max : 0);
     keepAwake();
 }
 
@@ -816,7 +719,7 @@ void GameScene::copyGame() {
         tags.black = _human == Color::Black ? kPgnPlayer : engine;
     }
     std::vector<std::string> marks;
-    for (const Mark mark : _review.marks())
+    for (const Mark mark : _watcher.review().marks())
         marks.emplace_back(suffix(mark));
     desktop::copy(_game.pgn(tags, marks));
     _panel->markMove(-1);
@@ -831,7 +734,7 @@ void GameScene::copyMove(int index) {
     const Game::Record& record = _game.history()[static_cast<std::size_t>(index)];
     const std::string number   = std::to_string(record.before.fullmoveNumber()) +
                                  (record.before.sideToMove() == Color::White ? ". " : "... ");
-    const Mark mark = _review.mark(static_cast<std::size_t>(index));
+    const Mark mark = _watcher.review().mark(static_cast<std::size_t>(index));
     desktop::copy(number + text::localSan(record.san) + suffix(mark));
     _panel->markMove(index);
     showCopied();
@@ -881,25 +784,14 @@ void GameScene::flip() {
 }
 
 void GameScene::askHint() {
-    if (!humanToMove() || !_analysis.usable() || _hintWanted)
+    if (!humanToMove() || !_watcherEngine.usable() || _watcher.hintWanted())
         return;
-
     // The hint is the watching engine's own choice. It has usually finished
-    // with this position long before anyone asks; if not, the hint appears the
-    // moment it does.
-    //
-    // "If not" relies on this: while the position on the board has not been
-    // looked at to the end, the search in progress, if any, is about it — a
-    // review of an earlier position (reviewNext) is only started once the
-    // board's own analysis is done. Were it otherwise, the hint would wait for
-    // an answer about another position and never come.
-    _hintWanted = true;
-    if (_analysisDone)
-        showHint();
-    else if (_analysisTag == 0)
-        analyse();
-    else
-        assert(_searchKey == _review.now());
+    // with this position long before anyone asks; if not, the hint appears
+    // the moment it does (see chess::Watcher).
+    _watcher.wantHint();
+    sendToWatcher();
+    takeFromWatcher();
     refresh();
 }
 
@@ -1051,8 +943,8 @@ void GameScene::layout() {
 
     // The evaluation bar stands to the left of the board, and only while
     // there is an engine to fill it; without one the board has the room.
-    _barShown             = _analysis.usable();
-    const float evalSpace = _barShown ? kEvalWidth + kEvalGap : 0.0f;
+    const bool  barShown  = _watcher.engineUsable();
+    const float evalSpace = barShown ? kEvalWidth + kEvalGap : 0.0f;
 
     float side = std::min(areaWidth - 2.0f * kMargin - evalSpace, screen.y - 2.0f * (kMargin + kBarHeight));
     // A whole number of pixels per square, so every edge between two squares
@@ -1066,7 +958,7 @@ void GameScene::layout() {
     _board->setPosition(corner);
     _board->setSide(side);
 
-    _evalBar->setVisible(_barShown);
+    _evalBar->setVisible(barShown);
     _evalBar->setFrame(Vec2(corner.x - frame - kEvalGap - kEvalWidth, corner.y), Vec2(kEvalWidth, side));
 
     _bottom->setFrame(Vec2(corner.x, corner.y - frame - kBarHeight), Vec2(side, kBarHeight));
@@ -1094,7 +986,7 @@ void GameScene::refresh() {
         canUndo |= !againstComputer() || record.before.sideToMove() == _human;
 
     _panel->undo->setEnabled(_started && canUndo);
-    _panel->hint->setEnabled(humanToMove() && _analysis.usable() && !_hintWanted);
+    _panel->hint->setEnabled(humanToMove() && _watcherEngine.usable() && !_watcher.hintWanted());
     _panel->resign->setEnabled(_started && !status.over());
 }
 
@@ -1107,7 +999,7 @@ void GameScene::showMoves() {
     _panel->setMoves(moves, _game.startPosition().sideToMove() == Color::White,
                      _game.startPosition().fullmoveNumber());
 
-    std::vector<Mark> marks = _review.marks();
+    std::vector<Mark> marks = _watcher.review().marks();
     marks.resize(moves.size(), Mark::None);  // the list may be a move ahead of the marks, or behind
     _panel->setMarks(marks);
     _panel->setResult(text::resultSign(_game.status()));
@@ -1162,7 +1054,7 @@ void GameScene::refreshMarks() {
     marks.hintTo   = _hintTo;
 
     // What the last move was worth, on the square it went to.
-    if (const auto& verdicts = _review.marks(); !verdicts.empty() && verdicts.size() == _game.plies())
+    if (const auto& verdicts = _watcher.review().marks(); !verdicts.empty() && verdicts.size() == _game.plies())
         marks.verdict = verdicts.back();
     _board->setMarks(marks);
 }
@@ -1232,7 +1124,7 @@ void GameScene::refreshStatus() {
 
     if (position.sideToMove() == _human) {
         std::string detail = check;
-        if (_hintWanted)
+        if (_watcher.hintWanted())
             detail = text::kHintThinking;
         else if (!_hintText.empty())
             detail = std::string(text::kHint) + ": " + _hintText;
