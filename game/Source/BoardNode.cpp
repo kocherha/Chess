@@ -248,7 +248,15 @@ void BoardNode::setMarks(const Marks& marks) {
 void BoardNode::redrawMarks() {
     _under->clear();
     _over->clear();
+    drawSquareMarks();
+    drawTargets();
+    drawBadges();
+    drawHint();
+}
 
+// Under the pieces: the squares of the last move, the selected one, the
+// editor's impossible ones, and the glow under a king in check.
+void BoardNode::drawSquareMarks() {
     const float s = squareSize();
     const Vec2 cell(s, s);
     const look::BoardStyle& style = look::board();
@@ -257,20 +265,22 @@ void BoardNode::redrawMarks() {
         if (square != kNoSquare)
             shapes::rect(_under, origin(square), cell, style.lastMove);
     }
-
     if (_marks.selected != kNoSquare)
         shapes::rect(_under, origin(_marks.selected), cell, style.selected);
-
     for (Square square : _marks.problems)
         if (square >= 0 && square < 64)
             shapes::rect(_under, origin(square), cell, theme::kProblem);
-
     if (_marks.check != kNoSquare)
         shapes::glow(_under, centre(_marks.check), s * 0.62f, style.check);
+}
 
-    // Where the selected piece can go: a dot on an empty square, a ring
-    // around something it would capture. A promotion appears four times in
-    // the list, once per piece; it is one square and gets one mark.
+// Where the selected piece can go: a dot on an empty square, a ring around
+// something it would capture. A promotion appears four times in the list,
+// once per piece; it is one square and gets one mark.
+void BoardNode::drawTargets() {
+    const float s = squareSize();
+    const look::BoardStyle& style = look::board();
+
     Square marked[64];
     int count = 0;
     for (const Move& move : _marks.targets) {
@@ -283,12 +293,33 @@ void BoardNode::redrawMarks() {
         else
             shapes::circle(_under, centre(move.to), s * 0.15f, style.target);
     }
+}
 
-    // Badges: a small disc in the top right corner of a square, over the
-    // piece, with a sign on it. One for what the last move was worth, and one
-    // for each king the state of the game says something about. They are all
-    // made the same way — paper, a ruled edge, a sign in ink — and they say
-    // what they say in chess notation and nothing else.
+namespace {
+
+// A king's sign as the score sheet writes it.
+const char* notation(BoardNode::Sign sign) {
+    using Sign = BoardNode::Sign;
+    switch (sign) {
+    case Sign::Check:    return "+";
+    case Sign::Mate:     return "#";
+    case Sign::Won:      return "1";
+    case Sign::Resigned: return "0";
+    case Sign::Draw:     return "½";
+    case Sign::None:     break;
+    }
+    return "";
+}
+
+}  // namespace
+
+// Badges: a small disc in the top right corner of a square, over the piece,
+// with a sign on it. One for what the last move was worth, and one for each
+// king the state of the game says something about. They are all made the
+// same way — paper, a ruled edge, a sign in ink — and they say what they say
+// in chess notation and nothing else.
+void BoardNode::drawBadges() {
+    const float s      = squareSize();
     const float radius = std::max(5.5f, s * 0.135f);
     const float inset  = radius + std::max(1.0f, s * 0.025f);
     const float rule   = std::max(shapes::pixel(), radius * 0.11f);
@@ -315,28 +346,24 @@ void BoardNode::redrawMarks() {
     for (const KingSign& king : _marks.kings) {
         if (king.sign == Sign::None || king.square == kNoSquare)
             continue;
-        onLastMove    = onLastMove || king.square == _marks.lastTo;
-        const Vec2 at = corner(king.square, false);
-        switch (king.sign) {
-        case Sign::Check:    badge(at, "+"); break;
-        case Sign::Mate:     badge(at, "#"); break;
-        case Sign::Won:      badge(at, "1"); break;
-        case Sign::Resigned: badge(at, "0"); break;
-        case Sign::Draw:     badge(at, "½"); break;
-        case Sign::None:     break;
-        }
+        onLastMove = onLastMove || king.square == _marks.lastTo;
+        badge(corner(king.square, false), notation(king.sign));
     }
 
+    // If the last move ended on a king's square, its badge takes the other corner.
     if (_marks.verdict != Mark::None && _marks.lastTo != kNoSquare)
         badge(corner(_marks.lastTo, onLastMove), suffix(_marks.verdict));
+}
 
-    if (_marks.hintFrom != kNoSquare && _marks.hintTo != kNoSquare) {
-        // Start a little way out from the centre so the piece being pointed
-        // at is not buried under the arrow's tail.
-        const Vec2 from = centre(_marks.hintFrom), to = centre(_marks.hintTo);
-        const Vec2 unit = (to - from).getNormalized();
-        shapes::arrow(_over, from + unit * (s * 0.28f), to, s * 0.17f, theme::kHint);
-    }
+void BoardNode::drawHint() {
+    if (_marks.hintFrom == kNoSquare || _marks.hintTo == kNoSquare)
+        return;
+    // Start a little way out from the centre so the piece being pointed at
+    // is not buried under the arrow's tail.
+    const float s    = squareSize();
+    const Vec2  from = centre(_marks.hintFrom), to = centre(_marks.hintTo);
+    const Vec2  unit = (to - from).getNormalized();
+    shapes::arrow(_over, from + unit * (s * 0.28f), to, s * 0.17f, theme::kHint);
 }
 
 // --- dragging ----------------------------------------------------------------------

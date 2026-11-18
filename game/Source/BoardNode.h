@@ -80,6 +80,10 @@ private:
     void show(const Placement& placement, const chess::Move* played, bool slide);
     void redrawSquares();
     void redrawMarks();
+    void drawSquareMarks();
+    void drawTargets();
+    void drawBadges();
+    void drawHint();
     void slide(ax::Node* piece, const ax::Vec2& from, const ax::Vec2& to);
 
     float _side    = 480.0f;
