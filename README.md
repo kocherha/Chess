@@ -92,6 +92,11 @@ UCI та параметри `UCI_LimitStrength` і `UCI_Elo`, тож має пі
 - `-DCHESS_BUILD_TESTS=OFF` — навпаки.
 - `-DCHESS_STOCKFISH_BINARY=…` — покласти в застосунок цей готовий рушій
   (Stockfish чи будь-який інший UCI) замість збирати свій.
+- `-DCHESS_STOCKFISH_ARCH=…` — під який процесор збирати Stockfish (його
+  `ARCH`; перелік — `make help` у `third-party/Stockfish/src`). На Mac типово
+  такий, що працює на всіх Mac того ж роду, — `apple-silicon`, а на Intel
+  `x86-64-sse41-popcnt`, — бо рушій їде всередині `Chess.app`; деінде
+  `native`, тобто лише для цієї машини. Зміна перезбирає рушій.
 - `-DAX_ROOT=…` — зібрати проти axmol, що лежить деінде, замість `third-party/axmol`.
 - `-DCHESS_FULL_ENGINE=ON` — зібрати axmol з усіма модулями. Типово гра вимикає
   те, чим не користується (Lua, Spine, фізика, 3D, звук, відео, мережа), і

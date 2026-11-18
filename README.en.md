@@ -99,6 +99,12 @@ Options:
 - `-DCHESS_BUILD_TESTS=OFF` — the other way round.
 - `-DCHESS_STOCKFISH_BINARY=…` — bundle this ready-made engine (Stockfish or
   any other UCI engine) instead of building one.
+- `-DCHESS_STOCKFISH_ARCH=…` — the processor Stockfish is built for (its
+  `ARCH`; `make help` in `third-party/Stockfish/src` lists them). On a Mac the
+  default is one that every Mac of the kind runs — `apple-silicon`, or
+  `x86-64-sse41-popcnt` on Intel — since the engine travels inside
+  `Chess.app`; elsewhere it is `native`, this machine only. Changing it
+  rebuilds the engine.
 - `-DAX_ROOT=…` — build against an axmol that lives elsewhere instead of
   `third-party/axmol`.
 - `-DCHESS_FULL_ENGINE=ON` — build axmol with all of its modules. By default

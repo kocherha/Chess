@@ -236,8 +236,26 @@ endfunction()
 # by Stockfish's own .gitignore, so its checkout stays clean.
 #
 #   -DCHESS_STOCKFISH_BINARY=/path/to/stockfish   use this one, build nothing
+#   -DCHESS_STOCKFISH_ARCH=<arch>                 what to build it for (see below)
 set(CHESS_STOCKFISH_BINARY "" CACHE FILEPATH
     "A ready Stockfish (or any UCI engine) binary to bundle instead of building one")
+
+# What processor the engine is built for — Stockfish's ARCH, `make help` in
+# third-party/Stockfish/src lists them. Left to itself Stockfish takes
+# "native": everything this very machine's processor can do, which is fastest
+# here and may not start at all on an older one. On a Mac the engine travels
+# inside Chess.app, so there the default is one that every Mac of that kind
+# runs: all Apple silicon, or every Intel Mac of the last fifteen years.
+# Elsewhere the engine is built for the machine it is built on, as before.
+if(APPLE AND CMAKE_HOST_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+    set(chess_default_arch "apple-silicon")
+elseif(APPLE)
+    set(chess_default_arch "x86-64-sse41-popcnt")
+else()
+    set(chess_default_arch "native")
+endif()
+set(CHESS_STOCKFISH_ARCH "${chess_default_arch}" CACHE STRING
+    "Stockfish's ARCH: native for this machine only, or one of those in its `make help`")
 
 # Where the engine binary is, or will be once it has been built. Asking does
 # not fetch anything.
@@ -284,10 +302,9 @@ function(chess_add_stockfish)
         set(jobs 2)
     endif()
 
-    # The Makefile picks the architecture itself (ARCH=native). The compiler it
-    # has to be told on a Mac, where its default "gcc" is really clang wearing
-    # a different name.
-    set(flags "")
+    # The architecture, as chosen above. The compiler it has to be told on a
+    # Mac, where its default "gcc" is really clang wearing a different name.
+    set(flags "ARCH=${CHESS_STOCKFISH_ARCH}")
     if(APPLE)
         list(APPEND flags COMP=clang)
     endif()
@@ -296,14 +313,22 @@ function(chess_add_stockfish)
     # the network the build itself leaves beside the sources.
     file(GLOB_RECURSE sources CONFIGURE_DEPENDS "${source}/*.cpp" "${source}/*.h" "${source}/Makefile")
 
+    # What it is built with is a dependency too: another ARCH has to mean
+    # another build. The file only changes when the flags do. Stockfish's
+    # Makefile does not notice new flags by itself, so its objects are
+    # cleared first (objclean keeps the network).
+    set(stamp "${CMAKE_BINARY_DIR}/stockfish-flags.txt")
+    file(CONFIGURE OUTPUT "${stamp}" CONTENT "${flags}\n")
+
     add_custom_command(
         OUTPUT "${output}"
+        COMMAND "${CHESS_MAKE}" -C "${source}" objclean
         COMMAND "${CHESS_MAKE}" -C "${source}" -j${jobs} build ${flags}
-        DEPENDS ${sources}
+        DEPENDS ${sources} "${stamp}"
         COMMENT "building Stockfish in third-party/Stockfish (a few minutes, once)"
         VERBATIM)
     add_custom_target(stockfish DEPENDS "${output}")
 
-    message(STATUS "stockfish: built from third-party/Stockfish")
+    message(STATUS "stockfish: built from third-party/Stockfish (ARCH=${CHESS_STOCKFISH_ARCH})")
     set(CHESS_ENGINE_BINARY "${output}" PARENT_SCOPE)
 endfunction()
