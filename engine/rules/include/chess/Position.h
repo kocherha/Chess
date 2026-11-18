@@ -99,7 +99,15 @@ public:
     bool operator==(const Position&) const = default;
 
 private:
+    // Every move of the side to move that follows the way its pieces move,
+    // whether or not it leaves its own king in check; of the piece on
+    // `onlyFrom` alone, unless that is kNoSquare. One function per way of
+    // moving.
     void generatePseudoLegal(std::vector<Move>& out, Square onlyFrom) const;
+    void pawnMoves(Square from, std::vector<Move>& out) const;
+    void stepMoves(Square from, PieceType piece, std::vector<Move>& out) const;  // knight, king
+    void slideMoves(Square from, PieceType piece, std::vector<Move>& out) const;  // bishop, rook, queen
+    void castlingMoves(Square from, std::vector<Move>& out) const;
     bool leavesKingSafe(const Move& move) const;
     void placementTo(std::string& out) const;
 

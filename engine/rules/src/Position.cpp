@@ -184,144 +184,162 @@ bool Position::inCheck() const {
 
 // --- move generation -----------------------------------------------------------
 
+namespace {
+
+// An ordinary move: from, to, what moved, what it takes, what a pawn becomes.
+void addMove(std::vector<Move>& out, const Position& position, Square from, Square to, PieceType piece,
+             PieceType promotion = PieceType::None) {
+    Move move;
+    move.from      = from;
+    move.to        = to;
+    move.promotion = promotion;
+    move.piece     = piece;
+    move.captured  = position.at(to).type;
+    out.push_back(move);
+}
+
+}  // namespace
+
 void Position::generatePseudoLegal(std::vector<Move>& out, Square onlyFrom) const {
-    const Color us = _turn, them = opposite(_turn);
-
-    const auto add = [&](Square from, Square to, PieceType piece, PieceType promotion = PieceType::None) {
-        Move move;
-        move.from      = from;
-        move.to        = to;
-        move.promotion = promotion;
-        move.piece     = piece;
-        move.captured  = at(to).type;
-        out.push_back(move);
-    };
-
     const Square first = onlyFrom == kNoSquare ? 0 : onlyFrom;
     const Square last  = onlyFrom == kNoSquare ? 63 : onlyFrom;
 
     for (Square from = first; from <= last; ++from) {
         const Piece piece = at(from);
-        if (piece.empty() || piece.color != us)
+        if (piece.empty() || piece.color != _turn)
             continue;
-        const int file = fileOf(from), rank = rankOf(from);
-
         switch (piece.type) {
-        case PieceType::Pawn: {
-            const int forward   = us == Color::White ? 1 : -1;
-            const int homeRank  = us == Color::White ? 1 : 6;
-            const int lastRank  = us == Color::White ? 7 : 0;
-            const auto addPawn = [&](Square to) {
-                if (rankOf(to) == lastRank) {
-                    for (PieceType promotion :
-                         {PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight})
-                        add(from, to, PieceType::Pawn, promotion);
-                } else {
-                    add(from, to, PieceType::Pawn);
-                }
-            };
-
-            if (onBoard(file, rank + forward) && at(makeSquare(file, rank + forward)).empty()) {
-                addPawn(makeSquare(file, rank + forward));
-                if (rank == homeRank && at(makeSquare(file, rank + 2 * forward)).empty())
-                    add(from, makeSquare(file, rank + 2 * forward), PieceType::Pawn);
-            }
-            for (int df : {-1, 1}) {
-                if (!onBoard(file + df, rank + forward))
-                    continue;
-                const Square to     = makeSquare(file + df, rank + forward);
-                const Piece  target = at(to);
-                if (!target.empty() && target.color == them) {
-                    addPawn(to);
-                } else if (to == _enPassant && target.empty()) {
-                    Move move;
-                    move.from      = from;
-                    move.to        = to;
-                    move.piece     = PieceType::Pawn;
-                    move.captured  = PieceType::Pawn;
-                    move.enPassant = true;
-                    out.push_back(move);
-                }
-            }
+        case PieceType::Pawn:
+            pawnMoves(from, out);
             break;
-        }
-
         case PieceType::Knight:
-        case PieceType::King: {
-            const auto& steps = piece.type == PieceType::Knight ? kKnightSteps : kKingSteps;
-            for (const Step& step : steps) {
-                if (!onBoard(file + step.file, rank + step.rank))
-                    continue;
-                const Square to     = makeSquare(file + step.file, rank + step.rank);
-                const Piece  target = at(to);
-                if (target.empty() || target.color == them)
-                    add(from, to, piece.type);
-            }
-
-            if (piece.type == PieceType::King) {
-                // Castling. The king must be at home with the right intact, the
-                // squares between king and rook empty, and the king may not be
-                // in check, pass through check or land in check. (Landing is
-                // covered by the legality filter like any other move; the
-                // square it passes over is checked here.)
-                const Square home = us == Color::White ? kE1 : kE8;
-                if (from != home || isAttacked(home, them))
-                    break;
-                if (canCastle(us, Wing::King) && at(home + 1).empty() && at(home + 2).empty() &&
-                    !isAttacked(home + 1, them)) {
-                    Move move;
-                    move.from           = home;
-                    move.to             = home + 2;
-                    move.piece          = PieceType::King;
-                    move.castleKingSide = true;
-                    out.push_back(move);
-                }
-                if (canCastle(us, Wing::Queen) && at(home - 1).empty() && at(home - 2).empty() &&
-                    at(home - 3).empty() && !isAttacked(home - 1, them)) {
-                    Move move;
-                    move.from            = home;
-                    move.to              = home - 2;
-                    move.piece           = PieceType::King;
-                    move.castleQueenSide = true;
-                    out.push_back(move);
-                }
-            }
+            stepMoves(from, piece.type, out);
             break;
-        }
-
+        case PieceType::King:
+            stepMoves(from, piece.type, out);
+            castlingMoves(from, out);
+            break;
         case PieceType::Bishop:
         case PieceType::Rook:
-        case PieceType::Queen: {
-            const auto slide = [&](const Step& step) {
-                int f = file + step.file, r = rank + step.rank;
-                while (onBoard(f, r)) {
-                    const Square to     = makeSquare(f, r);
-                    const Piece  target = at(to);
-                    if (target.empty()) {
-                        add(from, to, piece.type);
-                    } else {
-                        if (target.color == them)
-                            add(from, to, piece.type);
-                        break;
-                    }
-                    f += step.file;
-                    r += step.rank;
-                }
-            };
-            if (piece.type != PieceType::Rook) {
-                for (const Step& step : kDiagonals)
-                    slide(step);
-            }
-            if (piece.type != PieceType::Bishop) {
-                for (const Step& step : kStraights)
-                    slide(step);
-            }
+        case PieceType::Queen:
+            slideMoves(from, piece.type, out);
             break;
-        }
-
         case PieceType::None:
             break;
         }
+    }
+}
+
+void Position::pawnMoves(Square from, std::vector<Move>& out) const {
+    const Color us = _turn, them = opposite(_turn);
+    const int file = fileOf(from), rank = rankOf(from);
+    const int forward  = us == Color::White ? 1 : -1;
+    const int homeRank = us == Color::White ? 1 : 6;
+    const int lastRank = us == Color::White ? 7 : 0;
+
+    // A pawn that reaches the last rank becomes any of four pieces: four moves.
+    const auto addPawn = [&](Square to) {
+        if (rankOf(to) == lastRank) {
+            for (PieceType promotion : {PieceType::Queen, PieceType::Rook, PieceType::Bishop, PieceType::Knight})
+                addMove(out, *this, from, to, PieceType::Pawn, promotion);
+        } else {
+            addMove(out, *this, from, to, PieceType::Pawn);
+        }
+    };
+
+    if (onBoard(file, rank + forward) && at(makeSquare(file, rank + forward)).empty()) {
+        addPawn(makeSquare(file, rank + forward));
+        if (rank == homeRank && at(makeSquare(file, rank + 2 * forward)).empty())
+            addMove(out, *this, from, makeSquare(file, rank + 2 * forward), PieceType::Pawn);
+    }
+    for (int df : {-1, 1}) {
+        if (!onBoard(file + df, rank + forward))
+            continue;
+        const Square to     = makeSquare(file + df, rank + forward);
+        const Piece  target = at(to);
+        if (!target.empty() && target.color == them) {
+            addPawn(to);
+        } else if (to == _enPassant && target.empty()) {
+            Move move;
+            move.from      = from;
+            move.to        = to;
+            move.piece     = PieceType::Pawn;
+            move.captured  = PieceType::Pawn;
+            move.enPassant = true;
+            out.push_back(move);
+        }
+    }
+}
+
+void Position::stepMoves(Square from, PieceType piece, std::vector<Move>& out) const {
+    const Color them = opposite(_turn);
+    const int file = fileOf(from), rank = rankOf(from);
+    const auto& steps = piece == PieceType::Knight ? kKnightSteps : kKingSteps;
+    for (const Step& step : steps) {
+        if (!onBoard(file + step.file, rank + step.rank))
+            continue;
+        const Square to     = makeSquare(file + step.file, rank + step.rank);
+        const Piece  target = at(to);
+        if (target.empty() || target.color == them)
+            addMove(out, *this, from, to, piece);
+    }
+}
+
+void Position::slideMoves(Square from, PieceType piece, std::vector<Move>& out) const {
+    const Color them = opposite(_turn);
+    const int file = fileOf(from), rank = rankOf(from);
+    // Along one line until the edge, a piece of its own, or one it takes.
+    const auto slide = [&](const Step& step) {
+        int f = file + step.file, r = rank + step.rank;
+        while (onBoard(f, r)) {
+            const Square to     = makeSquare(f, r);
+            const Piece  target = at(to);
+            if (target.empty()) {
+                addMove(out, *this, from, to, piece);
+            } else {
+                if (target.color == them)
+                    addMove(out, *this, from, to, piece);
+                break;
+            }
+            f += step.file;
+            r += step.rank;
+        }
+    };
+    if (piece != PieceType::Rook) {
+        for (const Step& step : kDiagonals)
+            slide(step);
+    }
+    if (piece != PieceType::Bishop) {
+        for (const Step& step : kStraights)
+            slide(step);
+    }
+}
+
+// The king must be at home with the right intact, the squares between king
+// and rook empty, and the king may not be in check, pass through check or
+// land in check. (Landing is covered by the legality filter like any other
+// move; the square it passes over is checked here.)
+void Position::castlingMoves(Square from, std::vector<Move>& out) const {
+    const Color  us = _turn, them = opposite(_turn);
+    const Square home = us == Color::White ? kE1 : kE8;
+    if (from != home || isAttacked(home, them))
+        return;
+    if (canCastle(us, Wing::King) && at(home + 1).empty() && at(home + 2).empty() && !isAttacked(home + 1, them)) {
+        Move move;
+        move.from           = home;
+        move.to             = home + 2;
+        move.piece          = PieceType::King;
+        move.castleKingSide = true;
+        out.push_back(move);
+    }
+    if (canCastle(us, Wing::Queen) && at(home - 1).empty() && at(home - 2).empty() && at(home - 3).empty() &&
+        !isAttacked(home - 1, them)) {
+        Move move;
+        move.from            = home;
+        move.to              = home - 2;
+        move.piece           = PieceType::King;
+        move.castleQueenSide = true;
+        out.push_back(move);
     }
 }
 
