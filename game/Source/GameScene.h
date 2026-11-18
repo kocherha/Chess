@@ -26,6 +26,7 @@
 
 #include "chess/Engine.h"
 #include "chess/Game.h"
+#include "chess/GameReview.h"
 #include "chess/Judge.h"
 
 #include "axmol.h"
@@ -95,24 +96,13 @@ private:
     void showHint();
     bool analysisUsable() const;
 
-    // What it has said about each position of the game, and the marks that
-    // follow from it (see chess/Judge.h). A mark needs two positions looked
-    // at — before the move and after — and a position the game moved on from
-    // too quickly gets its turn once the engine has nothing more urgent.
-    struct Finding {
-        int  depth    = 0;
-        bool complete = false;  // the search ran its course instead of being cut short
-        chess::Score score;     // for the side to move there
-        std::string  best;      // its first choice, UCI
-        std::optional<chess::Score> second;  // what its second choice was worth
-    };
-    void rekey();
-    void keepWhatWasFound();
-    void note(const chess::SearchResult& result, bool complete);
-    const Finding* found(const std::string& key) const;
-    bool usable(const Finding* finding) const;
-    void judgeMoves();
+    // What it has said about the game's positions, and the marks that follow,
+    // are _review's (see chess/GameReview.h). The scene runs the searches:
+    // the position on the board first, then — with nothing more urgent — the
+    // ones the game moved on from too quickly.
+    bool keepWhatWasFound();
     void reviewNext();
+    void marksChanged();
     void showMoves();
 
     bool againstComputer() const { return _setup.opponent == GameSetup::Opponent::Computer; }
@@ -199,12 +189,8 @@ private:
     int            _analysisTag  = 0;
     bool           _analysisDone = false;
     std::string    _analysisBest;        // UCI; set when the analysis has finished
-    // One key per position of the game as it stands, the starting one first:
-    // the `position` command that leads there. The last is the board now.
-    std::vector<std::string>       _keys;
-    std::map<std::string, Finding> _findings;   // by key; kept when a move is taken back
-    std::string                    _searchKey;  // which position the search in progress is of
-    std::vector<chess::Mark>       _marks;      // one per move played
+    chess::GameReview _review;
+    std::string       _searchKey;  // which position the search in progress is of (a key of _review's)
     bool           _hintWanted   = false;  // show that move as soon as it is known
     bool           _barShown     = false;  // is there a bar in the layout right now?
     chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as last seen by update()

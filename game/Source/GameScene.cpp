@@ -64,13 +64,6 @@ constexpr int kAnalysisDepth = 22;
 // than this is shown unless it is all there will ever be.
 constexpr int kAnalysisMinDepth = 6;
 
-// Marking moves. A position the game left before the engine had looked this
-// deep is looked at again later, for at most this long; and no mark is made
-// from anything shallower than kMarkDepth, finished or not.
-constexpr int kReviewDepth = 18;
-constexpr int kReviewMs    = 800;
-constexpr int kMarkDepth   = 14;
-
 // The pause before a reply that needed no thinking.
 constexpr float kReplyPause = 0.45f;
 
@@ -426,8 +419,7 @@ void GameScene::startGame(const GameSetup& setup) {
     _replyPending = false;
     _hintWanted   = false;
     _replies.clear();
-    _findings.clear();
-    _marks.clear();
+    _review.clear();
     _searchKey.clear();
 
     // The command line may have asked for a particular start. That is honoured
@@ -620,70 +612,29 @@ void GameScene::pollEngine() {
 
 // --- the engine that watches -------------------------------------------------------
 
-// The key of every position the game has been through, in order. The same
-// text the engine is given, so the last one is Game::uciPosition().
-void GameScene::rekey() {
-    _keys.clear();
-    std::string key = "position ";
-    if (_game.startPosition() == Position::initial())
-        key += "startpos";
-    else
-        key += "fen " + _game.startPosition().fen();
-    _keys.push_back(key);
-
-    bool first = true;
-    for (const Game::Record& record : _game.history()) {
-        key += first ? " moves " : " ";
-        key += record.move.uci();
-        first = false;
-        _keys.push_back(key);
-    }
-}
-
-const GameScene::Finding* GameScene::found(const std::string& key) const {
-    const auto it = _findings.find(key);
-    return it == _findings.end() ? nullptr : &it->second;
-}
-
-// Deep enough to judge a move by?
-bool GameScene::usable(const Finding* finding) const {
-    return finding != nullptr && finding->score.known() && finding->depth >= kMarkDepth;
-}
-
-void GameScene::note(const SearchResult& result, bool complete) {
-    if (_searchKey.empty() || (!result.scoreCp && !result.mateIn))
-        return;
-    Finding& finding = _findings[_searchKey];
-    if (!complete && (finding.complete || result.depth < finding.depth))
-        return;  // what is already known is better
-
-    finding.depth    = result.depth;
-    finding.complete = complete;
-    finding.score    = Score{result.scoreCp, result.mateIn};
-    finding.best     = !result.bestMove.empty() ? result.bestMove : result.pvMove;
-    finding.second.reset();
-    if ((result.secondCp || result.secondMate) && result.secondDepth >= result.depth - 1)
-        finding.second = Score{result.secondCp, result.secondMate};
-}
-
 // A search is about to be abandoned: whatever it has found so far is still
-// worth having.
-void GameScene::keepWhatWasFound() {
+// worth having. True if that changed the marks.
+bool GameScene::keepWhatWasFound() {
     SearchResult result;
-    if (_analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag)
-        note(result, false);
+    return _analysisTag != 0 && _analysis.progress(result) && result.tag == _analysisTag &&
+           _review.note(_searchKey, result, false);
+}
+
+void GameScene::marksChanged() {
+    showMoves();
+    refreshMarks();
 }
 
 void GameScene::analyse() {
-    keepWhatWasFound();
+    const bool marked = keepWhatWasFound();
     _analysis.cancel();
     _analysisTag  = 0;
     _analysisDone = false;
     _analysisBest.clear();
     _searchKey.clear();
 
-    rekey();
-    judgeMoves();
+    if (_review.follow(_game) || marked)
+        marksChanged();
 
     if (!_started) {
         _evalBar->show({});
@@ -707,7 +658,7 @@ void GameScene::analyse() {
         return;
 
     // Been here before — a move was taken back? Then it is already known.
-    if (const Finding* known = found(_keys.back()); known != nullptr && known->complete) {
+    if (const auto* known = _review.found(_review.now()); known != nullptr && known->complete) {
         _analysisDone = true;
         _analysisBest = known->best;
         showScore(known->score);
@@ -721,12 +672,12 @@ void GameScene::analyse() {
     // something to say. One move rarely changes the picture much, and a bar
     // that jumped back to the middle after every move would be all flicker.
     SearchRequest request;
-    request.position   = _keys.back();
+    request.position   = _review.now();
     request.moveTimeMs = kAnalysisMs;
     request.depth      = kAnalysisDepth;
     request.options    = analysisOptions();
     request.tag = _analysisTag = _nextTag++;
-    _searchKey = _keys.back();
+    _searchKey = _review.now();
     _analysis.search(std::move(request));
 }
 
@@ -736,70 +687,13 @@ void GameScene::analyse() {
 void GameScene::reviewNext() {
     if (!analysisUsable() || _analysisTag != 0 || !_started)
         return;
-
-    // The last position of a game that ended on the board is judged without
-    // an engine (see judgeMoves); after a resignation it is a position like
-    // any other.
-    const Status status = _game.status();
-    const bool   settled = status.over() && status.outcome != Outcome::Resignation;
-
-    for (std::size_t i = _keys.size(); i-- > 0;) {
-        if (i + 1 == _keys.size() && settled)
-            continue;
-        const Finding* known = found(_keys[i]);
-        if (known != nullptr && (known->complete || known->depth >= kReviewDepth))
-            continue;
-
-        SearchRequest request;
-        request.position   = _keys[i];
-        request.moveTimeMs = kReviewMs;
-        request.depth      = kReviewDepth;
-        request.options    = analysisOptions();
-        request.tag = _analysisTag = _nextTag++;
-        _searchKey = _keys[i];
-        _analysis.search(std::move(request));
+    auto request = _review.nextToReview();
+    if (!request)
         return;
-    }
-}
-
-void GameScene::judgeMoves() {
-    const auto& history = _game.history();
-    std::vector<Mark> marks(history.size(), Mark::None);
-
-    // The last position of a game that ended on the board needs no engine: a
-    // side that has been mated has no chances left, and a draw is a draw.
-    std::optional<Score> ending;
-    const Status status = _game.status();
-    if (status.outcome == Outcome::Checkmate)
-        ending = Score{std::nullopt, 0};
-    else if (status.over() && status.outcome != Outcome::Resignation)
-        ending = Score{0, std::nullopt};
-
-    for (std::size_t i = 0; i < history.size() && i + 1 < _keys.size(); ++i) {
-        const Finding* before = found(_keys[i]);
-        if (!usable(before))
-            continue;
-
-        Evidence evidence;
-        evidence.best     = before->score;
-        evidence.bestMove = before->best;
-        evidence.second   = before->second;
-        if (i + 1 == history.size() && ending) {
-            evidence.after = *ending;
-        } else {
-            const Finding* after = found(_keys[i + 1]);
-            if (!usable(after))
-                continue;
-            evidence.after = after->score;
-        }
-        marks[i] = judge(history[i].before, history[i].move, evidence, i > 0 ? &history[i - 1].move : nullptr);
-    }
-
-    if (marks != _marks) {
-        _marks = std::move(marks);
-        showMoves();
-        refreshMarks();
-    }
+    request->options = analysisOptions();
+    request->tag = _analysisTag = _nextTag++;
+    _searchKey = request->position;
+    _analysis.search(std::move(*request));
 }
 
 void GameScene::showScore(const Score& found) {
@@ -824,7 +718,7 @@ void GameScene::pollAnalysis() {
     // Is the search in progress about the position on the board, or one of
     // the earlier ones being gone back over?
     const auto onBoard = [this] {
-        return !_keys.empty() && _searchKey == _keys.back() && !_game.status().over();
+        return _searchKey == _review.now() && !_game.status().over();
     };
 
     // While it is still looking at the position on the board: follow along.
@@ -836,8 +730,8 @@ void GameScene::pollAnalysis() {
     while (_analysis.poll(result)) {
         if (_analysisTag == 0 || result.tag != _analysisTag)
             continue;
-        _analysisTag = 0;
-        note(result, true);
+        _analysisTag      = 0;
+        const bool marked = _review.note(_searchKey, result, true);
 
         if (onBoard()) {
             _analysisDone = true;
@@ -847,7 +741,8 @@ void GameScene::pollAnalysis() {
                 showHint();
         }
         _searchKey.clear();
-        judgeMoves();
+        if (marked)
+            marksChanged();
         refresh();
         reviewNext();
     }
@@ -1058,7 +953,7 @@ void GameScene::copyGame() {
         tags.black = _human == Color::Black ? kPgnPlayer : engine;
     }
     std::vector<std::string> marks;
-    for (const Mark mark : _marks)
+    for (const Mark mark : _review.marks())
         marks.emplace_back(suffix(mark));
     desktop::copy(_game.pgn(tags, marks));
     _panel->markMove(-1);
@@ -1073,8 +968,7 @@ void GameScene::copyMove(int index) {
     const Game::Record& record = _game.history()[static_cast<std::size_t>(index)];
     const std::string number   = std::to_string(record.before.fullmoveNumber()) +
                                  (record.before.sideToMove() == Color::White ? ". " : "... ");
-    const Mark mark = static_cast<std::size_t>(index) < _marks.size() ? _marks[static_cast<std::size_t>(index)]
-                                                                      : Mark::None;
+    const Mark mark = _review.mark(static_cast<std::size_t>(index));
     desktop::copy(number + text::localSan(record.san) + suffix(mark));
     _panel->markMove(index);
     showCopied();
@@ -1471,7 +1365,7 @@ void GameScene::showMoves() {
     _panel->setMoves(moves, _game.startPosition().sideToMove() == Color::White,
                      _game.startPosition().fullmoveNumber());
 
-    std::vector<Mark> marks = _marks;
+    std::vector<Mark> marks = _review.marks();
     marks.resize(moves.size(), Mark::None);  // the list may be a move ahead of the marks, or behind
     _panel->setMarks(marks);
     _panel->setResult(text::resultSign(_game.status()));
@@ -1526,8 +1420,8 @@ void GameScene::refreshMarks() {
     marks.hintTo   = _hintTo;
 
     // What the last move was worth, on the square it went to.
-    if (!_marks.empty() && _marks.size() == _game.plies())
-        marks.verdict = _marks.back();
+    if (const auto& verdicts = _review.marks(); !verdicts.empty() && verdicts.size() == _game.plies())
+        marks.verdict = verdicts.back();
     _board->setMarks(marks);
 }
 

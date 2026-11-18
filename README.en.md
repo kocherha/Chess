@@ -543,8 +543,9 @@ engine/uci/                   talking to the engine; knows nothing of the rules
   include/chess/Engine.h      UCI: ask for a move, cancel, get the answer later
   include/chess/Difficulty.h  the difficulty levels and the scale between them
   tests/                      a fake engine (sh) and the real Stockfish
-engine/session/               solving a problem without a screen: the rules + questions to the engine
-  include/chess/PuzzleSession.h  a move, checking it, the defence, the hint, the solution
+engine/session/               the modes of the game without a screen: the rules + questions to the engine
+  include/chess/PuzzleSession.h  a problem: a move, checking it, the defence, the hint, the solution
+  include/chess/GameReview.h  what the engine found about a game's positions, and the marks from it
   tests/                      every step of it, with no window and no real engine
 game/                         the axmol application
   Source/AppDelegate.*        the window, the command line, the main loop
@@ -685,7 +686,7 @@ cmake -S . -B build -DCHESS_BUILD_APP=OFF && cmake --build build -j
 ctest --test-dir build --output-on-failure
 ```
 
-135 tests. Those that play against the real Stockfish skip themselves if the
+149 tests. Those that play against the real Stockfish skip themselves if the
 binary is not there; among them are games at every level in which each move the
 engine makes has to be legal by this project's own rules.
 
