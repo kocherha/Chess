@@ -13,8 +13,8 @@ namespace stockfish {
 std::string path();
 
 // CHESS_UCI_LOG=1: every line to and from `engine` goes to stderr, after
-// `who` — "uci " for the opponent, "eval" for the engine that watches,
-// "puzzle" for the problems mode's own.
+// `who` — "uci " for the opponent, "eval" for the engine that watches (and,
+// while they are open, works for the problems).
 void traceIfAsked(chess::Engine& engine, const char* who);
 
 }  // namespace stockfish

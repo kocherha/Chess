@@ -124,6 +124,12 @@ public:
     // Abandons the current search, if any. No result will be delivered for it.
     void cancel();
 
+    // Someone else is about to use this engine (one Stockfish serves both
+    // the game's analysis and the problems): cancel(), and the answers not
+    // collected yet are thrown away too — none of them is the new user's,
+    // and a tag of theirs could happen to match one.
+    void handOver();
+
     // Is there a request whose result has not been produced yet?
     bool thinking() const;
 

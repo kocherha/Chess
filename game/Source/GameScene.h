@@ -172,6 +172,7 @@ private:
     chess::Color  _human = chess::Color::White;  // the person's side against the computer
     bool          _started = false;              // has the first game been set up?
     std::optional<chess::Position> _startFrom;   // the next new game begins here, not at the start
+    bool _lentAnalysis = false;  // the watching engine is the problems mode's for now
 
     // Requests to an engine carry a tag; an answer whose tag is no longer the
     // one we are waiting for is an answer to a question nobody is asking any

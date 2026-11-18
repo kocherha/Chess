@@ -62,13 +62,20 @@ public:
         std::string screenshot;
     };
 
-    static PuzzleScene* create(Hooks hooks, Opening opening);
-    ~PuzzleScene() override;
+    // `engine` is the game's watching engine, lent for as long as this scene
+    // is on screen: the game is not looking at anything meanwhile, and a
+    // Stockfish of its own each time the problems open would be a process,
+    // a network to load and a handshake for nothing. It must outlive the
+    // scene. Leaving hands it back clean (onExit).
+    static PuzzleScene* create(chess::Engine& engine, Hooks hooks, Opening opening);
 
     void update(float delta) override;
     void onEnter() override;
+    void onExit() override;
 
 private:
+    explicit PuzzleScene(chess::Engine& engine) : _engine(engine) {}
+
     enum class Page { Editor, Solving };
 
     // What the editor has asked the engine. (Solving asks through the
@@ -157,7 +164,7 @@ private:
     // The engine. The editor's questions carry negative tags, the session's
     // positive ones: one engine, two askers, and each answer goes back to
     // the one that asked.
-    chess::Engine _engine;
+    chess::Engine& _engine;
     Question      _question = Question::None;
     int           _tag = 0, _nextTag = -1;
     chess::Engine::State _engineState = chess::Engine::State::Stopped;  // as update() last saw it

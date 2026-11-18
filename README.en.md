@@ -646,9 +646,12 @@ middle of a game, the game says so and starts it again with the next new game.
 the opponent, `eval` the one that watches.
 
 **The problems mode is a scene of its own, pushed over the game**
-(`pushScene`/`popScene`): the game, with both its engines, waits under it
-unchanged. The problems have a Stockfish of their own, a third one. It runs on
-one thread: with several, Stockfish sometimes ends a search restricted to one
+(`pushScene`/`popScene`): the game waits under it unchanged. The problems are
+lent the engine that watches the game — while they are open the game has
+nothing to look at; what it had found is kept, and on the way back it goes on
+from the position on the board. They start no process of their own. That
+engine runs on one thread, which is what the problems need: with several,
+Stockfish sometimes ends a search restricted to one
 move (`go mate N searchmoves …`) after a few plies and without the mate it would
 have found — and that is exactly the search a player's move is judged by. If
 no mate is found from the attacking side, before saying “no” the engine is also

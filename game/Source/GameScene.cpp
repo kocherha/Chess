@@ -229,6 +229,10 @@ void GameScene::onEnter() {
     layout();
     restyle();
     refresh();
+    if (_lentAnalysis) {
+        _lentAnalysis = false;
+        analyse();  // the engine is back: on with the position on the board
+    }
     keepAwake();
 }
 
@@ -255,8 +259,17 @@ void GameScene::openPuzzles() {
     options.editFen.clear();
     options.puzzle.clear();
 
-    if (auto* scene = PuzzleScene::create(std::move(hooks), std::move(opening)))
+    // The watching engine goes with them: whatever it was looking at is kept
+    // as far as it got, and looked at again on the way back (onEnter).
+    if (auto* scene = PuzzleScene::create(_analysis, std::move(hooks), std::move(opening))) {
+        if (keepWhatWasFound())
+            marksChanged();
+        _analysis.handOver();
+        _analysisTag = 0;
+        _searchKey.clear();
+        _lentAnalysis = true;
         Director::getInstance()->pushScene(scene);
+    }
     keepAwake();
 }
 

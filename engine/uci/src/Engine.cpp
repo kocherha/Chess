@@ -168,6 +168,12 @@ void Engine::cancel() {
     }
 }
 
+void Engine::handOver() {
+    cancel();
+    std::lock_guard lock(_mutex);
+    _results.clear();
+}
+
 bool Engine::thinking() const {
     std::lock_guard lock(_mutex);
     if (_state == State::Failed || _state == State::Stopped)

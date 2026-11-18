@@ -4,7 +4,6 @@
 #include "EventLog.h"
 #include "Look.h"
 #include "Shapes.h"
-#include "Stockfish.h"
 #include "Strings.h"
 #include "Text.h"
 #include "Theme.h"
@@ -40,8 +39,8 @@ std::vector<std::pair<std::string, std::string>> puzzleOptions() {
 
 }  // namespace
 
-PuzzleScene* PuzzleScene::create(Hooks hooks, Opening opening) {
-    auto* scene = new PuzzleScene();
+PuzzleScene* PuzzleScene::create(Engine& engine, Hooks hooks, Opening opening) {
+    auto* scene = new PuzzleScene(engine);
     if (scene->initWith(std::move(hooks), std::move(opening))) {
         scene->autorelease();
         return scene;
@@ -50,9 +49,6 @@ PuzzleScene* PuzzleScene::create(Hooks hooks, Opening opening) {
     return nullptr;
 }
 
-PuzzleScene::~PuzzleScene() {
-    _engine.shutdown();
-}
 
 // --- setting up --------------------------------------------------------------------
 
@@ -179,14 +175,6 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
                                  .resized = [this] { layout(); },
                                  .closing = [this](bool& closing) { askBeforeQuitting(closing); }});
 
-    // The engine: the same Stockfish the game plays with, a process of this
-    // scene's own.
-    if (const std::string path = stockfish::path(); !path.empty()) {
-        stockfish::traceIfAsked(_engine, "puzzle");
-        if (!_engine.start(path))
-            AXLOGW("puzzle engine did not start: {}", _engine.error());
-    }
-
     layout();
 
     const Puzzle chosen = _opening.puzzle.empty() ? Puzzle{} : puzzles::find(_opening.puzzle);
@@ -205,6 +193,12 @@ bool PuzzleScene::initWith(Hooks hooks, Opening opening) {
     if (!_opening.screenshot.empty())
         captureAndQuit();
     return true;
+}
+
+void PuzzleScene::onExit() {
+    // The engine goes back to the game with nothing of ours on it.
+    _engine.handOver();
+    Scene::onExit();
 }
 
 void PuzzleScene::onEnter() {

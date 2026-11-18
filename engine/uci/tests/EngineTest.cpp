@@ -164,6 +164,24 @@ TEST(FakeEngine, CancelMeansNoAnswer) {
     EXPECT_EQ(result.tag, 2);
 }
 
+TEST(FakeEngine, HandingOverThrowsAwayUncollectedAnswers) {
+    Engine engine;
+    ASSERT_TRUE(startedAndReady(engine));
+
+    engine.search(quick(1));
+    ASSERT_TRUE(waitFor([&] { return !engine.thinking(); }));  // answered, not collected
+    engine.search(endless(2));
+    engine.handOver();
+    EXPECT_FALSE(engine.thinking());
+
+    SearchResult result;
+    EXPECT_FALSE(waitForResult(engine, result, 150ms));  // neither the old answer nor the cut one
+
+    engine.search(quick(3));
+    ASSERT_TRUE(waitForResult(engine, result));
+    EXPECT_EQ(result.tag, 3);
+}
+
 TEST(FakeEngine, MateScoresAreNotCentipawns) {
     Engine engine;
     ASSERT_TRUE(startedAndReady(engine));
